@@ -10,6 +10,11 @@
 	>
 
 	<meta
+		name="theme-color"
+		content="#171511"
+	>
+
+	<meta
 		name="description"
 		content="Zafarmand design studio"
 	>
@@ -20,59 +25,258 @@
 		rel="stylesheet"
 		href="/static/css/main.css"
 	>
+
+	<link
+		rel="stylesheet"
+		href="/static/css/navigation.css"
+	>
 </head>
 
-<body>
+<body
+	class="site-body"
+	data-current-path="{{.CurrentPath}}"
+>
 	<a class="skip-link" href="#main-content">
 		Skip to content
 	</a>
 
-	<header class="site-header">
-		<a class="site-brand" href="/">
+	<header class="site-header" data-site-header>
+		<div class="site-header__left">
+			<button
+				class="icon-button menu-toggle"
+				type="button"
+				aria-label="Open navigation menu"
+				aria-expanded="false"
+				aria-controls="site-drawer"
+				data-menu-open
+			>
+				<span
+					class="menu-toggle__lines"
+					aria-hidden="true"
+				>
+					<span></span>
+					<span></span>
+					<span></span>
+				</span>
+			</button>
+		</div>
+
+		<a
+			class="mobile-home-link"
+			href="/"
+			aria-label="Zafarmand homepage"
+		>
 			Zafarmand
 		</a>
 
 		<nav
-			class="site-navigation"
-			aria-label="Main navigation"
-	>
+			class="discipline-nav"
+			aria-label="Design disciplines"
+		>
 			<a
-				href="/"
-				class="navigation-link
-				{{if eq .CurrentPath "/"}}is-active{{end}}"
-			>
-				Home
-			</a>
-
-			<a
-				href="/products"
-				class="navigation-link
-				{{if eq .CurrentPath "/products"}}is-active{{end}}"
-			>
-				Products
-			</a>
-
-			<a
-				href="/interior-design"
-				class="navigation-link
+				class="discipline-nav__link
 				{{if eq .CurrentPath "/interior-design"}}is-active{{end}}"
+				href="/interior-design"
+				{{if eq .CurrentPath "/interior-design"}}
+					aria-current="page"
+				{{end}}
 			>
 				Interior Design
 			</a>
 
 			<a
-				href="/architecture-design"
-				class="navigation-link
+				class="discipline-nav__link
 				{{if eq .CurrentPath "/architecture-design"}}is-active{{end}}"
+				href="/architecture-design"
+				{{if eq .CurrentPath "/architecture-design"}}
+					aria-current="page"
+				{{end}}
 			>
 				Architecture Design
 			</a>
+
+			<a
+				class="discipline-nav__link
+				{{if eq .CurrentPath "/products"}}is-active{{end}}"
+				href="/products"
+				{{if eq .CurrentPath "/products"}}
+					aria-current="page"
+				{{end}}
+			>
+				Product
+			</a>
 		</nav>
+
+		<div class="site-header__right">
+			<button
+				class="icon-button search-button"
+				type="button"
+				aria-label="Search will be added later"
+				title="Search will be added later"
+				disabled
+			>
+				<svg
+					viewBox="0 0 24 24"
+					aria-hidden="true"
+				>
+					<circle
+						cx="10.8"
+						cy="10.8"
+						r="7.2"
+					></circle>
+
+					<path d="M16.2 16.2L21 21"></path>
+				</svg>
+			</button>
+		</div>
 	</header>
 
-{{block "content" .}}
-<main id="main-content"></main>
-{{end}}
+	<div
+		class="site-drawer"
+		id="site-drawer"
+		aria-hidden="true"
+		data-site-drawer
+	>
+		<button
+			class="site-drawer__backdrop"
+			type="button"
+			aria-label="Close navigation menu"
+			data-menu-close
+		></button>
+
+		<aside
+			class="site-drawer__panel"
+			aria-label="Website menu"
+		>
+			<div class="site-drawer__header">
+				<a
+					class="drawer-brand"
+					href="/"
+					data-menu-link
+				>
+					Zafarmand
+				</a>
+
+				<button
+					class="icon-button drawer-close"
+					type="button"
+					aria-label="Close navigation menu"
+					data-menu-close
+				>
+					<span
+						class="drawer-close__icon"
+						aria-hidden="true"
+					></span>
+				</button>
+			</div>
+
+			<div class="site-drawer__content">
+				<nav
+					class="drawer-disciplines"
+					aria-label="Design disciplines"
+				>
+					<a
+						class="drawer-disciplines__link
+						{{if eq .CurrentPath "/interior-design"}}is-active{{end}}"
+						href="/interior-design"
+						data-menu-link
+					>
+						<span>01</span>
+						Interior Design
+					</a>
+
+					<a
+						class="drawer-disciplines__link
+						{{if eq .CurrentPath "/architecture-design"}}is-active{{end}}"
+						href="/architecture-design"
+						data-menu-link
+					>
+						<span>02</span>
+						Architecture Design
+					</a>
+
+					<a
+						class="drawer-disciplines__link
+						{{if eq .CurrentPath "/products"}}is-active{{end}}"
+						href="/products"
+						data-menu-link
+					>
+						<span>03</span>
+						Product
+					</a>
+				</nav>
+
+				<nav
+					class="drawer-navigation"
+					aria-label="Studio navigation"
+				>
+					<a
+						class="drawer-navigation__link
+						{{if eq .CurrentPath "/"}}is-active{{end}}"
+						href="/"
+						data-menu-link
+					>
+						Home
+					</a>
+
+					<span
+						class="drawer-navigation__link is-disabled"
+						aria-disabled="true"
+					>
+						Projects
+					</span>
+
+					<span
+						class="drawer-navigation__link is-disabled"
+						aria-disabled="true"
+					>
+						Services
+					</span>
+
+					<span
+						class="drawer-navigation__link is-disabled"
+						aria-disabled="true"
+					>
+						About Us
+					</span>
+
+					<span
+						class="drawer-navigation__link is-disabled"
+						aria-disabled="true"
+					>
+						Journal
+					</span>
+
+					<span
+						class="drawer-navigation__link is-disabled"
+						aria-disabled="true"
+					>
+						Contact
+					</span>
+				</nav>
+			</div>
+
+			<footer class="site-drawer__footer">
+				<p class="drawer-footer__label">
+					Follow
+				</p>
+
+				<div
+					class="drawer-socials"
+					aria-label="Social profiles will be added later"
+				>
+					<span>Instagram</span>
+					<span>Pinterest</span>
+					<span>LinkedIn</span>
+				</div>
+			</footer>
+		</aside>
+	</div>
+
+	{{block "content" .}}
+	<main id="main-content"></main>
+	{{end}}
+
 	<script src="/static/js/main.js" defer></script>
 </body>
 </html>
