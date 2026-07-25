@@ -1,0 +1,79 @@
+{{define "base"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+
+	<meta
+		name="viewport"
+		content="width=device-width, initial-scale=1"
+	>
+
+	<meta
+		name="description"
+		content="Zafarmand design studio"
+	>
+
+	<title>{{.Title}} | Zafarmand</title>
+
+	<link
+		rel="stylesheet"
+		href="/static/css/main.css"
+	>
+</head>
+
+<body>
+	<a class="skip-link" href="#main-content">
+		Skip to content
+	</a>
+
+	<header class="site-header">
+		<a class="site-brand" href="/">
+			Zafarmand
+		</a>
+
+		<nav
+			class="site-navigation"
+			aria-label="Main navigation"
+	>
+			<a
+				href="/"
+				class="navigation-link
+				{{if eq .CurrentPath "/"}}is-active{{end}}"
+			>
+				Home
+			</a>
+
+			<a
+				href="/products"
+				class="navigation-link
+				{{if eq .CurrentPath "/products"}}is-active{{end}}"
+			>
+				Products
+			</a>
+
+			<a
+				href="/interior-design"
+				class="navigation-link
+				{{if eq .CurrentPath "/interior-design"}}is-active{{end}}"
+			>
+				Interior Design
+			</a>
+
+			<a
+				href="/architecture-design"
+				class="navigation-link
+				{{if eq .CurrentPath "/architecture-design"}}is-active{{end}}"
+			>
+				Architecture Design
+			</a>
+		</nav>
+	</header>
+
+{{block "content" .}}
+<main id="main-content"></main>
+{{end}}
+	<script src="/static/js/main.js" defer></script>
+</body>
+</html>
+{{end}}
