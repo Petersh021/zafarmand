@@ -1,0 +1,164 @@
+{{/*
+This file contains named templates shared by Products, Interior Design, and
+Architecture Design. The names are deliberately specific: defining generic
+"pageStyles" or "content" here would override base.html for every page set,
+including the homepage.
+*/}}
+
+{{/*
+disciplinePageStyles is called only by the three thin discipline page wrappers.
+The stylesheet therefore loads after main.css and navigation.css without
+leaking discipline-specific presentation into the homepage.
+*/}}
+{{define "disciplinePageStyles"}}
+<link
+	rel="stylesheet"
+	href="/static/css/discipline.css"
+>
+{{end}}
+
+{{/*
+disciplinePageContent always emits the unique skip-link target, even if a future
+handler accidentally provides nil DisciplinePage data. "with" changes dot from
+pageData to disciplinePageData only while valid landing data exists.
+*/}}
+{{define "disciplinePageContent"}}
+<main
+	class="discipline-page"
+	id="main-content"
+>
+	{{with .DisciplinePage}}
+	{{/*
+	The hero is a labelled section rather than a second main landmark. Its h1 is
+	the page's primary heading, while the CSS-only visual plane and watermark are
+	decorative and remain outside the accessibility tree.
+	*/}}
+	<section
+		class="discipline-hero"
+		aria-labelledby="discipline-title"
+	>
+		<div
+			class="discipline-hero__plane"
+			aria-hidden="true"
+		>
+			<span class="discipline-hero__watermark">
+				{{.Number}}
+			</span>
+		</div>
+
+		<div class="discipline-hero__inner">
+			<header class="discipline-hero__heading">
+				<p class="discipline-hero__eyebrow">
+					<span>Discipline</span>
+					<span>{{.Number}}</span>
+				</p>
+
+				<h1
+					class="discipline-hero__title"
+					id="discipline-title"
+				>
+					{{.Name}}
+				</h1>
+			</header>
+
+			{{/*
+			This navigation exposes only destinations that already exist. The
+			homepage fragment points at its real discipline index, and NextPath is
+			a registered server-rendered route supplied by the current handler.
+			Each complete anchor is a generous keyboard and touch target.
+			*/}}
+			<nav
+				class="discipline-route-nav"
+				aria-label="Discipline navigation"
+			>
+				<a
+					class="discipline-route-nav__link"
+					href="/#disciplines"
+				>
+					<span class="discipline-route-nav__label">
+						Overview
+					</span>
+
+					<span class="discipline-route-nav__value">
+						All disciplines
+					</span>
+
+					<span
+						class="discipline-route-nav__arrow"
+						aria-hidden="true"
+					>
+						&larr;
+					</span>
+				</a>
+
+				<a
+					class="discipline-route-nav__link
+					discipline-route-nav__link--next"
+					href="{{.NextPath}}"
+				>
+					<span class="discipline-route-nav__label">
+						Next discipline
+					</span>
+
+					<span class="discipline-route-nav__value">
+						{{.NextName}}
+					</span>
+
+					<span
+						class="discipline-route-nav__arrow"
+						aria-hidden="true"
+					>
+						&rarr;
+					</span>
+				</a>
+			</nav>
+		</div>
+	</section>
+
+	{{/*
+	This warm editorial section establishes the boundary where the later
+	discipline-specific vertical slices will render real database-ready entries.
+	It states the current empty condition honestly and contains no fake cards,
+	project names, media, prices, buttons, or placeholder URLs.
+	*/}}
+	<section
+		class="discipline-work"
+		id="selected-work"
+		aria-labelledby="selected-work-title"
+	>
+		<div class="discipline-work__inner">
+			<header class="discipline-work__header">
+				<p class="discipline-work__eyebrow">
+					Zafarmand archive
+				</p>
+
+				<h2
+					class="discipline-work__title"
+					id="selected-work-title"
+				>
+					Selected work
+				</h2>
+
+				<p class="discipline-work__status">
+					Selected entries are being prepared for publication.
+				</p>
+			</header>
+
+			{{/*
+			The ruled field reserves visual space for the future listing without
+			pretending to be content. It is hidden from assistive technology
+			because the preceding status sentence already communicates the state.
+			*/}}
+			<div
+				class="discipline-work__placeholder"
+				aria-hidden="true"
+			></div>
+		</div>
+	</section>
+	{{/*
+	End the optional landing-data block. If it is nil, main-content remains as a
+	valid, empty skip-link destination rather than emitting broken dynamic fields.
+	*/}}
+	{{end}}
+</main>
+{{end}}

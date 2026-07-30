@@ -61,56 +61,85 @@ func (app *application) homeHandler(
 //
 // CurrentPath matches the route exactly so shared navigation templates can
 // mark Products as the current page for sighted users and assistive technology.
+// DisciplinePage contains only truthful route-level presentation data: its
+// editorial sequence and the next registered discipline route. Product records,
+// collections, prices, and media remain deferred to the focused Products stage.
 func (app *application) productsHandler(
 	w http.ResponseWriter,
 	_ *http.Request,
 ) {
+	disciplinePage := &disciplinePageData{
+		Number:   "03",
+		Name:     "Products",
+		NextName: "Interior Design",
+		NextPath: "/interior-design",
+	}
+
 	app.render(
 		w,
 		http.StatusOK,
 		"products.html",
 		pageData{
-			Title:       "Products",
-			CurrentPath: "/products",
+			Title:          disciplinePage.Name,
+			CurrentPath:    "/products",
+			DisciplinePage: disciplinePage,
 		},
 	)
 }
 
 // interiorDesignHandler renders the Interior Design landing page.
 //
-// The handler contains only page-specific presentation data; common response
+// The handler supplies the shared discipline view model while common response
 // behavior such as template lookup, execution, headers, and errors remains in
-// application.render.
+// application.render. No fictional interior projects or descriptions are
+// introduced during this shared-pattern stage.
 func (app *application) interiorDesignHandler(
 	w http.ResponseWriter,
 	_ *http.Request,
 ) {
+	disciplinePage := &disciplinePageData{
+		Number:   "01",
+		Name:     "Interior Design",
+		NextName: "Architecture Design",
+		NextPath: "/architecture-design",
+	}
+
 	app.render(
 		w,
 		http.StatusOK,
 		"interior-design.html",
 		pageData{
-			Title:       "Interior Design",
-			CurrentPath: "/interior-design",
+			Title:          disciplinePage.Name,
+			CurrentPath:    "/interior-design",
+			DisciplinePage: disciplinePage,
 		},
 	)
 }
 
 // architectureDesignHandler renders the Architecture Design landing page.
 //
-// Separating each route into its own handler leaves a clear place to add
-// discipline-specific data later without coupling unrelated pages together.
+// Separating each route into its own handler leaves a clear place for the later
+// Architecture vertical slice, while DisciplinePage lets the current route
+// reuse the same accessible landing-page structure as the other disciplines.
 func (app *application) architectureDesignHandler(
 	w http.ResponseWriter,
 	_ *http.Request,
 ) {
+	disciplinePage := &disciplinePageData{
+		Number:   "02",
+		Name:     "Architecture Design",
+		NextName: "Products",
+		NextPath: "/products",
+	}
+
 	app.render(
 		w,
 		http.StatusOK,
 		"architecture-design.html",
 		pageData{
-			Title:       "Architecture Design",
-			CurrentPath: "/architecture-design",
+			Title:          disciplinePage.Name,
+			CurrentPath:    "/architecture-design",
+			DisciplinePage: disciplinePage,
 		},
 	)
 }

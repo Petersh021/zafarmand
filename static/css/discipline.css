@@ -1,0 +1,590 @@
+/* --------------------------------------------------
+   Stage 5: Shared discipline landing-page pattern
+
+   Products, Interior Design, and Architecture Design all load this stylesheet
+   through their thin page wrappers. Every page-level selector is namespaced
+   with "discipline-" so the shared pattern remains independent from the
+   homepage and from the later discipline-specific listing components.
+-------------------------------------------------- */
+
+/*
+ * The shared header remains fixed while the warm selected-work surface scrolls
+ * underneath it. A consistently dark translucent background preserves the
+ * light navigation's contrast over both the dark hero and that light section.
+ * This rule is safe to target directly because discipline.css is loaded only
+ * by discipline page wrappers and after navigation.css.
+ */
+.site-header {
+	background: rgba(17, 16, 13, 0.9);
+	box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+/*
+ * Browsers supporting backdrop-filter receive a restrained blur. The opaque
+ * fallback above remains fully usable in browsers without filter support.
+ */
+@supports (
+		(-webkit-backdrop-filter: blur(0.75rem)) or
+		(backdrop-filter: blur(0.75rem))
+	) {
+	.site-header {
+		background: rgba(17, 16, 13, 0.8);
+		-webkit-backdrop-filter: blur(0.75rem);
+		backdrop-filter: blur(0.75rem);
+	}
+}
+
+/*
+ * The main landmark owns the complete discipline composition. Its light
+ * background also paints any space exposed during overscroll below the hero.
+ */
+.discipline-page {
+	--discipline-dark: #151410;
+	--discipline-light: #e8e3d9;
+	--discipline-light-ink: #1a1814;
+	--discipline-light-soft: rgba(26, 24, 20, 0.64);
+	--discipline-light-rule: rgba(26, 24, 20, 0.24);
+
+	min-width: 0;
+	background: var(--discipline-light);
+}
+
+/*
+ * The hero establishes a full-viewport editorial canvas without pretending a
+ * reference screenshot is production media. The two gradients create depth
+ * behind the CSS-only architectural plane. Both 100vh and 100svh are declared:
+ * the former is the broad fallback, while the latter follows the small visible
+ * viewport around mobile browser controls.
+ */
+.discipline-hero {
+	position: relative;
+	isolation: isolate;
+	min-height: 100vh;
+	min-height: 100svh;
+	overflow: hidden;
+	background:
+		radial-gradient(
+			circle at 72% 42%,
+			rgba(159, 145, 119, 0.19),
+			transparent 33%
+		),
+		linear-gradient(
+			125deg,
+			#11100d,
+			#1d1b16 55%,
+			#12110e
+		);
+	color: var(--color-text);
+}
+
+/*
+ * The plane is purely atmospheric presentation. Layered gradients suggest
+ * light crossing architectural surfaces, while borders echo the fine rules in
+ * the supplied references. The HTML marks this whole layer aria-hidden.
+ */
+.discipline-hero__plane {
+	position: absolute;
+	z-index: 0;
+	inset: var(--header-height) 0 0 38%;
+	overflow: hidden;
+	border-left: 1px solid rgba(255, 255, 255, 0.1);
+	background:
+		linear-gradient(
+			to right,
+			rgba(255, 255, 255, 0.055),
+			transparent 38%
+		),
+		linear-gradient(
+			145deg,
+			transparent 0 38%,
+			rgba(255, 255, 255, 0.045) 38% 63%,
+			transparent 63%
+		);
+	clip-path: polygon(20% 0, 100% 0, 100% 100%, 0 100%);
+}
+
+/*
+ * A large sequence number gives every route a distinct data-driven visual
+ * identity without adding an image, slogan, or fictional project. It is clipped
+ * by the plane and kept deliberately low contrast so the real h1 stays primary.
+ */
+.discipline-hero__watermark {
+	position: absolute;
+	right: -0.05em;
+	bottom: -0.2em;
+	color: rgba(243, 240, 233, 0.045);
+	font-family: var(--font-display);
+	font-size: clamp(20rem, 43vw, 52rem);
+	font-weight: 400;
+	letter-spacing: -0.12em;
+	line-height: 0.75;
+}
+
+/*
+ * This inner grid spans the full hero height. The first row gives the heading
+ * flexible space; the second anchors real route navigation to the lower edge.
+ * Fixed-header-safe top padding protects the title at every viewport height.
+ */
+.discipline-hero__inner {
+	position: relative;
+	z-index: 1;
+	display: grid;
+	grid-template-rows: minmax(0, 1fr) auto;
+	width: min(100%, 120rem);
+	min-height: inherit;
+	margin-inline: auto;
+	padding:
+		calc(var(--header-height) + clamp(2.5rem, 7vh, 5rem))
+		var(--page-gutter)
+		clamp(1rem, 2.5vh, 2rem);
+}
+
+/*
+ * The heading sits near the visual center while retaining a left-aligned
+ * editorial axis. min-width:0 lets the long Architecture Design title shrink
+ * inside the grid instead of creating horizontal overflow.
+ */
+.discipline-hero__heading {
+	display: grid;
+	min-width: 0;
+	align-self: center;
+	gap: clamp(1rem, 2vw, 1.75rem);
+	padding-block: clamp(2rem, 5vh, 4rem);
+}
+
+/*
+ * The eyebrow states only structural facts already present in Go data.
+ * Flex wrapping protects the pair when text is enlarged or the viewport is
+ * extremely narrow.
+ */
+.discipline-hero__eyebrow {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.65rem 1rem;
+	margin: 0;
+	color: var(--color-text-soft);
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	letter-spacing: 0.22em;
+	line-height: 1.4;
+	text-transform: uppercase;
+}
+
+/*
+ * The fluid title is large enough to establish the discipline visually while
+ * remaining capped on ultrawide displays. text-wrap:balance improves a natural
+ * two-line break where supported; ordinary word wrapping is the fallback.
+ */
+.discipline-hero__title {
+	max-width: 100%;
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: clamp(3.25rem, 6.4vw, 7.5rem);
+	font-weight: 400;
+	letter-spacing: 0.035em;
+	line-height: 0.88;
+	text-wrap: balance;
+	text-transform: uppercase;
+	text-shadow: 0 0.15rem 1.5rem rgba(0, 0, 0, 0.32);
+}
+
+/*
+ * Both navigation actions remain real anchors. Equal flexible columns make the
+ * route cycle predictable, and a shared top rule connects them visually to the
+ * hero without relying on a background image.
+ */
+.discipline-route-nav {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	border-top: 1px solid var(--color-border-strong);
+}
+
+/*
+ * Each link is a two-column, two-row grid: label and destination occupy the
+ * flexible column, while the arrow spans both rows. The 5.75rem minimum height
+ * exceeds the 44px accessibility target even when text wraps.
+ */
+.discipline-route-nav__link {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	grid-template-rows: auto auto;
+	min-width: 0;
+	min-height: 5.75rem;
+	align-content: center;
+	gap: 0.45rem 1rem;
+	padding:
+		1rem
+		clamp(0.75rem, 1.8vw, 1.5rem);
+}
+
+.discipline-route-nav__link:first-child {
+	border-right: 1px solid var(--color-border);
+}
+
+/*
+ * Hover and keyboard focus share the same translucent surface response.
+ * Outline is inset so it remains visible without changing dimensions or being
+ * clipped by the hero's overflow boundary.
+ */
+.discipline-route-nav__link:hover,
+.discipline-route-nav__link:focus-visible {
+	outline: 2px solid var(--color-text);
+	outline-offset: -2px;
+	background: rgba(255, 255, 255, 0.07);
+}
+
+.discipline-route-nav__label {
+	color: var(--color-text-soft);
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	letter-spacing: 0.18em;
+	line-height: 1.35;
+	text-transform: uppercase;
+}
+
+.discipline-route-nav__value {
+	min-width: 0;
+	font-family: var(--font-display);
+	font-size: clamp(1.05rem, 1rem + 0.35vw, 1.35rem);
+	line-height: 1.2;
+	overflow-wrap: anywhere;
+}
+
+.discipline-route-nav__arrow {
+	grid-row: 1 / 3;
+	grid-column: 2;
+	align-self: center;
+	font-family: var(--font-interface);
+	font-size: 1.25rem;
+	line-height: 1;
+}
+
+/*
+ * Align the next route toward the forward edge while leaving its complete link
+ * target rectangular and predictable. The arrow remains in the final column.
+ */
+.discipline-route-nav__link--next {
+	text-align: right;
+}
+
+/* --------------------------------------------------
+   Reserved selected-work boundary
+-------------------------------------------------- */
+
+/*
+ * This light section mirrors the reference pages' transition from cinematic
+ * introduction to editorial index. It holds only an honest status and a ruled
+ * noninteractive field until Stages 6-8 add real data-driven entries.
+ */
+.discipline-work {
+	scroll-margin-top: var(--header-height);
+	min-height: 72vh;
+	padding:
+		clamp(4.5rem, 9vw, 9rem)
+		var(--page-gutter)
+		clamp(5rem, 10vw, 10rem);
+	background: var(--discipline-light);
+	color: var(--discipline-light-ink);
+}
+
+.discipline-work__inner {
+	width: min(100%, 100rem);
+	margin-inline: auto;
+}
+
+/*
+ * The header uses an asymmetric editorial grid: a large section name occupies
+ * the first track and the concise status sits beside it. The eyebrow spans both
+ * tracks to establish a single reading group.
+ */
+.discipline-work__header {
+	display: grid;
+	grid-template-columns:
+		minmax(0, 1.4fr)
+		minmax(16rem, 0.6fr);
+	align-items: end;
+	gap: clamp(1.5rem, 4vw, 4rem);
+	padding-bottom: clamp(3rem, 6vw, 6rem);
+}
+
+.discipline-work__eyebrow {
+	grid-column: 1 / -1;
+	margin: 0;
+	color: var(--discipline-light-soft);
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	letter-spacing: 0.22em;
+	line-height: 1.4;
+	text-transform: uppercase;
+}
+
+.discipline-work__title {
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: clamp(3rem, 7vw, 7rem);
+	font-weight: 400;
+	letter-spacing: -0.035em;
+	line-height: 0.9;
+	text-wrap: balance;
+}
+
+.discipline-work__status {
+	max-width: 32rem;
+	margin: 0;
+	color: var(--discipline-light-soft);
+	font-family: var(--font-interface);
+	font-size: clamp(0.9rem, 0.86rem + 0.18vw, 1.05rem);
+	line-height: 1.7;
+}
+
+/*
+ * The placeholder is intentionally one noninteractive field rather than fake
+ * cards. Its block rules and two generated vertical divisions preview the
+ * future grid rhythm without exposing meaningless elements to assistive
+ * technology.
+ */
+.discipline-work__placeholder {
+	position: relative;
+	min-height: clamp(14rem, 27vw, 28rem);
+	border-top: 1px solid var(--discipline-light-rule);
+	border-bottom: 1px solid var(--discipline-light-rule);
+	background:
+		linear-gradient(
+			135deg,
+			rgba(26, 24, 20, 0.025),
+			transparent 55%
+		);
+}
+
+.discipline-work__placeholder::before,
+.discipline-work__placeholder::after {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: 1px;
+	background: var(--discipline-light-rule);
+	content: "";
+}
+
+.discipline-work__placeholder::before {
+	left: 33.333%;
+}
+
+.discipline-work__placeholder::after {
+	right: 33.333%;
+}
+
+/*
+ * Tablet widths keep the full desktop header but reduce title scale and move
+ * the visual plane farther left so the shared pattern still feels intentional
+ * between the large and compact compositions.
+ */
+@media (max-width: 70rem) {
+	.discipline-hero__plane {
+		left: 30%;
+	}
+
+	.discipline-hero__title {
+		font-size: clamp(3.1rem, 6.2vw, 5.75rem);
+	}
+}
+
+/*
+ * At and below the navigation system's exact 48rem compact breakpoint, the
+ * hero gains a minimum usable height and the two route actions stack. This
+ * favors a small amount of vertical scrolling over collisions on short phones.
+ */
+@media (max-width: 48rem) {
+	.discipline-hero {
+		min-height: 38rem;
+		min-height: max(100vh, 38rem);
+		min-height: max(100svh, 38rem);
+	}
+
+	.discipline-hero__plane {
+		inset:
+			4.75rem
+			0
+			0
+			18%;
+		opacity: 0.72;
+		clip-path: polygon(12% 0, 100% 0, 100% 100%, 0 100%);
+	}
+
+	.discipline-hero__watermark {
+		right: -0.1em;
+		font-size: clamp(18rem, 78vw, 31rem);
+	}
+
+	.discipline-hero__inner {
+		padding:
+			calc(4.75rem + clamp(2rem, 7vh, 3.5rem))
+			var(--page-gutter)
+			1rem;
+	}
+
+	.discipline-hero__heading {
+		gap: 1rem;
+		padding-block: 2rem;
+	}
+
+	.discipline-hero__title {
+		font-size: clamp(2.75rem, 11vw, 4.5rem);
+		line-height: 0.92;
+	}
+
+	.discipline-route-nav {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.discipline-route-nav__link {
+		min-height: 5rem;
+	}
+
+	.discipline-route-nav__link:first-child {
+		border-right: 0;
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.discipline-work {
+		min-height: 0;
+	}
+
+	.discipline-work__header {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 1.5rem;
+	}
+
+	.discipline-work__eyebrow {
+		grid-column: auto;
+	}
+
+	.discipline-work__status {
+		max-width: 38rem;
+	}
+}
+
+/*
+ * Small phones receive tighter tracking and a simpler two-column placeholder
+ * rhythm. The title still wraps only between words and remains above the 320px
+ * minimum supported document width.
+ */
+@media (max-width: 36rem) {
+	.discipline-hero__inner {
+		padding-inline: 1rem;
+	}
+
+	.discipline-hero__eyebrow {
+		letter-spacing: 0.17em;
+	}
+
+	.discipline-hero__title {
+		font-size: clamp(2.5rem, 10vw, 3.75rem);
+		letter-spacing: 0.02em;
+	}
+
+	.discipline-route-nav__link {
+		padding-inline: 0.75rem;
+	}
+
+	.discipline-work {
+		padding-inline: 1rem;
+	}
+
+	.discipline-work__title {
+		font-size: clamp(2.75rem, 14vw, 4rem);
+	}
+
+	.discipline-work__placeholder::before {
+		left: 50%;
+	}
+
+	.discipline-work__placeholder::after {
+		display: none;
+	}
+}
+
+/*
+ * Short landscape screens cannot support a true full-height composition
+ * without overlap. A content-driven 28rem canvas may scroll slightly, while the
+ * smaller title and hidden decorative plane keep all real controls available.
+ */
+@media (max-height: 32rem) and (orientation: landscape) {
+	.discipline-hero {
+		min-height: 28rem;
+	}
+
+	.discipline-hero__plane {
+		display: none;
+	}
+
+	.discipline-hero__inner {
+		padding-top: calc(4.75rem + 1.25rem);
+	}
+
+	.discipline-hero__heading {
+		gap: 0.75rem;
+		padding-block: 1rem;
+	}
+
+	.discipline-hero__title {
+		font-size: clamp(2.5rem, 11vh, 3.75rem);
+	}
+}
+
+/*
+ * On short landscapes wider than the compact-header breakpoint, two route
+ * columns save vertical space safely because each column still has ample width.
+ */
+@media
+	(max-height: 32rem) and
+	(orientation: landscape) and
+	(min-width: 48.0625rem) {
+	.discipline-route-nav {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.discipline-route-nav__link:first-child {
+		border-right: 1px solid var(--color-border);
+		border-bottom: 0;
+	}
+}
+
+/*
+ * Increased-contrast preference removes the atmospheric transparency and
+ * strengthens boundaries while leaving document structure unchanged.
+ */
+@media (prefers-contrast: more) {
+	.site-header {
+		background: #11100d;
+	}
+
+	.discipline-hero {
+		background: #11100d;
+	}
+
+	.discipline-hero__plane {
+		opacity: 0.35;
+	}
+
+	.discipline-route-nav,
+	.discipline-route-nav__link:first-child {
+		border-color: var(--color-text);
+	}
+
+	.discipline-work__placeholder {
+		border-color: var(--discipline-light-ink);
+		background: none;
+	}
+
+	.discipline-work__placeholder::before,
+	.discipline-work__placeholder::after {
+		background: var(--discipline-light-ink);
+	}
+}
+
+/*
+ * No Stage 5 element animates, scrolls smoothly, or transitions between states.
+ * The pattern therefore already respects reduced-motion preference without a
+ * separate override; hover and focus feedback appears immediately.
+ */

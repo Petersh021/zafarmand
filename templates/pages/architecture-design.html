@@ -1,17 +1,21 @@
 {{/*
-This page file is intentionally limited to documentation during the current
-incremental stage.
-
-newTemplateCache parses it together with base.html, and render executes the
-"base" template. Because this file does not yet define "pageStyles" or
-"content", the base template supplies:
-
-- no page-specific stylesheet; and
-- a safe <main id="main-content"></main> fallback.
-
-The architecture handler still supplies Title and CurrentPath, so the document
-title and route-aware navigation work while the page body remains deliberately
-unfinished. This avoids inventing projects or galleries before their design and
-temporary Go data are introduced in the relevant stage. Add named block
-definitions here only when that focused architecture stage begins.
+The Architecture Design page is deliberately a small wrapper around the shared
+Stage 5 pattern. Keeping the file preserves a clean extension point for the
+future Architecture project listing and details work.
 */}}
+
+{{/*
+Calling the uniquely named style partial loads discipline.css after the shared
+main.css and navigation.css files declared by base.html.
+*/}}
+{{define "pageStyles"}}
+	{{template "disciplinePageStyles" .}}
+{{end}}
+
+{{/*
+The shared content partial receives the unchanged pageData value, including the
+Architecture-specific sequence and next-route information from its handler.
+*/}}
+{{define "content"}}
+	{{template "disciplinePageContent" .}}
+{{end}}

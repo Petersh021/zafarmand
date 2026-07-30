@@ -15,7 +15,7 @@ import (
 // and makes it straightforward for tests to create an isolated application.
 type application struct {
 	// templates maps a page filename, such as "home.html", to the parsed
-	// template set containing that page and the shared base layout.
+	// template set containing that page, the shared base layout, and partials.
 	templates map[string]*template.Template
 }
 
@@ -53,12 +53,31 @@ type disciplineEntranceData struct {
 	Path string
 }
 
+// disciplinePageData is the minimal view model shared by the three discipline
+// landing pages.
+//
+// It contains route-level interface information only. Project records, product
+// records, descriptions, images, and publication state belong to later view
+// models once the corresponding vertical slices are designed.
+type disciplinePageData struct {
+	// Number is the zero-padded position displayed in the editorial sequence.
+	Number string
+	// Name is the visible h1 and also supplies the document title in the handler.
+	Name string
+	// NextName labels the next real discipline destination.
+	NextName string
+	// NextPath is the registered server-rendered URL for that destination.
+	NextPath string
+}
+
 // pageData is the common top-level value passed to every page template.
 //
 // A pointer is used for HomeHero because only the homepage has hero data. A nil
 // pointer lets other templates omit that optional section naturally. A slice
 // is used for HomeDisciplines because templates can range over any number of
-// entries, while a nil or empty slice renders no discipline section.
+// entries, while a nil or empty slice renders no discipline section. The
+// DisciplinePage pointer follows the same optional-data pattern for the three
+// shared discipline landing pages.
 type pageData struct {
 	// Title becomes the page-specific portion of the browser document title.
 	Title string
@@ -68,6 +87,8 @@ type pageData struct {
 	HomeHero *homeHeroData
 	// HomeDisciplines contains the ordered homepage route entrances.
 	HomeDisciplines []disciplineEntranceData
+	// DisciplinePage contains shared landing data, or nil for non-discipline pages.
+	DisciplinePage *disciplinePageData
 }
 
 // newApplication creates a ready-to-serve application and its shared template
@@ -90,7 +111,7 @@ func newApplication() (*application, error) {
 }
 
 // newTemplateCache parses every page template together with the shared base
-// layout and indexes the resulting sets by page filename.
+// layout and shared partials, then indexes the resulting sets by page filename.
 //
 // Parsing pages into separate sets prevents identically named blocks such as
 // "content" from overwriting one another. The returned error wraps filesystem
@@ -121,20 +142,75 @@ func newTemplateCache() (
 		)
 	}
 
+	// Partials contain reusable named templates that page files may compose.
+	// Glob returns paths in lexical order, giving every page a deterministic
+	// parse order without maintaining another hard-coded file list.
+	partials, err := filepath.Glob(
+		"./templates/partials/*.html",
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"find partial templates: %w",
+			err,
+		)
+	}
+
+	// Stage 5 uses shared template definitions. An entirely missing partial
+	// directory is always a startup configuration error; exact required names
+	// are verified after each complete template set is parsed below.
+	if len(partials) == 0 {
+		return nil, fmt.Errorf(
+			"no partial templates found",
+		)
+	}
+
+	// These names form the contract between the three thin page wrappers and
+	// the shared discipline partial. Lookup below protects that exact contract
+	// even if another unrelated partial file still exists.
+	requiredPartialTemplates := []string{
+		"disciplinePageStyles",
+		"disciplinePageContent",
+	}
+
 	for _, page := range pages {
 		// Base returns a platform-safe filename for use as the cache key.
 		pageName := filepath.Base(page)
 
-		templateSet, err := template.ParseFiles(
-			"./templates/base.html",
-			page,
+		// Build a fresh slice for each page so appending its path cannot reuse
+		// and overwrite a backing array shared with the next iteration. ParseFiles
+		// accepts the slice with "...", which expands it into variadic arguments.
+		files := make(
+			[]string,
+			0,
+			len(partials)+2,
 		)
+		files = append(
+			files,
+			"./templates/base.html",
+		)
+		files = append(files, partials...)
+		files = append(files, page)
+
+		templateSet, err := template.ParseFiles(files...)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"parse template %s: %w",
 				pageName,
 				err,
 			)
+		}
+
+		// ParseFiles can successfully parse a set that does not define a name
+		// referenced only at execution time. Explicit Lookup checks convert that
+		// delayed response failure into an actionable application-startup error.
+		for _, templateName := range requiredPartialTemplates {
+			if templateSet.Lookup(templateName) == nil {
+				return nil, fmt.Errorf(
+					"page template %s requires %s",
+					pageName,
+					templateName,
+				)
+			}
 		}
 
 		cache[pageName] = templateSet

@@ -1,10 +1,11 @@
 {{/*
 The "base" template is the shared document shell for every public route.
 
-newTemplateCache parses this file together with exactly one file from
-templates/pages. The render method then executes the template named "base".
-Keeping the document shell here prevents the header, drawer, metadata, and
-script imports from being duplicated across individual pages.
+newTemplateCache parses this file together with the shared partial files and
+exactly one file from templates/pages. The render method then executes the
+template named "base". Keeping the document shell here prevents the header,
+drawer, metadata, and script imports from being duplicated across individual
+pages.
 
 These are Go-template comments rather than HTML comments. html/template removes
 them while rendering, so these learning notes do not appear in the response
