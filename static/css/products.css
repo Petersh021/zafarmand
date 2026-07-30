@@ -1,0 +1,249 @@
+/* --------------------------------------------------
+   Stage 6: Products catalogue foundation
+
+   This stylesheet specializes only the warm selected-work region on
+   /products. The shared discipline hero remains owned by discipline.css.
+   Every new selector is namespaced with "products-" or "product-preview" so
+   the catalogue cannot alter the other public routes.
+-------------------------------------------------- */
+
+/*
+ * The Products header keeps the asymmetric editorial shell inherited from
+ * discipline.css. A slightly wider heading track gives "Product catalogue"
+ * enough room before the layout stacks at the existing compact breakpoint.
+ */
+.products-catalogue__header {
+	grid-template-columns:
+		minmax(0, 1.55fr)
+		minmax(16rem, 0.45fr);
+}
+
+/*
+ * The ordered list owns the visual catalogue grid. Removing browser list
+ * markers is paired with role="list" in HTML for Safari/VoiceOver compatibility.
+ * Two equal columns form a stable laptop/tablet rhythm while minmax(0, 1fr)
+ * prevents long content from forcing horizontal overflow.
+ */
+.products-catalogue {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap:
+		clamp(3rem, 6vw, 6rem)
+		clamp(1rem, 2.25vw, 2.5rem);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+/*
+ * A list item must be allowed to shrink inside its grid track. Without
+ * min-width:0, future long approved names could widen the entire document.
+ */
+.products-catalogue__item {
+	min-width: 0;
+}
+
+/*
+ * Each article follows a simple media-then-copy reading order. There is no
+ * hover-only affordance or pointer cursor because cards are intentionally not
+ * interactive until real product detail routes exist.
+ */
+.product-preview {
+	display: grid;
+	min-width: 0;
+	gap: clamp(1.25rem, 2vw, 1.75rem);
+}
+
+/*
+ * The near-portrait field reserves stable future media space with aspect-ratio.
+ * Layered neutral gradients create depth without pretending to be a product
+ * photograph or exposing a reference screenshot as production content.
+ */
+.product-preview__media {
+	position: relative;
+	isolation: isolate;
+	display: grid;
+	aspect-ratio: 4 / 5;
+	overflow: hidden;
+	place-items: end start;
+	border: 1px solid var(--discipline-light-rule);
+	background:
+		radial-gradient(
+			circle at 72% 30%,
+			rgba(255, 255, 255, 0.66),
+			transparent 26%
+		),
+		linear-gradient(
+			145deg,
+			#d8d1c5,
+			#bdb4a5 58%,
+			#a69c8c
+		);
+}
+
+/*
+ * A soft architectural plane gives the empty media field intentional spatial
+ * structure. It remains part of the aria-hidden parent and communicates no
+ * additional content.
+ */
+.product-preview__media::before {
+	position: absolute;
+	z-index: -1;
+	inset: 18% 12% 12% 34%;
+	border: 1px solid rgba(26, 24, 20, 0.18);
+	background:
+		linear-gradient(
+			135deg,
+			rgba(255, 255, 255, 0.34),
+			rgba(26, 24, 20, 0.08)
+		);
+	box-shadow: 0 1.5rem 3rem rgba(26, 24, 20, 0.12);
+	content: "";
+	transform: skewY(-5deg);
+}
+
+/*
+ * Alternating positions keep repeated structural fields from looking like one
+ * copied bitmap. nth-child changes presentation only; DOM and reading order
+ * continue to come directly from the Go slice.
+ */
+.products-catalogue__item:nth-child(even) .product-preview__media::before {
+	inset: 12% 30% 18% 14%;
+	transform: skewY(6deg);
+}
+
+.products-catalogue__item:nth-child(3n) .product-preview__media::before {
+	inset: 28% 16% 10% 22%;
+	transform: skewX(-7deg);
+}
+
+/*
+ * The large number is a low-contrast editorial marker. Its aria-hidden media
+ * parent keeps the same number in the visible text label from being announced
+ * twice.
+ */
+.product-preview__number {
+	padding: clamp(0.75rem, 1.5vw, 1.25rem);
+	color: rgba(26, 24, 20, 0.42);
+	font-family: var(--font-display);
+	font-size: clamp(2rem, 4vw, 4.5rem);
+	line-height: 1;
+}
+
+/*
+ * Text remains outside the media frame for reliable contrast and zoom reflow.
+ * The top rule echoes the reference's fine separators without implying a link.
+ */
+.product-preview__body {
+	display: grid;
+	min-width: 0;
+	gap: 0.65rem;
+	padding-top: 1rem;
+	border-top: 1px solid var(--discipline-light-rule);
+}
+
+.product-preview__label,
+.product-preview__status {
+	margin: 0;
+	color: var(--discipline-light-soft);
+	font-family: var(--font-interface);
+	font-size: clamp(0.75rem, 0.72rem + 0.1vw, 0.82rem);
+	letter-spacing: 0.16em;
+	line-height: 1.45;
+	text-transform: uppercase;
+}
+
+/*
+ * The category is the article heading, not a fabricated product name. Fluid
+ * sizing and overflow-wrap protect future localized or user-managed content.
+ */
+.product-preview__title {
+	min-width: 0;
+	margin: 0;
+	color: var(--discipline-light-ink);
+	font-family: var(--font-display);
+	font-size: clamp(1.5rem, 1.25rem + 0.8vw, 2.3rem);
+	font-weight: 400;
+	line-height: 1.05;
+	overflow-wrap: anywhere;
+}
+
+/*
+ * Empty data uses the same ruled field as a real catalogue boundary, while the
+ * sentence remains visible text rather than a decorative pseudo-element.
+ */
+.products-catalogue__empty {
+	min-height: clamp(12rem, 24vw, 22rem);
+	margin: 0;
+	padding-block: clamp(2rem, 4vw, 4rem);
+	border-top: 1px solid var(--discipline-light-rule);
+	border-bottom: 1px solid var(--discipline-light-rule);
+	color: var(--discipline-light-soft);
+	font-family: var(--font-interface);
+	font-size: clamp(0.9rem, 0.86rem + 0.18vw, 1.05rem);
+	line-height: 1.7;
+}
+
+/*
+ * Desktop screens from 80rem can support all four catalogue columns on one
+ * row. Introducing the fourth column at 1280px avoids an orphaned fourth card
+ * at a required validation width while retaining generous gutters.
+ */
+@media (min-width: 80rem) {
+	.products-catalogue {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+}
+
+/*
+ * At the shared compact-header breakpoint only the asymmetric section header
+ * stacks. The catalogue deliberately remains two columns at 768px, avoiding a
+ * large layout and page-length jump between 768px and 769px.
+ */
+@media (max-width: 48rem) {
+	.products-catalogue__header {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+/*
+ * Narrow phones below 40rem receive one generous catalogue column. This
+ * product-content breakpoint is independent from the navigation breakpoint:
+ * each component changes only when its own content genuinely needs more room.
+ */
+@media (max-width: 40rem) {
+	.products-catalogue {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.products-catalogue {
+		gap: 3.5rem;
+	}
+
+	.product-preview__media {
+		aspect-ratio: 5 / 4;
+	}
+}
+
+/*
+ * Increased-contrast users receive opaque media surfaces and stronger rules.
+ * The catalogue contains no animation, transitions, or smooth scrolling, so
+ * it already respects reduced-motion preference without a separate override.
+ */
+@media (prefers-contrast: more) {
+	.product-preview__media,
+	.product-preview__body,
+	.products-catalogue__empty {
+		border-color: var(--discipline-light-ink);
+	}
+
+	.product-preview__media {
+		background: var(--discipline-light);
+	}
+
+	.product-preview__media::before {
+		border-color: var(--discipline-light-ink);
+		background: transparent;
+		box-shadow: none;
+	}
+}

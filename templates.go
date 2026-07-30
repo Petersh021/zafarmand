@@ -70,14 +70,48 @@ type disciplinePageData struct {
 	NextPath string
 }
 
+// productListingData describes the Products-only catalogue section.
+//
+// The pointer to this value is optional on pageData because only /products uses
+// it. Keeping section copy beside its ordered preview slice establishes the
+// same handler-to-template data flow that a later database-backed catalogue can
+// use without introducing persistence concerns during this stage.
+type productListingData struct {
+	// Eyebrow is the short interface label displayed above the section heading.
+	Eyebrow string
+	// Heading names the catalogue section and labels its semantic section.
+	Heading string
+	// Introduction explains the current scope without inventing product claims.
+	Introduction string
+	// EmptyMessage is shown when Items is nil or empty.
+	EmptyMessage string
+	// Items contains temporary structural previews in their editorial order.
+	Items []productPreviewData
+}
+
+// productPreviewData is the minimal presentation shape for one temporary
+// catalogue slot.
+//
+// These values are not final Product records. They intentionally omit prices,
+// descriptions, slugs, database IDs, and media until approved content and real
+// detail routes are introduced in their own focused stages.
+type productPreviewData struct {
+	// Number is the zero-padded editorial position visible in the media field.
+	Number string
+	// Category identifies the broad product family reserved by this slot.
+	Category string
+	// Status truthfully communicates that approved catalogue content is pending.
+	Status string
+}
+
 // pageData is the common top-level value passed to every page template.
 //
 // A pointer is used for HomeHero because only the homepage has hero data. A nil
 // pointer lets other templates omit that optional section naturally. A slice
 // is used for HomeDisciplines because templates can range over any number of
 // entries, while a nil or empty slice renders no discipline section. The
-// DisciplinePage pointer follows the same optional-data pattern for the three
-// shared discipline landing pages.
+// DisciplinePage and ProductListing pointers follow the same optional-data
+// pattern for the discipline routes and Products-only catalogue respectively.
 type pageData struct {
 	// Title becomes the page-specific portion of the browser document title.
 	Title string
@@ -89,6 +123,8 @@ type pageData struct {
 	HomeDisciplines []disciplineEntranceData
 	// DisciplinePage contains shared landing data, or nil for non-discipline pages.
 	DisciplinePage *disciplinePageData
+	// ProductListing contains catalogue data only for the Products route.
+	ProductListing *productListingData
 }
 
 // newApplication creates a ready-to-serve application and its shared template

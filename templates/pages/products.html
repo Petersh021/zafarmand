@@ -1,23 +1,137 @@
 {{/*
-The Products page remains a separate cache entry and extension point even
-though Stage 5 intentionally shares its presentation with the other discipline
-routes. A later Products vertical slice can replace either block here without
-adding product-specific conditionals to the shared partial.
+The Products page remains a separate cache entry and now composes the shared
+discipline shell with a focused Stage 6 catalogue. Interior Design and
+Architecture Design continue using the shared default selected-work content.
 */}}
 
 {{/*
-The uniquely named partial template emits the common discipline stylesheet.
-Keeping this wrapper definition page-specific prevents home.html from loading
-discipline.css merely because all partials are present in its parsed set.
+The shared stylesheet is emitted first because products.css builds on its dark
+hero and warm work-section foundation. Both links remain page-specific, so the
+homepage and other discipline routes do not download Products presentation.
 */}}
 {{define "pageStyles"}}
 	{{template "disciplinePageStyles" .}}
+
+	<link
+		rel="stylesheet"
+		href="/static/css/products.css"
+	>
 {{end}}
 
 {{/*
-The content wrapper delegates the complete main landmark to one shared named
-template. The original pageData value remains dot and supplies DisciplinePage.
+The content wrapper still delegates the one main landmark and discipline hero
+to the proven shared partial. products.html specializes only the named work
+block below, avoiding duplicated hero/navigation markup.
 */}}
 {{define "content"}}
 	{{template "disciplinePageContent" .}}
+{{end}}
+
+{{/*
+disciplineWorkContent overrides the default block only in the Products template
+set. newTemplateCache parses each page separately, so this definition cannot
+leak into Interior Design, Architecture Design, or the homepage.
+
+The block receives root pageData because discipline-page.html calls it with $.
+ProductListing is therefore available even though the shared outer template is
+currently inside "with .DisciplinePage".
+*/}}
+{{define "disciplineWorkContent"}}
+	{{with .ProductListing}}
+	<header class="discipline-work__header products-catalogue__header">
+		<p class="discipline-work__eyebrow">
+			{{.Eyebrow}}
+		</p>
+
+		<h2
+			class="discipline-work__title"
+			id="selected-work-title"
+		>
+			{{.Heading}}
+		</h2>
+
+		<p class="discipline-work__status">
+			{{.Introduction}}
+		</p>
+	</header>
+
+	{{/*
+	A nonempty []productPreviewData slice becomes one semantic ordered list.
+	The slice order comes directly from Go and remains meaningful without
+	JavaScript. Cards are articles rather than links because product detail URLs
+	do not exist yet; this prevents fake controls and href="#" placeholders.
+	*/}}
+	{{if .Items}}
+	<ol
+		class="products-catalogue"
+		aria-label="Product catalogue previews"
+		role="list"
+	>
+		{{range .Items}}
+		<li class="products-catalogue__item">
+			<article class="product-preview">
+				{{/*
+				The media field is an honest CSS-only structural placeholder.
+				It reserves the future image area without displaying or cropping
+				the reference screenshot. aria-hidden prevents its repeated
+				number from adding noise for assistive-technology users.
+				*/}}
+				<div
+					class="product-preview__media"
+					aria-hidden="true"
+				>
+					<span class="product-preview__number">
+						{{.Number}}
+					</span>
+				</div>
+
+				<div class="product-preview__body">
+					<p class="product-preview__label">
+						Catalogue slot {{.Number}}
+					</p>
+
+					<h3 class="product-preview__title">
+						{{.Category}}
+					</h3>
+
+					<p class="product-preview__status">
+						{{.Status}}
+					</p>
+				</div>
+			</article>
+		</li>
+		{{end}}
+	</ol>
+	{{else}}
+	{{/*
+	The empty branch makes a future zero-row database result truthful and usable
+	instead of silently removing the section that its aria-labelledby points to.
+	*/}}
+	<p class="products-catalogue__empty">
+		{{.EmptyMessage}}
+	</p>
+	{{end}}
+	{{else}}
+	{{/*
+	A missing Products view model is a defensive rendering fallback. The normal
+	handler always supplies ProductListing, but preserving a visible h2 keeps the
+	shared section label valid if future code accidentally omits it.
+	*/}}
+	<header class="discipline-work__header products-catalogue__header">
+		<p class="discipline-work__eyebrow">
+			Zafarmand objects
+		</p>
+
+		<h2
+			class="discipline-work__title"
+			id="selected-work-title"
+		>
+			Product catalogue
+		</h2>
+
+		<p class="discipline-work__status">
+			Product entries are being prepared for publication.
+		</p>
+	</header>
+	{{end}}
 {{end}}

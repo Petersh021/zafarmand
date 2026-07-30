@@ -116,10 +116,11 @@ pageData to disciplinePageData only while valid landing data exists.
 	</section>
 
 	{{/*
-	This warm editorial section establishes the boundary where the later
-	discipline-specific vertical slices will render real database-ready entries.
-	It states the current empty condition honestly and contains no fake cards,
-	project names, media, prices, buttons, or placeholder URLs.
+	This warm editorial section is the stable boundary for discipline-specific
+	work. Its default block gives Interior Design and Architecture Design an
+	honest empty state, while Products replaces only the inner block with
+	structural Stage 6 catalogue previews. The shared shell itself stays free of
+	route-specific records, prices, controls, media, and placeholder URLs.
 	*/}}
 	<section
 		class="discipline-work"
@@ -127,6 +128,15 @@ pageData to disciplinePageData only while valid landing data exists.
 		aria-labelledby="selected-work-title"
 	>
 		<div class="discipline-work__inner">
+			{{/*
+			disciplineWorkContent is an intentional extension point. Interior
+			Design and Architecture Design use this default Stage 5 empty state,
+			while products.html replaces only this inner content with its Stage 6
+			catalogue. Passing root $ is essential because the surrounding "with"
+			has changed dot to disciplinePageData; the Products override needs the
+			complete pageData value and its ProductListing field.
+			*/}}
+			{{block "disciplineWorkContent" $}}
 			<header class="discipline-work__header">
 				<p class="discipline-work__eyebrow">
 					Zafarmand archive
@@ -153,6 +163,8 @@ pageData to disciplinePageData only while valid landing data exists.
 				class="discipline-work__placeholder"
 				aria-hidden="true"
 			></div>
+			{{/* End the default work-content block available to page overrides. */}}
+			{{end}}
 		</div>
 	</section>
 	{{/*

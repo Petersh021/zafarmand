@@ -126,12 +126,14 @@ func extractOpeningTag(
 	return element[:openingEnd+1]
 }
 
-// TestDisciplinePageRoutes verifies that all three real URLs render the shared
-// Stage 5 structure with their own Go-supplied editorial data.
+// TestDisciplinePageRoutes verifies that all three real URLs retain the shared
+// Stage 5 shell with their own Go-supplied editorial data.
 //
 // This test complements TestPageRoutes: that existing test owns the common
 // document title, CurrentPath, and aria-current contract, while this table owns
-// discipline-page semantics, stylesheet isolation, and route-cycle data.
+// discipline-page semantics, stylesheet isolation, and route-cycle data. Stage
+// 6 specializes only the Products work content, so the table also states which
+// visible h2 and default-status behavior belongs to each route.
 func TestDisciplinePageRoutes(t *testing.T) {
 	app := newTestApplication(t)
 	handler := app.routes()
@@ -147,27 +149,37 @@ func TestDisciplinePageRoutes(t *testing.T) {
 		nextName string
 		// nextPath is the registered URL paired with nextName.
 		nextPath string
+		// workHeading is the visible h2 labelling the selected-work section.
+		workHeading string
+		// usesDefaultWork is true for routes still using the Stage 5 empty state.
+		usesDefaultWork bool
 	}{
 		{
-			name:     "Products",
-			path:     "/products",
-			number:   "03",
-			nextName: "Interior Design",
-			nextPath: "/interior-design",
+			name:            "Products",
+			path:            "/products",
+			number:          "03",
+			nextName:        "Interior Design",
+			nextPath:        "/interior-design",
+			workHeading:     "Product catalogue",
+			usesDefaultWork: false,
 		},
 		{
-			name:     "Interior Design",
-			path:     "/interior-design",
-			number:   "01",
-			nextName: "Architecture Design",
-			nextPath: "/architecture-design",
+			name:            "Interior Design",
+			path:            "/interior-design",
+			number:          "01",
+			nextName:        "Architecture Design",
+			nextPath:        "/architecture-design",
+			workHeading:     "Selected work",
+			usesDefaultWork: true,
 		},
 		{
-			name:     "Architecture Design",
-			path:     "/architecture-design",
-			number:   "02",
-			nextName: "Products",
-			nextPath: "/products",
+			name:            "Architecture Design",
+			path:            "/architecture-design",
+			number:          "02",
+			nextName:        "Products",
+			nextPath:        "/products",
+			workHeading:     "Selected work",
+			usesDefaultWork: true,
 		},
 	}
 
@@ -335,8 +347,8 @@ func TestDisciplinePageRoutes(t *testing.T) {
 				)
 			}
 
-			// The selected-work boundary has its own correctly associated
-			// section label and a neutral public empty-state message.
+			// The selected-work boundary remains structurally shared even when
+			// Products replaces its inner content through a named template block.
 			workElement := extractElementByMarker(
 				t,
 				mainElement,
@@ -364,19 +376,30 @@ func TestDisciplinePageRoutes(t *testing.T) {
 			)
 			if !strings.Contains(
 				normalizeHTMLWhitespace(workHeading),
-				"Selected work",
+				test.workHeading,
 			) {
-				t.Error(
-					"selected-work h2 does not contain its visible title",
+				t.Errorf(
+					"selected-work h2 does not contain %q",
+					test.workHeading,
 				)
 			}
 
-			if !strings.Contains(
+			// Only routes that still use the shared default block should expose
+			// its neutral status. Products now owns a dedicated catalogue block.
+			defaultStatus := "Selected entries are being prepared " +
+				"for publication."
+			hasDefaultStatus := strings.Contains(
 				normalizeHTMLWhitespace(workElement),
-				"Selected entries are being prepared for publication.",
-			) {
+				defaultStatus,
+			)
+			if test.usesDefaultWork && !hasDefaultStatus {
 				t.Error(
-					"selected-work section does not state its current status",
+					"default selected-work status is missing",
+				)
+			}
+			if !test.usesDefaultWork && hasDefaultStatus {
+				t.Error(
+					"Products unexpectedly renders the default work status",
 				)
 			}
 

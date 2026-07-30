@@ -61,9 +61,10 @@ func (app *application) homeHandler(
 //
 // CurrentPath matches the route exactly so shared navigation templates can
 // mark Products as the current page for sighted users and assistive technology.
-// DisciplinePage contains only truthful route-level presentation data: its
-// editorial sequence and the next registered discipline route. Product records,
-// collections, prices, and media remain deferred to the focused Products stage.
+// DisciplinePage contains truthful route-level presentation data, while
+// ProductListing introduces the first Products-only vertical slice. Its items
+// are clearly structural catalogue slots rather than final product records:
+// prices, descriptions, media, slugs, and database state remain deferred.
 func (app *application) productsHandler(
 	w http.ResponseWriter,
 	_ *http.Request,
@@ -75,6 +76,40 @@ func (app *application) productsHandler(
 		NextPath: "/interior-design",
 	}
 
+	// Temporary slice data demonstrates how a handler supplies an ordered
+	// collection to html/template. These broad product families are structural
+	// placeholders drawn from the approved design direction, not claims about
+	// products that Zafarmand has already published.
+	productListing := &productListingData{
+		Eyebrow: "Zafarmand objects",
+		Heading: "Product catalogue",
+		Introduction: "An evolving index of furniture, lighting, " +
+			"objects, and material studies.",
+		EmptyMessage: "Product entries are being prepared for publication.",
+		Items: []productPreviewData{
+			{
+				Number:   "01",
+				Category: "Furniture",
+				Status:   "Content in preparation",
+			},
+			{
+				Number:   "02",
+				Category: "Lighting",
+				Status:   "Content in preparation",
+			},
+			{
+				Number:   "03",
+				Category: "Objects",
+				Status:   "Content in preparation",
+			},
+			{
+				Number:   "04",
+				Category: "Materials",
+				Status:   "Content in preparation",
+			},
+		},
+	}
+
 	app.render(
 		w,
 		http.StatusOK,
@@ -83,6 +118,7 @@ func (app *application) productsHandler(
 			Title:          disciplinePage.Name,
 			CurrentPath:    "/products",
 			DisciplinePage: disciplinePage,
+			ProductListing: productListing,
 		},
 	)
 }
