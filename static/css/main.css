@@ -1,57 +1,145 @@
+/*
+ * Global design foundation
+ * ------------------------
+ * This file contains values and rules shared by every public page. Keeping the
+ * design tokens here gives the site one source of truth for color, typography,
+ * spacing, borders, and motion. Page- or component-specific styling belongs in
+ * a separate stylesheet such as navigation.css or home.css.
+ */
+
 :root {
-	--background-color: #11110f;
-	--text-color: #f3f0e9;
-	--muted-color: #aaa69d;
-	--border-color: rgba(255, 255, 255, 0.2);
+	/*
+	 * Core color palette. The partially transparent values allow imagery and
+	 * layered surfaces to remain visible while preserving the warm, restrained
+	 * visual identity of the studio.
+	 */
+	--color-background: #11110f;
+	--color-text: #f3f0e9;
+	--color-text-soft: rgba(243, 240, 233, 0.78);
+	--color-muted: #aaa69d;
+	--color-border: rgba(255, 255, 255, 0.2);
+	--color-border-strong: rgba(243, 240, 233, 0.62);
+
+	/*
+	 * Semantic aliases describe how a color is used instead of how it looks.
+	 * Components can therefore depend on a role such as --text-color while the
+	 * underlying palette can be adjusted in one place later.
+	 */
+	--background-color: var(--color-background);
+	--text-color: var(--color-text);
+	--muted-color: var(--color-muted);
+	--border-color: var(--color-border);
+
+	/*
+	 * The display family supplies an editorial voice for names and large
+	 * headings. The interface family prioritizes clarity in navigation and
+	 * supporting information. System fallbacks avoid a render-blocking web-font
+	 * dependency during the current stage.
+	 */
+	--font-display: Georgia, "Times New Roman", serif;
+	--font-interface: Arial, Helvetica, sans-serif;
+	/*
+	 * clamp(minimum, fluid preference, maximum) lets small interface text grow
+	 * gently with the viewport without becoming unreadably small or oversized.
+	 */
+	--font-size-xs: clamp(0.65rem, 0.62rem + 0.1vw, 0.72rem);
+	--font-size-md: 1rem;
+
+	/*
+	 * Shared spatial measurements align page content with the header. The
+	 * fluid page gutter grows between compact phones and wide desktops, while
+	 * the remaining values provide a small, reusable spacing scale.
+	 */
+	--page-gutter: clamp(1rem, 3vw, 3.5rem);
+	--header-height: 5rem;
+	--space-3: 0.75rem;
+	--space-5: 1.5rem;
+
+	/*
+	 * Consistent timing values make separate interactions feel related. The
+	 * custom easing curve moves quickly at first and settles gently, which suits
+	 * the restrained motion used throughout the site.
+	 */
+	--duration-fast: 160ms;
+	--duration-medium: 320ms;
+	--duration-slow: 520ms;
+	--ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+
+	/* A shared border token keeps one-pixel dividers visually consistent. */
+	--border-thin: 1px solid var(--color-border);
 }
 
+/*
+ * Include padding and borders inside every declared width and height. Applying
+ * this to pseudo-elements as well prevents subtle sizing differences between
+ * real elements and decorative ::before/::after content.
+ */
 *,
 *::before,
 *::after {
 	box-sizing: border-box;
 }
 
+/*
+ * Painting the root background prevents a white flash around the document
+ * while a page loads or when overscroll briefly exposes the canvas.
+ */
 html {
 	background: var(--background-color);
 }
 
+/*
+ * Remove the browser's default body margin and establish the site's shared
+ * colors and interface typeface. The 320px floor protects the layout from
+ * collapsing below its supported minimum; individual components still need to
+ * avoid adding horizontal overflow at that width.
+ */
 body {
 	margin: 0;
 	min-width: 320px;
 	background: var(--background-color);
 	color: var(--text-color);
-	font-family: Arial, sans-serif;
+	font-family: var(--font-interface);
 }
 
+/*
+ * Links inherit their surrounding text color so each component can control its
+ * own visual hierarchy. Interactive states are supplied by the components that
+ * know whether an underline, movement, or another treatment is appropriate.
+ */
 a {
 	color: inherit;
 	text-decoration: none;
 }
 
+/*
+ * The skip link is the first keyboard shortcut to the main page content. It is
+ * kept off-screen visually, not removed with display:none, so assistive
+ * technology and keyboard users can still reach it. Its stacking level places
+ * it above the fixed header but below the modal drawer; while the drawer is
+ * open, JavaScript makes the containing page shell inert.
+ */
 .skip-link {
 	position: fixed;
 	top: 1rem;
 	left: 1rem;
+	z-index: 150;
 	padding: 0.75rem 1rem;
 	background: var(--text-color);
 	color: var(--background-color);
 	transform: translateY(-200%);
 }
 
+/* Bring the skip link into view as soon as keyboard focus reaches it. */
 .skip-link:focus {
 	transform: translateY(0);
 }
 
-.site-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 2rem;
-	min-height: 5rem;
-	padding: 1rem 4vw;
-	border-bottom: 1px solid var(--border-color);
-}
-
+/*
+ * Shared brand treatment for simple text logos outside the newer drawer and
+ * mobile-header variants. Uppercase lettering and tracking create a compact
+ * wordmark without depending on an image asset.
+ */
 .site-brand {
 	font-size: 0.8rem;
 	font-weight: 700;
@@ -59,6 +147,11 @@ a {
 	text-transform: uppercase;
 }
 
+/*
+ * Generic navigation foundation retained for pages/components that use the
+ * original navigation-link pattern. flex-wrap prevents a row of links from
+ * forcing horizontal overflow when its container becomes narrow.
+ */
 .site-navigation {
 	display: flex;
 	flex-wrap: wrap;
@@ -66,6 +159,10 @@ a {
 	gap: 2rem;
 }
 
+/*
+ * Muted text establishes the resting state; position:relative creates the
+ * containing block for the active-page underline below.
+ */
 .navigation-link {
 	position: relative;
 	padding: 0.5rem 0;
@@ -75,10 +172,15 @@ a {
 	text-transform: uppercase;
 }
 
+/* The current route receives stronger contrast in addition to its underline. */
 .navigation-link.is-active {
 	color: var(--text-color);
 }
 
+/*
+ * The pseudo-element draws an underline without changing the link's dimensions,
+ * so selecting a route never causes nearby items to move.
+ */
 .navigation-link.is-active::after {
 	position: absolute;
 	right: 0;
@@ -89,11 +191,21 @@ a {
 	content: "";
 }
 
+/*
+ * Standard inner-page shell. The minimum height leaves room for the fixed
+ * header, and viewport-relative padding scales with the available canvas.
+ * navigation.css adds extra top padding so the fixed header cannot cover it.
+ */
 .page {
 	min-height: calc(100vh - 5rem);
 	padding: 4vw;
 }
 
+/*
+ * Temporary empty-state presentation used while real project data and gallery
+ * sections are intentionally deferred. CSS Grid centers the placeholder in
+ * both axes without knowing the child's size.
+ */
 .page-placeholder {
 	display: grid;
 	min-height: 65vh;
@@ -102,12 +214,12 @@ a {
 	color: var(--muted-color);
 }
 
+/*
+ * Below 760px, the generic navigation becomes a vertical list. This legacy
+ * component breakpoint is independent of the primary header's carefully
+ * measured 48rem mobile breakpoint in navigation.css.
+ */
 @media (max-width: 760px) {
-	.site-header {
-		align-items: flex-start;
-		flex-direction: column;
-	}
-
 	.site-navigation {
 		align-items: flex-start;
 		flex-direction: column;

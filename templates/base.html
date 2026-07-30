@@ -1,7 +1,24 @@
+{{/*
+The "base" template is the shared document shell for every public route.
+
+newTemplateCache parses this file together with exactly one file from
+templates/pages. The render method then executes the template named "base".
+Keeping the document shell here prevents the header, drawer, metadata, and
+script imports from being duplicated across individual pages.
+
+These are Go-template comments rather than HTML comments. html/template removes
+them while rendering, so these learning notes do not appear in the response
+sent to the browser.
+*/}}
 {{define "base"}}
 <!DOCTYPE html>
 <html lang="en">
 <head>
+	{{/*
+	The character encoding is declared early so browsers interpret text
+	consistently. The viewport rule makes CSS media queries use the device's
+	actual viewport width instead of a simulated desktop-sized canvas.
+	*/}}
 	<meta charset="UTF-8">
 
 	<meta
@@ -9,6 +26,11 @@
 		content="width=device-width, initial-scale=1"
 	>
 
+	{{/*
+	theme-color gives supporting browsers a color for surrounding browser UI.
+	The description is currently site-wide; a later SEO stage can pass a
+	page-specific description through pageData.
+	*/}}
 	<meta
 		name="theme-color"
 		content="#171511"
@@ -19,8 +41,18 @@
 		content="Zafarmand design studio"
 	>
 
+	{{/*
+	.Title comes from pageData in the route handler. Go's html/template package
+	contextually escapes dynamic values before inserting them into HTML.
+	*/}}
 	<title>{{.Title}} | Zafarmand</title>
 
+	{{/*
+	Stylesheets are intentionally ordered from broadest to most specific:
+	main.css supplies the shared foundation, navigation.css styles the shared
+	header and drawer, and the optional pageStyles block lets one page add only
+	its own CSS. The /static/ URL prefix is served by the Go file-server route.
+	*/}}
 	<link
 		rel="stylesheet"
 		href="/static/css/main.css"
@@ -30,125 +62,219 @@
 		rel="stylesheet"
 		href="/static/css/navigation.css"
 	>
+
+	{{/*
+	block both defines and executes a named template. Its empty default makes
+	page-specific CSS optional. A page such as home.html can define "pageStyles"
+	to replace this default without requiring unfinished pages to do so.
+	*/}}
+	{{block "pageStyles" .}}{{end}}
 </head>
 
+{{/*
+.CurrentPath is the canonical route supplied by the handler. Besides driving
+the active-link conditions below, exposing it as a data attribute gives future
+progressive-enhancement JavaScript access to route state without parsing URLs.
+*/}}
 <body
 	class="site-body"
 	data-current-path="{{.CurrentPath}}"
 >
-	<a class="skip-link" href="#main-content">
-		Skip to content
-	</a>
-
-	<header class="site-header" data-site-header>
-		<div class="site-header__left">
-			<button
-				class="icon-button menu-toggle"
-				type="button"
-				aria-label="Open navigation menu"
-				aria-expanded="false"
-				aria-controls="site-drawer"
-				data-menu-open
-			>
-				<span
-					class="menu-toggle__lines"
-					aria-hidden="true"
-				>
-					<span></span>
-					<span></span>
-					<span></span>
-				</span>
-			</button>
-		</div>
-
-		<a
-			class="mobile-home-link"
-			href="/"
-			aria-label="Zafarmand homepage"
-		>
-			Zafarmand
+	<div class="site-shell" data-page-shell>
+		{{/*
+		The skip link is the first interactive element for keyboard users. Its
+		target must remain the unique id="main-content" in either the page's
+		content block or the base fallback.
+		*/}}
+		<a class="skip-link" href="#main-content">
+			Skip to content
 		</a>
 
-		<nav
-			class="discipline-nav"
-			aria-label="Design disciplines"
-		>
-			<a
-				class="discipline-nav__link
-				{{if eq .CurrentPath "/interior-design"}}is-active{{end}}"
-				href="/interior-design"
-				{{if eq .CurrentPath "/interior-design"}}
-					aria-current="page"
-				{{end}}
-			>
-				Interior Design
-			</a>
-
-			<a
-				class="discipline-nav__link
-				{{if eq .CurrentPath "/architecture-design"}}is-active{{end}}"
-				href="/architecture-design"
-				{{if eq .CurrentPath "/architecture-design"}}
-					aria-current="page"
-				{{end}}
-			>
-				Architecture Design
-			</a>
-
-			<a
-				class="discipline-nav__link
-				{{if eq .CurrentPath "/products"}}is-active{{end}}"
-				href="/products"
-				{{if eq .CurrentPath "/products"}}
-					aria-current="page"
-				{{end}}
-			>
-				Product
-			</a>
-		</nav>
-
-		<div class="site-header__right">
-			<button
-				class="icon-button search-button"
-				type="button"
-				aria-label="Search will be added later"
-				title="Search will be added later"
-				disabled
-			>
-				<svg
-					viewBox="0 0 24 24"
-					aria-hidden="true"
+		{{/*
+		The header is shared by all server-rendered pages. data-* attributes are
+		JavaScript hooks; classes remain styling hooks. Keeping those concerns
+		separate makes either layer easier to change later.
+		*/}}
+		<header class="site-header" data-site-header>
+			<div class="site-header__left">
+				{{/*
+				JavaScript changes aria-expanded when the drawer opens and closes.
+				aria-controls connects this button to the drawer's matching id.
+				The three visual lines are decorative, so assistive technology gets
+				the useful name from aria-label instead.
+				*/}}
+				<button
+					class="icon-button menu-toggle"
+					type="button"
+					aria-label="Open navigation menu"
+					aria-expanded="false"
+					aria-controls="site-drawer"
+					data-menu-open
 				>
-					<circle
-						cx="10.8"
-						cy="10.8"
-						r="7.2"
-					></circle>
+					<span
+						class="menu-toggle__lines"
+						aria-hidden="true"
+					>
+						<span></span>
+						<span></span>
+						<span></span>
+					</span>
+				</button>
+			</div>
 
-					<path d="M16.2 16.2L21 21"></path>
-				</svg>
-			</button>
-		</div>
-	</header>
+			{{/*
+			This real link always returns to the server-rendered homepage. CSS
+			reveals it in the compact header and hides it when the full discipline
+			navigation has sufficient room.
+			*/}}
+			<a
+				class="mobile-home-link"
+				href="/"
+				aria-label="Zafarmand homepage"
+			>
+				Zafarmand
+			</a>
 
+			{{/*
+			Each discipline uses a real URL, so browser history, Back/Forward,
+			refreshing, and opening in a new tab work normally. The conditional
+			template expressions compare .CurrentPath with the link destination.
+			A match adds both:
+
+			- is-active, a visual styling hook; and
+			- aria-current="page", a semantic announcement for assistive technology.
+
+			The separators are presentation only and therefore aria-hidden.
+			*/}}
+			<nav
+				class="discipline-nav"
+				aria-label="Design disciplines"
+			>
+				<a
+					class="discipline-nav__link
+					{{if eq .CurrentPath "/interior-design"}}is-active{{end}}"
+					href="/interior-design"
+					{{if eq .CurrentPath "/interior-design"}}
+						aria-current="page"
+					{{end}}
+				>
+					Interior Design
+				</a>
+
+				<span
+					class="discipline-nav__separator"
+					aria-hidden="true"
+				></span>
+
+				<a
+					class="discipline-nav__link
+					{{if eq .CurrentPath "/architecture-design"}}is-active{{end}}"
+					href="/architecture-design"
+					{{if eq .CurrentPath "/architecture-design"}}
+						aria-current="page"
+					{{end}}
+				>
+					Architecture Design
+				</a>
+
+				<span
+					class="discipline-nav__separator"
+					aria-hidden="true"
+				></span>
+
+				<a
+					class="discipline-nav__link
+					{{if eq .CurrentPath "/products"}}is-active{{end}}"
+					href="/products"
+					{{if eq .CurrentPath "/products"}}
+						aria-current="page"
+					{{end}}
+				>
+					Product
+				</a>
+			</nav>
+
+			<div class="site-header__right">
+				{{/*
+				Search is intentionally non-functional in the current stage. A
+				disabled button communicates that status without creating a broken
+				link or clickable control. The SVG is decorative because the button
+				already has an accessible name.
+				*/}}
+				<button
+					class="icon-button search-button"
+					type="button"
+					aria-label="Search will be added later"
+					title="Search will be added later"
+					disabled
+				>
+					<svg
+						viewBox="0 0 24 24"
+						aria-hidden="true"
+					>
+						<circle
+							cx="10.8"
+							cy="10.8"
+							r="7.2"
+						></circle>
+
+						<path d="M16.2 16.2L21 21"></path>
+					</svg>
+				</button>
+			</div>
+		</header>
+
+		{{/*
+		Page templates may override "content" with their own semantic <main>.
+		This fallback is deliberately safe: unfinished page files still render a
+		valid main landmark and skip-link target. It also prevents execution from
+		depending on a "content" definition that might not exist.
+
+		The current pageData value remains the dot context because it is passed as
+		the second argument to block.
+		*/}}
+		{{block "content" .}}
+		<main id="main-content"></main>
+		{{end}}
+	</div>
+
+	{{/*
+	The drawer sits outside .site-shell so it can overlay the complete viewport.
+	JavaScript synchronizes aria-hidden with its visible state and uses the
+	data-menu-close hooks for both the backdrop and close button.
+	*/}}
 	<div
 		class="site-drawer"
 		id="site-drawer"
 		aria-hidden="true"
 		data-site-drawer
 	>
-		<button
+		<div
 			class="site-drawer__backdrop"
-			type="button"
-			aria-label="Close navigation menu"
+			aria-hidden="true"
 			data-menu-close
-		></button>
+		></div>
 
-		<aside
+		{{/*
+		role="dialog" and aria-modal identify the open panel as a modal region.
+		tabindex="-1" allows script to focus the panel programmatically, while the
+		initial-focus hook sends normal opening focus to the close button. The
+		drawer script traps Tab focus here and restores focus to the opener later.
+		*/}}
+		<div
 			class="site-drawer__panel"
-			aria-label="Website menu"
+			role="dialog"
+			aria-label="Website navigation"
+			aria-modal="true"
+			tabindex="-1"
+			data-drawer-panel
 		>
 			<div class="site-drawer__header">
+				{{/*
+				The brand remains an ordinary homepage link. data-menu-link tells
+				the progressive-enhancement script to close the drawer as navigation
+				begins; navigation itself still works if JavaScript is unavailable.
+				*/}}
 				<a
 					class="drawer-brand"
 					href="/"
@@ -162,6 +288,7 @@
 					type="button"
 					aria-label="Close navigation menu"
 					data-menu-close
+					data-menu-initial-focus
 				>
 					<span
 						class="drawer-close__icon"
@@ -171,6 +298,14 @@
 			</div>
 
 			<div class="site-drawer__content">
+				{{/*
+				The discipline links repeat the same route-aware active-state logic
+				as the desktop navigation because this navigation remains available
+				in the compact drawer. Consequently a discipline page has two
+				aria-current links: one in each responsive navigation region.
+
+				The visible numbers are editorial labels, not ordered-list semantics.
+				*/}}
 				<nav
 					class="drawer-disciplines"
 					aria-label="Design disciplines"
@@ -179,6 +314,9 @@
 						class="drawer-disciplines__link
 						{{if eq .CurrentPath "/interior-design"}}is-active{{end}}"
 						href="/interior-design"
+						{{if eq .CurrentPath "/interior-design"}}
+							aria-current="page"
+						{{end}}
 						data-menu-link
 					>
 						<span>01</span>
@@ -189,6 +327,9 @@
 						class="drawer-disciplines__link
 						{{if eq .CurrentPath "/architecture-design"}}is-active{{end}}"
 						href="/architecture-design"
+						{{if eq .CurrentPath "/architecture-design"}}
+							aria-current="page"
+						{{end}}
 						data-menu-link
 					>
 						<span>02</span>
@@ -199,6 +340,9 @@
 						class="drawer-disciplines__link
 						{{if eq .CurrentPath "/products"}}is-active{{end}}"
 						href="/products"
+						{{if eq .CurrentPath "/products"}}
+							aria-current="page"
+						{{end}}
 						data-menu-link
 					>
 						<span>03</span>
@@ -206,6 +350,12 @@
 					</a>
 				</nav>
 
+				{{/*
+				This second navigation group is for studio-level destinations.
+				Only Home has a real route today. Future destinations use non-link
+				spans with aria-disabled instead of misleading href values, so they
+				cannot be activated before their routes and content exist.
+				*/}}
 				<nav
 					class="drawer-navigation"
 					aria-label="Studio navigation"
@@ -214,6 +364,9 @@
 						class="drawer-navigation__link
 						{{if eq .CurrentPath "/"}}is-active{{end}}"
 						href="/"
+						{{if eq .CurrentPath "/"}}
+							aria-current="page"
+						{{end}}
 						data-menu-link
 					>
 						Home
@@ -256,6 +409,11 @@
 				</nav>
 			</div>
 
+			{{/*
+			Social names are structural placeholders rather than links because
+			final profile URLs have not been supplied. The surrounding label makes
+			the group understandable without pretending those destinations work.
+			*/}}
 			<footer class="site-drawer__footer">
 				<p class="drawer-footer__label">
 					Follow
@@ -270,13 +428,14 @@
 					<span>LinkedIn</span>
 				</div>
 			</footer>
-		</aside>
+		</div>
 	</div>
 
-	{{block "content" .}}
-	<main id="main-content"></main>
-	{{end}}
-
+	{{/*
+	defer downloads the shared behavior script without blocking HTML parsing and
+	runs it after the document has been parsed. The HTML remains navigable before
+	the script enhances drawer behavior.
+	*/}}
 	<script src="/static/js/main.js" defer></script>
 </body>
 </html>

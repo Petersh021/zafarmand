@@ -1,0 +1,86 @@
+{{/*
+The homepage is parsed together with base.html. Defining "pageStyles" replaces
+the base template's empty default only for this page, so other routes do not
+download homepage-specific presentation rules.
+*/}}
+{{define "pageStyles"}}
+<link
+	rel="stylesheet"
+	href="/static/css/home.css"
+>
+{{end}}
+
+{{/*
+Defining "content" replaces the base template's safe fallback content for the
+homepage. The id must stay synchronized with the shared skip link's
+href="#main-content".
+*/}}
+{{define "content"}}
+<main id="main-content" class="home-page">
+	{{/*
+	.HomeHero is a *homeHeroData pointer inside pageData. "with" renders its
+	body only when that pointer is non-nil, which avoids emitting a broken hero
+	if a handler deliberately has no hero data. Inside the block, the dot changes
+	from pageData to the referenced homeHeroData value.
+	*/}}
+	{{with .HomeHero}}
+	{{/*
+	The section is labelled by its visible h1. aria-labelledby creates an
+	explicit relationship between the region and id="home-hero-title".
+	*/}}
+	<section
+		class="home-hero"
+		aria-labelledby="home-hero-title"
+	>
+		{{/*
+		All image fields come from homeHeroData and are escaped by html/template.
+		Meaningful alternative text describes the image for people who cannot see
+		it. Intrinsic width and height reserve the correct aspect-ratio space and
+		reduce layout shift while the file loads.
+
+		The hero is the initial viewport's likely largest-contentful-paint image,
+		so it receives high fetch priority and is intentionally not lazy-loaded.
+		Asynchronous decoding lets the browser decode without unnecessarily
+		blocking other main-thread work.
+		*/}}
+		<img
+			class="home-hero__image"
+			src="{{.ImageURL}}"
+			alt="{{.ImageAlt}}"
+			width="{{.ImageWidth}}"
+			height="{{.ImageHeight}}"
+			fetchpriority="high"
+			decoding="async"
+		>
+
+		{{/*
+		The scrim improves text contrast over the photograph. It has no meaning of
+		its own, so aria-hidden keeps it out of the accessibility tree.
+		*/}}
+		<div
+			class="home-hero__scrim"
+			aria-hidden="true"
+		></div>
+
+		{{/*
+		The studio name is the page's primary heading. Both strings come from the
+		handler rather than being buried in CSS, establishing the data flow that
+		can later be backed by an administrative content source.
+		*/}}
+		<div class="home-hero__identity">
+			<h1
+				class="home-hero__title"
+				id="home-hero-title"
+			>
+				{{.StudioName}}
+			</h1>
+
+			<p class="home-hero__descriptor">
+				{{.Descriptor}}
+			</p>
+		</div>
+	</section>
+	{{/* End the conditional HomeHero rendering and restore pageData as dot. */}}
+	{{end}}
+</main>
+{{end}}

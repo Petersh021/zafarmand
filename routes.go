@@ -2,24 +2,36 @@ package main
 
 import "net/http"
 
+// routes constructs and returns the application's HTTP routing tree.
+//
+// Go's ServeMux patterns include the HTTP method. A GET pattern accepts GET and
+// HEAD, while unrelated methods receive a 405 Method Not Allowed response
+// automatically. Returning http.Handler keeps main and tests independent of
+// the concrete *http.ServeMux implementation.
 func (app *application) routes() http.Handler {
 	mux := http.NewServeMux()
 
+	// FileServer reads public assets from the local static directory. The
+	// browser requests /static/css/main.css, but StripPrefix removes /static/
+	// before FileServer maps the remainder to ./static/css/main.css.
 	fileServer := http.FileServer(http.Dir("./static"))
 
 	mux.Handle(
-		"/static/",
+		"GET /static/",
 		http.StripPrefix("/static/", fileServer),
 	)
 
-	mux.HandleFunc("/", app.homeHandler)
-	mux.HandleFunc("/products", app.productsHandler)
+	// /{$} is an exact-root pattern. The {$} prevents the homepage handler from
+	// acting as a catch-all for unknown paths, which lets ServeMux return a
+	// correct 404 response for URLs the application does not define.
+	mux.HandleFunc("GET /{$}", app.homeHandler)
+	mux.HandleFunc("GET /products", app.productsHandler)
 	mux.HandleFunc(
-		"/interior-design",
+		"GET /interior-design",
 		app.interiorDesignHandler,
 	)
 	mux.HandleFunc(
-		"/architecture-design",
+		"GET /architecture-design",
 		app.architectureDesignHandler,
 	)
 
