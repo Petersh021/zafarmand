@@ -38,11 +38,27 @@ type homeHeroData struct {
 	ImageHeight int
 }
 
+// disciplineEntranceData is the small view model needed by one homepage
+// discipline link.
+//
+// It deliberately contains presentation data only. Future Product or Project
+// database records can be mapped into this shape without coupling the homepage
+// template to persistence fields such as IDs, publication status, or slugs.
+type disciplineEntranceData struct {
+	// Number is a decorative editorial sequence displayed beside the link.
+	Number string
+	// Name is the visible discipline name and the link's accessible text.
+	Name string
+	// Path is the real server-rendered destination used by the link's href.
+	Path string
+}
+
 // pageData is the common top-level value passed to every page template.
 //
 // A pointer is used for HomeHero because only the homepage has hero data. A nil
-// pointer lets other templates omit that optional section naturally with
-// html/template's conditional actions.
+// pointer lets other templates omit that optional section naturally. A slice
+// is used for HomeDisciplines because templates can range over any number of
+// entries, while a nil or empty slice renders no discipline section.
 type pageData struct {
 	// Title becomes the page-specific portion of the browser document title.
 	Title string
@@ -50,6 +66,8 @@ type pageData struct {
 	CurrentPath string
 	// HomeHero contains homepage-only content, or nil for other pages.
 	HomeHero *homeHeroData
+	// HomeDisciplines contains the ordered homepage route entrances.
+	HomeDisciplines []disciplineEntranceData
 }
 
 // newApplication creates a ready-to-serve application and its shared template

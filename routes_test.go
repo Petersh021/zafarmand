@@ -24,6 +24,73 @@ func newTestApplication(t *testing.T) *application {
 	return app
 }
 
+// assertHomeDisciplineEntrances verifies the number, fields, and order of the
+// discipline rows inside the homepage section.
+//
+// Starting at the section id prevents repeated links in the shared header or
+// drawer from satisfying these assertions. Moving through the remaining
+// substring after every match proves the template preserves the Go slice order.
+func assertHomeDisciplineEntrances(
+	t *testing.T,
+	body string,
+	entrances []disciplineEntranceData,
+) {
+	t.Helper()
+
+	if count := strings.Count(
+		body,
+		`class="home-discipline"`,
+	); count != len(entrances) {
+		t.Fatalf(
+			"discipline entrance count: got %d, want %d",
+			count,
+			len(entrances),
+		)
+	}
+
+	sectionPosition := strings.Index(body, `id="disciplines"`)
+	if sectionPosition == -1 {
+		t.Fatal("response does not contain the disciplines section")
+	}
+
+	remainingBody := body[sectionPosition:]
+
+	for _, entrance := range entrances {
+		pathPosition := strings.Index(
+			remainingBody,
+			`href="`+entrance.Path+`"`,
+		)
+		numberPosition := strings.Index(
+			remainingBody,
+			entrance.Number,
+		)
+		namePosition := strings.Index(
+			remainingBody,
+			entrance.Name,
+		)
+
+		if pathPosition == -1 ||
+			numberPosition == -1 ||
+			namePosition == -1 {
+			t.Fatalf(
+				"response does not contain entrance %q at %q",
+				entrance.Name,
+				entrance.Path,
+			)
+		}
+
+		if numberPosition < pathPosition ||
+			namePosition < numberPosition {
+			t.Fatalf(
+				"entrance %q fields are not in template order",
+				entrance.Name,
+			)
+		}
+
+		remainingBody = remainingBody[namePosition+len(entrance.Name):]
+	}
+}
+
 // TestPageRoutes verifies the shared contract of every public page route:
 // successful GET responses, correct title and active navigation state, and a
 // homepage hero that appears only at the root URL.
@@ -201,6 +268,100 @@ func TestHomeHero(t *testing.T) {
 	// element, so this assertion protects the intentional eager-loading choice.
 	if strings.Contains(body, `loading="lazy"`) {
 		t.Error("above-the-fold hero image must not be lazy-loaded")
+	}
+}
+
+// TestHomeDisciplineEntrancesUseTemplateData renders the homepage with custom
+// sentinel values to prove the entrance markup comes from pageData and one
+// template range rather than three hard-coded HTML links.
+func TestHomeDisciplineEntrancesUseTemplateData(t *testing.T) {
+	app := newTestApplication(t)
+	recorder := httptest.NewRecorder()
+
+	entrances := []disciplineEntranceData{
+		{
+			Number: "S-01",
+			Name:   "First Sentinel",
+			Path:   "/first-sentinel",
+		},
+		{
+			Number: "S-02",
+			Name:   "Second Sentinel",
+			Path:   "/second-sentinel",
+		},
+	}
+
+	app.render(
+		recorder,
+		http.StatusOK,
+		"home.html",
+		pageData{
+			Title:           "Sentinel",
+			CurrentPath:     "/",
+			HomeDisciplines: entrances,
+		},
+	)
+
+	body := recorder.Body.String()
+	assertHomeDisciplineEntrances(t, body, entrances)
+}
+
+// TestHomeDisciplineEntrances verifies the production homepage contains exactly
+// three unique entrances, keeps their intended visual order, and points every
+// link at a registered server-rendered route.
+func TestHomeDisciplineEntrances(t *testing.T) {
+	app := newTestApplication(t)
+	handler := app.routes()
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+
+	handler.ServeHTTP(recorder, request)
+
+	body := recorder.Body.String()
+	expectedEntrances := []disciplineEntranceData{
+		{
+			Number: "01",
+			Name:   "Interior Design",
+			Path:   "/interior-design",
+		},
+		{
+			Number: "02",
+			Name:   "Architecture Design",
+			Path:   "/architecture-design",
+		},
+		{
+			Number: "03",
+			Name:   "Products",
+			Path:   "/products",
+		},
+	}
+
+	assertHomeDisciplineEntrances(
+		t,
+		body,
+		expectedEntrances,
+	)
+
+	for _, entrance := range expectedEntrances {
+		// Sending the destination through the application router verifies the
+		// homepage never advertises an unregistered or placeholder URL.
+		routeRecorder := httptest.NewRecorder()
+		routeRequest := httptest.NewRequest(
+			http.MethodGet,
+			entrance.Path,
+			nil,
+		)
+
+		handler.ServeHTTP(routeRecorder, routeRequest)
+
+		if routeRecorder.Code != http.StatusOK {
+			t.Errorf(
+				"discipline path %q status: got %d, want %d",
+				entrance.Path,
+				routeRecorder.Code,
+				http.StatusOK,
+			)
+		}
 	}
 }
 

@@ -82,5 +82,69 @@ href="#main-content".
 	</section>
 	{{/* End the conditional HomeHero rendering and restore pageData as dot. */}}
 	{{end}}
+
+	{{/*
+	HomeDisciplines is a []disciplineEntranceData slice. "with" prevents an empty
+	section when the slice is nil or has no entries. Inside this block, the dot is
+	the complete slice; "range" then changes the dot to one entrance at a time.
+
+	This section is a sibling of the hero because the hero clips its own visual
+	layers with overflow:hidden. Its stable id gives the Stage 4C scroll cue a
+	real destination when that cue is introduced later.
+	*/}}
+	{{with .HomeDisciplines}}
+	<section
+		class="home-disciplines"
+		id="disciplines"
+		aria-labelledby="home-disciplines-title"
+	>
+		<div class="home-disciplines__inner">
+			<header class="home-disciplines__header">
+				<h2
+					class="home-disciplines__heading"
+					id="home-disciplines-title"
+				>
+					Disciplines
+				</h2>
+			</header>
+
+			{{/*
+			A list communicates that these links form one related set. The visible
+			numbers are editorial decoration rather than meaningful list order, so
+			the list is unordered and each number is hidden from assistive
+			technology. Each full row is one real link with no nested controls.
+			*/}}
+			<ul class="home-disciplines__list">
+				{{range .}}
+				<li class="home-disciplines__item">
+					<a
+						class="home-discipline"
+						href="{{.Path}}"
+					>
+						<span
+							class="home-discipline__number"
+							aria-hidden="true"
+						>
+							{{.Number}}
+						</span>
+
+						<span class="home-discipline__title">
+							{{.Name}}
+						</span>
+
+						<span
+							class="home-discipline__arrow"
+							aria-hidden="true"
+						>
+							&rarr;
+						</span>
+					</a>
+				</li>
+				{{end}}
+			</ul>
+		</div>
+	</section>
+	{{/* End the optional discipline slice and restore pageData as dot. */}}
+	{{end}}
 </main>
 {{end}}

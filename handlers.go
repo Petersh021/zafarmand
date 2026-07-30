@@ -8,8 +8,10 @@ import "net/http"
 // The request value is deliberately named "_" because this handler currently
 // needs no headers, query values, or form data from it. The pageData value is
 // the boundary between Go and the HTML template: CurrentPath controls active
-// navigation state, while HomeHero supplies temporary structured hero content
-// that can later come from a database without changing the template contract.
+// navigation state, HomeHero supplies temporary structured hero content, and
+// HomeDisciplines supplies an ordered collection for the template to range
+// over. These view models can later be populated from a database without
+// changing their HTML contract.
 func (app *application) homeHandler(
 	w http.ResponseWriter,
 	_ *http.Request,
@@ -31,6 +33,25 @@ func (app *application) homeHandler(
 					"and a wooden chair",
 				ImageWidth:  1536,
 				ImageHeight: 1024,
+			},
+			// The order matches the desktop header and drawer navigation.
+			// These are structural route entrances, not database records.
+			HomeDisciplines: []disciplineEntranceData{
+				{
+					Number: "01",
+					Name:   "Interior Design",
+					Path:   "/interior-design",
+				},
+				{
+					Number: "02",
+					Name:   "Architecture Design",
+					Path:   "/architecture-design",
+				},
+				{
+					Number: "03",
+					Name:   "Products",
+					Path:   "/products",
+				},
 			},
 		},
 	)

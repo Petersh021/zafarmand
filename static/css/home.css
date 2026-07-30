@@ -222,3 +222,211 @@
  * already behaves safely when prefers-reduced-motion is enabled. Navigation
  * motion is defined separately and explicitly disabled in navigation.css.
  */
+
+/* --------------------------------------------------
+   Stage 4B: Homepage discipline entrances
+
+   The supplied discipline screenshots contain interface text and another
+   studio identity, so this stage uses an honest typographic index instead of
+   pretending those screenshots are clean project media. Each row is a real
+   route entrance generated from temporary Go data.
+-------------------------------------------------- */
+
+/*
+ * Page-specific custom properties keep this light editorial surface independent
+ * from the dark global palette. scroll-margin-top reserves room for the fixed
+ * header when a future scroll cue or a copied #disciplines URL targets it.
+ */
+.home-disciplines {
+	--discipline-surface: #e8e3d9;
+	--discipline-ink: #1a1814;
+	--discipline-ink-soft: rgba(26, 24, 20, 0.68);
+	--discipline-rule: rgba(26, 24, 20, 0.28);
+
+	scroll-margin-top: var(--header-height);
+	padding:
+		clamp(4rem, 8vw, 8rem)
+		var(--page-gutter)
+		clamp(5rem, 10vw, 10rem);
+	background: var(--discipline-surface);
+	color: var(--discipline-ink);
+}
+
+/*
+ * The width cap keeps row numbers, names, and arrows visually connected on
+ * ultrawide screens. The shared page gutter still controls the outer rhythm.
+ */
+.home-disciplines__inner {
+	width: min(100%, 100rem);
+	margin-inline: auto;
+}
+
+/*
+ * A restrained interface-style heading identifies the landmark without
+ * competing with the much larger discipline names.
+ */
+.home-disciplines__header {
+	padding-bottom: clamp(2rem, 4vw, 4rem);
+}
+
+.home-disciplines__heading {
+	margin: 0;
+	color: var(--discipline-ink-soft);
+	font-family: var(--font-interface);
+	font-size: var(--font-size-xs);
+	font-weight: 400;
+	letter-spacing: 0.28em;
+	line-height: 1.4;
+	text-transform: uppercase;
+}
+
+/*
+ * Remove default list presentation because the visible sequence numbers are
+ * part of the custom editorial layout. The top and bottom rules frame the
+ * complete group, while each item supplies its own lower divider.
+ */
+.home-disciplines__list {
+	margin: 0;
+	padding: 0;
+	border-top: 1px solid var(--discipline-rule);
+	list-style: none;
+}
+
+.home-disciplines__item {
+	border-bottom: 1px solid var(--discipline-rule);
+}
+
+/*
+ * Each full row is the interactive target. The three-column grid reserves a
+ * compact number column and arrow while minmax(0, 1fr) allows the long
+ * Architecture Design title to wrap instead of producing horizontal overflow.
+ */
+.home-discipline {
+	display: grid;
+	grid-template-columns:
+		clamp(2.5rem, 6vw, 6rem)
+		minmax(0, 1fr)
+		auto;
+	min-height: clamp(9rem, 14vw, 13rem);
+	align-items: center;
+	gap: clamp(1rem, 3vw, 3rem);
+	padding:
+		clamp(1.5rem, 3vw, 3rem)
+		clamp(0.75rem, 1.5vw, 1.5rem);
+	transition:
+		background-color var(--duration-fast) ease,
+		color var(--duration-fast) ease;
+}
+
+.home-discipline__number {
+	align-self: start;
+	padding-top: 0.35rem;
+	color: var(--discipline-ink-soft);
+	font-family: var(--font-interface);
+	font-size: var(--font-size-xs);
+	letter-spacing: 0.18em;
+}
+
+/*
+ * The title may wrap naturally. Avoiding white-space:nowrap is important at
+ * 375px, 430px, 768px, high zoom levels, and translated content lengths.
+ */
+.home-discipline__title {
+	font-family: var(--font-display);
+	font-size: clamp(2.5rem, 5.6vw, 6.5rem);
+	font-weight: 400;
+	letter-spacing: -0.035em;
+	line-height: 0.94;
+	transition: transform var(--duration-medium) var(--ease-standard);
+}
+
+.home-discipline__arrow {
+	color: var(--discipline-ink-soft);
+	font-family: var(--font-interface);
+	font-size: clamp(1.35rem, 2.4vw, 2.25rem);
+	line-height: 1;
+	transition:
+		color var(--duration-fast) ease,
+		transform var(--duration-medium) var(--ease-standard);
+}
+
+/*
+ * Hover and keyboard focus receive the same surface change. The inset outline
+ * remains visible without increasing the row's dimensions or being clipped by
+ * adjacent list items.
+ */
+.home-discipline:hover,
+.home-discipline:focus-visible {
+	outline: 1px solid var(--discipline-ink);
+	outline-offset: -1px;
+	background: rgba(26, 24, 20, 0.045);
+}
+
+.home-discipline:hover .home-discipline__title,
+.home-discipline:focus-visible .home-discipline__title {
+	transform: translateX(0.3rem);
+}
+
+.home-discipline:hover .home-discipline__arrow,
+.home-discipline:focus-visible .home-discipline__arrow {
+	color: var(--discipline-ink);
+	transform: translateX(0.35rem);
+}
+
+/*
+ * Narrow screens retain the same row structure with smaller columns, gaps, and
+ * type. There is no layout-mode switch, so intermediate widths and browser zoom
+ * reflow smoothly without a fragile two-plus-one card arrangement.
+ */
+@media (max-width: 36rem) {
+	.home-disciplines {
+		padding-block:
+			clamp(3.5rem, 14vw, 5rem)
+			clamp(4rem, 16vw, 6rem);
+	}
+
+	.home-disciplines__header {
+		padding-bottom: 2rem;
+	}
+
+	.home-discipline {
+		grid-template-columns: 2rem minmax(0, 1fr) auto;
+		min-height: 8.5rem;
+		gap: 0.75rem;
+		padding:
+			1.5rem
+			0.5rem;
+	}
+
+	.home-discipline__number {
+		padding-top: 0.2rem;
+	}
+
+	.home-discipline__title {
+		font-size: clamp(2rem, 10vw, 3rem);
+		line-height: 0.98;
+	}
+
+	.home-discipline__arrow {
+		font-size: 1.35rem;
+	}
+}
+
+/*
+ * Preserve all link state changes for reduced-motion users while removing the
+ * decorative horizontal movement of the title and arrow.
+ */
+@media (prefers-reduced-motion: reduce) {
+	.home-discipline,
+	.home-discipline__title,
+	.home-discipline__arrow {
+		transition: none;
+	}
+
+	.home-discipline:hover .home-discipline__title,
+	.home-discipline:focus-visible .home-discipline__title,
+	.home-discipline:hover .home-discipline__arrow,
+	.home-discipline:focus-visible .home-discipline__arrow {
+		transform: none;
+	}
+}
