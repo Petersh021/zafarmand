@@ -227,6 +227,48 @@ func TestPageRoutes(t *testing.T) {
 					test.path == "/",
 				)
 			}
+
+			// Homepage presentation, the Stage 4C fragment link, and its
+			// destination belong to the root route only. Checking all three
+			// protects other public templates from inheriting homepage-only
+			// assets or markup.
+			hasHomeStyles := strings.Contains(
+				string(body),
+				`href="/static/css/home.css"`,
+			)
+			hasHomeScrollCue := strings.Contains(
+				string(body),
+				`href="#disciplines"`,
+			)
+			hasDisciplineTarget := strings.Contains(
+				string(body),
+				`id="disciplines"`,
+			)
+			wantsHomeComposition := test.path == "/"
+
+			if hasHomeStyles != wantsHomeComposition {
+				t.Errorf(
+					"home stylesheet presence: got %t, want %t",
+					hasHomeStyles,
+					wantsHomeComposition,
+				)
+			}
+
+			if hasHomeScrollCue != wantsHomeComposition {
+				t.Errorf(
+					"home scroll cue presence: got %t, want %t",
+					hasHomeScrollCue,
+					wantsHomeComposition,
+				)
+			}
+
+			if hasDisciplineTarget != wantsHomeComposition {
+				t.Errorf(
+					"discipline target presence: got %t, want %t",
+					hasDisciplineTarget,
+					wantsHomeComposition,
+				)
+			}
 		})
 	}
 }
@@ -253,6 +295,7 @@ func TestHomeHero(t *testing.T) {
 		`<h1`,
 		`Zafarmand`,
 		`Design Studio`,
+		`Explore disciplines`,
 	}
 
 	for _, content := range expectedContent {
@@ -264,10 +307,198 @@ func TestHomeHero(t *testing.T) {
 		}
 	}
 
-	// Lazy loading an above-the-fold hero delays the page's largest visual
-	// element, so this assertion protects the intentional eager-loading choice.
-	if strings.Contains(body, `loading="lazy"`) {
+	// Inspect only the hero <img> start tag. Future below-the-fold images should
+	// be allowed to use loading="lazy" without weakening the eager hero contract.
+	heroImageClassPosition := strings.Index(
+		body,
+		`class="home-hero__image"`,
+	)
+	if heroImageClassPosition == -1 {
+		t.Fatal("response does not contain the hero image")
+	}
+
+	// Starting at the preceding <img catches a future loading attribute whether
+	// it appears before or after class in the template's attribute order.
+	heroImageStart := strings.LastIndex(
+		body[:heroImageClassPosition],
+		"<img",
+	)
+	if heroImageStart == -1 {
+		t.Fatal("hero image class is not on an img element")
+	}
+
+	heroImageEnd := strings.Index(body[heroImageStart:], ">")
+	if heroImageEnd == -1 {
+		t.Fatal("hero image start tag is not closed")
+	}
+
+	heroImageTag := body[heroImageStart : heroImageStart+heroImageEnd+1]
+	if strings.Contains(heroImageTag, `loading="lazy"`) {
 		t.Error("above-the-fold hero image must not be lazy-loaded")
+	}
+}
+
+// TestHomeHeroRailUsesAvailablePageData proves the supporting rail reads the
+// current hero fields and derives its count from the current discipline slice.
+//
+// Sentinel text distinguishes the rail from production handler values, while a
+// two-item slice catches an accidentally hard-coded production count of three.
+func TestHomeHeroRailUsesAvailablePageData(t *testing.T) {
+	app := newTestApplication(t)
+	recorder := httptest.NewRecorder()
+
+	hero := homeHeroData{
+		StudioName: "Rail Studio Sentinel",
+		Descriptor: "Rail Descriptor Sentinel",
+	}
+	entrances := []disciplineEntranceData{
+		{
+			Number: "S-01",
+			Name:   "First Rail Discipline",
+			Path:   "/first-rail-discipline",
+		},
+		{
+			Number: "S-02",
+			Name:   "Second Rail Discipline",
+			Path:   "/second-rail-discipline",
+		},
+	}
+
+	app.render(
+		recorder,
+		http.StatusOK,
+		"home.html",
+		pageData{
+			Title:           "Rail Sentinel",
+			CurrentPath:     "/",
+			HomeHero:        &hero,
+			HomeDisciplines: entrances,
+		},
+	)
+
+	body := recorder.Body.String()
+	railStart := strings.Index(body, `class="home-hero__rail"`)
+	if railStart == -1 {
+		t.Fatal("response does not contain the hero rail")
+	}
+
+	heroEnd := strings.Index(body[railStart:], "</section>")
+	if heroEnd == -1 {
+		t.Fatal("hero section is not closed after the rail")
+	}
+
+	// Collapsing formatting whitespace makes the visible count assertion
+	// independent of template indentation while preserving element boundaries.
+	rail := strings.Join(
+		strings.Fields(body[railStart:railStart+heroEnd]),
+		" ",
+	)
+	expectedRailContent := []string{
+		"Rail Studio Sentinel",
+		"Rail Descriptor Sentinel",
+		"> 2 </span>",
+		"Explore disciplines",
+	}
+
+	for _, content := range expectedRailContent {
+		if !strings.Contains(rail, content) {
+			t.Errorf(
+				"hero rail does not contain %q",
+				content,
+			)
+		}
+	}
+}
+
+// TestHomeHeroOmitsScrollCueWithoutDisciplines verifies that a hero can render
+// independently without advertising a fragment destination that is not present.
+//
+// This protects the shared template if a future handler temporarily has hero
+// data but no published discipline entrances.
+func TestHomeHeroOmitsScrollCueWithoutDisciplines(t *testing.T) {
+	app := newTestApplication(t)
+	recorder := httptest.NewRecorder()
+	hero := homeHeroData{
+		StudioName: "Hero Without Disciplines",
+		Descriptor: "Sentinel Descriptor",
+	}
+
+	app.render(
+		recorder,
+		http.StatusOK,
+		"home.html",
+		pageData{
+			Title:       "Empty Discipline Sentinel",
+			CurrentPath: "/",
+			HomeHero:    &hero,
+		},
+	)
+
+	body := recorder.Body.String()
+	if strings.Contains(body, `href="#disciplines"`) {
+		t.Error("hero with no disciplines must not render a scroll cue")
+	}
+
+	if strings.Contains(body, `id="disciplines"`) {
+		t.Error("empty discipline data must not render a fragment target")
+	}
+}
+
+// TestHomeScrollCueTargetsDisciplines verifies that the Stage 4C call to action
+// is one native fragment link with one unambiguous destination in the document.
+//
+// Exact counts catch duplicate ids, duplicate hero controls, and fragment links
+// accidentally copied into shared navigation. A native anchor requires no
+// JavaScript to support keyboard activation or browser history.
+func TestHomeScrollCueTargetsDisciplines(t *testing.T) {
+	app := newTestApplication(t)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+
+	app.routes().ServeHTTP(recorder, request)
+
+	body := recorder.Body.String()
+	scrollCue := `href="#disciplines"`
+	disciplineTarget := `id="disciplines"`
+
+	if count := strings.Count(body, scrollCue); count != 1 {
+		t.Errorf(
+			"scroll cue count: got %d, want 1",
+			count,
+		)
+	}
+
+	if count := strings.Count(body, disciplineTarget); count != 1 {
+		t.Errorf(
+			"discipline target count: got %d, want 1",
+			count,
+		)
+	}
+
+	// Locate the start of the element carrying href and require a real anchor.
+	// An href attribute on an arbitrary element would not provide native link
+	// semantics despite satisfying the fragment-count assertion above.
+	scrollCuePosition := strings.Index(body, scrollCue)
+	if scrollCuePosition == -1 {
+		t.Fatal("response does not contain the scroll cue")
+	}
+
+	scrollCueStart := strings.LastIndex(
+		body[:scrollCuePosition],
+		"<",
+	)
+	if scrollCueStart == -1 {
+		t.Fatal("scroll cue does not have an opening element")
+	}
+
+	scrollCueOpening := strings.TrimSpace(
+		body[scrollCueStart:scrollCuePosition],
+	)
+	if !strings.HasPrefix(scrollCueOpening, "<a") {
+		t.Errorf(
+			"scroll cue opening element: got %q, want an anchor",
+			scrollCueOpening,
+		)
 	}
 }
 

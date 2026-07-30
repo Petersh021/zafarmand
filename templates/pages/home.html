@@ -18,6 +18,15 @@ href="#main-content".
 {{define "content"}}
 <main id="main-content" class="home-page">
 	{{/*
+	Capture the complete pageData value before "with .HomeHero" changes the
+	current dot. The $page variable lets the hero read the discipline slice for
+	its supporting count and for deciding whether a real fragment destination
+	exists. No second Go data model is needed for information already present in
+	pageData.
+	*/}}
+	{{$page := .}}
+
+	{{/*
 	.HomeHero is a *homeHeroData pointer inside pageData. "with" renders its
 	body only when that pointer is non-nil, which avoids emitting a broken hero
 	if a handler deliberately has no hero data. Inside the block, the dot changes
@@ -79,6 +88,68 @@ href="#main-content".
 				{{.Descriptor}}
 			</p>
 		</div>
+
+		{{/*
+		The bottom rail completes the hero composition only when the page also has
+		discipline data. That condition guarantees the fragment link never points
+		at a section omitted by the later "with .HomeDisciplines" block.
+
+		The side facts repeat information already communicated by the h1,
+		descriptor, and discipline list. aria-hidden prevents that decorative
+		repetition from making the accessibility tree noisy. "len" derives the
+		visible count from the same Go slice that renders the actual entrances, so
+		the two cannot drift apart when content changes later.
+		*/}}
+		{{if $page.HomeDisciplines}}
+		<div class="home-hero__rail">
+			<p
+				class="home-hero__fact home-hero__fact--studio"
+				aria-hidden="true"
+			>
+				<span class="home-hero__fact-value">
+					{{.StudioName}}
+				</span>
+
+				<span class="home-hero__fact-label">
+					{{.Descriptor}}
+				</span>
+			</p>
+
+			{{/*
+			This is a native fragment link rather than a JavaScript scroll
+			control. It therefore works with keyboards, copied URLs, browser
+			history, and JavaScript disabled. Its visible label names the
+			destination instead of relying on a vague decorative instruction.
+			*/}}
+			<a
+				class="home-hero__scroll"
+				href="#disciplines"
+			>
+				<span class="home-hero__scroll-label">
+					Explore disciplines
+				</span>
+
+				<span
+					class="home-hero__scroll-chevron"
+					aria-hidden="true"
+				></span>
+			</a>
+
+			<p
+				class="home-hero__fact home-hero__fact--disciplines"
+				aria-hidden="true"
+			>
+				<span class="home-hero__fact-value">
+					{{len $page.HomeDisciplines}}
+				</span>
+
+				<span class="home-hero__fact-label">
+					Disciplines
+				</span>
+			</p>
+		</div>
+		{{/* End the rail condition tied to the real discipline destination. */}}
+		{{end}}
 	</section>
 	{{/* End the conditional HomeHero rendering and restore pageData as dot. */}}
 	{{end}}
@@ -89,8 +160,8 @@ href="#main-content".
 	the complete slice; "range" then changes the dot to one entrance at a time.
 
 	This section is a sibling of the hero because the hero clips its own visual
-	layers with overflow:hidden. Its stable id gives the Stage 4C scroll cue a
-	real destination when that cue is introduced later.
+	layers with overflow:hidden. Its stable id is the real destination of the
+	hero's native Stage 4C fragment link.
 	*/}}
 	{{with .HomeDisciplines}}
 	<section

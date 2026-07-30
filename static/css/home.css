@@ -82,7 +82,7 @@
 			rgba(10, 9, 7, 0.58),
 			rgba(10, 9, 7, 0.08) 32%,
 			rgba(10, 9, 7, 0.2) 68%,
-			rgba(10, 9, 7, 0.52)
+			rgba(10, 9, 7, 0.72)
 		),
 		linear-gradient(
 			to right,
@@ -147,10 +147,132 @@
 	text-transform: uppercase;
 }
 
+/* --------------------------------------------------
+   Stage 4C: Homepage supporting composition
+
+   The bottom rail adds only information the current Go data can state
+   truthfully: the studio identity, a derived discipline count, and a real
+   fragment link to the discipline entrances. It introduces no placeholder
+   address, contact detail, project claim, or JavaScript-only behavior.
+-------------------------------------------------- */
+
+/*
+ * The rail shares the hero's top visual layer and remains inside the responsive
+ * page gutter. Three balanced columns keep the action optically centered even
+ * when the two side facts have different text widths. The safe-area-aware
+ * second bottom declaration overrides the broadly supported fallback on devices
+ * with a home indicator.
+ */
+.home-hero__rail {
+	position: absolute;
+	z-index: 2;
+	inset-inline: var(--page-gutter);
+	bottom: clamp(1rem, 3vh, 2rem);
+	bottom: max(clamp(1rem, 3vh, 2rem), env(safe-area-inset-bottom));
+	display: grid;
+	grid-template-columns:
+		minmax(0, 1fr)
+		auto
+		minmax(0, 1fr);
+	align-items: end;
+	color: var(--color-text);
+	text-shadow: 0 0.15rem 1rem rgba(0, 0, 0, 0.45);
+}
+
+/*
+ * Side facts use two short lines so neither competes with the primary studio
+ * identity. Their minimum .75rem text size remains legible while the subdued
+ * label and stronger value create a quiet information hierarchy.
+ */
+.home-hero__fact {
+	display: grid;
+	gap: 0.25rem;
+	margin: 0;
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	line-height: 1.35;
+	text-transform: uppercase;
+}
+
+.home-hero__fact--disciplines {
+	justify-self: end;
+	text-align: right;
+}
+
+.home-hero__fact-value,
+.home-hero__fact-label {
+	display: block;
+}
+
+.home-hero__fact-value {
+	letter-spacing: 0.18em;
+}
+
+.home-hero__fact-label {
+	color: rgba(245, 240, 230, 0.68);
+	letter-spacing: 0.12em;
+}
+
+/*
+ * The central control is an ordinary <a> with a 44px minimum target in both
+ * dimensions. A grid keeps its label and CSS-drawn chevron aligned without an
+ * image request, while its transparent padding makes the complete area easy to
+ * activate by touch, mouse, or keyboard.
+ */
+.home-hero__scroll {
+	display: grid;
+	min-width: 44px;
+	min-height: 44px;
+	place-items: center;
+	align-content: center;
+	justify-self: center;
+	gap: 0.3rem;
+	padding: 0.25rem 1rem;
+	color: inherit;
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	letter-spacing: 0.18em;
+	line-height: 1.25;
+	text-align: center;
+	text-decoration: none;
+	text-transform: uppercase;
+}
+
+/*
+ * Two borders make a downward chevron. Its restrained hover movement is the
+ * rail's only animation and is explicitly removed for reduced-motion users
+ * below.
+ */
+.home-hero__scroll-chevron {
+	width: 0.5rem;
+	height: 0.5rem;
+	border-right: 1px solid currentColor;
+	border-bottom: 1px solid currentColor;
+	transition: transform var(--duration-fast) var(--ease-standard);
+	transform: rotate(45deg);
+}
+
+.home-hero__scroll:hover .home-hero__scroll-chevron,
+.home-hero__scroll:focus-visible .home-hero__scroll-chevron {
+	transform: translateY(0.2rem) rotate(45deg);
+}
+
+/*
+ * The explicit two-pixel outline is easy to see over both dark and light areas
+ * of the photograph. Outline rather than border avoids changing the layout when
+ * keyboard focus arrives.
+ */
+.home-hero__scroll:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 0.15rem;
+}
+
 /*
  * On tablets and phones, shift the image focal point rightward so the most
  * useful architectural details survive the narrower cover crop. The identity's
  * top spacing follows the 4.75rem mobile header height from navigation.css.
+ * The side facts repeat content available elsewhere, so hiding them gives the
+ * real 44px destination link enough room to remain clear and centered.
  */
 @media (max-width: 48rem) {
 	.home-hero__image {
@@ -159,6 +281,14 @@
 
 	.home-hero__identity {
 		padding-top: calc(4.75rem + 2rem);
+	}
+
+	.home-hero__rail {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.home-hero__fact {
+		display: none;
 	}
 }
 
@@ -204,6 +334,19 @@
 	.home-hero__title {
 		font-size: clamp(2.25rem, 12vh, 4.5rem);
 	}
+
+	/*
+	 * Height, rather than width, is the limiting dimension in landscape. Remove
+	 * duplicate facts and keep only the destination link close to the lower edge.
+	 */
+	.home-hero__fact {
+		display: none;
+	}
+
+	.home-hero__rail {
+		bottom: 0.5rem;
+		bottom: max(0.5rem, env(safe-area-inset-bottom));
+	}
 }
 
 /*
@@ -213,15 +356,24 @@
  */
 @media (prefers-contrast: more) {
 	.home-hero__scrim {
-		background: rgba(10, 9, 7, 0.5);
+		background: rgba(10, 9, 7, 0.75);
 	}
 }
 
 /*
- * This stage intentionally gives the hero no animation or transition, so it
- * already behaves safely when prefers-reduced-motion is enabled. Navigation
- * motion is defined separately and explicitly disabled in navigation.css.
+ * The hero image and identity remain static. Reduced-motion preference removes
+ * the small decorative chevron movement while preserving hover and focus state.
  */
+@media (prefers-reduced-motion: reduce) {
+	.home-hero__scroll-chevron {
+		transition: none;
+	}
+
+	.home-hero__scroll:hover .home-hero__scroll-chevron,
+	.home-hero__scroll:focus-visible .home-hero__scroll-chevron {
+		transform: rotate(45deg);
+	}
+}
 
 /* --------------------------------------------------
    Stage 4B: Homepage discipline entrances
