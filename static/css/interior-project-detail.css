@@ -1,0 +1,477 @@
+/* --------------------------------------------------
+   Stage 9: Structural Interior project detail page
+
+   This stylesheet is loaded only by interior-project-detail.html. It extends
+   the established warm editorial surface and dark fixed header while giving
+   spatial projects a distinct full-width landscape composition. No rule
+   depends on final photography or on the reference composite.
+-------------------------------------------------- */
+
+/*
+ * The fixed shared header passes over both warm content and the dark visual
+ * field. A stable dark surface preserves the light controls' contrast in every
+ * scroll position instead of relying on whatever happens to sit beneath it.
+ */
+.site-header {
+	background: rgba(17, 16, 13, 0.92);
+	box-shadow: 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+/*
+ * Supporting browsers receive a restrained blur. The opaque declaration above
+ * remains a complete fallback when either prefixed filter is unavailable.
+ */
+@supports (
+		(-webkit-backdrop-filter: blur(0.75rem)) or
+		(backdrop-filter: blur(0.75rem))
+	) {
+	.site-header {
+		background: rgba(17, 16, 13, 0.82);
+		-webkit-backdrop-filter: blur(0.75rem);
+		backdrop-filter: blur(0.75rem);
+	}
+}
+
+/*
+ * Route-specific tokens keep the temporary detail palette local. The warm
+ * surface connects this page to the discipline index, while min-width:0 guards
+ * the complete landmark against long future managed content.
+ */
+.interior-project-detail {
+	--interior-detail-surface: #e8e3d9;
+	--interior-detail-ink: #1a1814;
+	--interior-detail-soft: rgba(26, 24, 20, 0.66);
+	--interior-detail-rule: rgba(26, 24, 20, 0.24);
+	--interior-detail-control-rule: rgba(26, 24, 20, 0.52);
+	--interior-detail-dark: #171613;
+	--interior-detail-light: #f3f0e9;
+
+	min-width: 0;
+	min-height: 100vh;
+	min-height: 100svh;
+	background: var(--interior-detail-surface);
+	color: var(--interior-detail-ink);
+}
+
+/*
+ * The article clears the fixed header and shares the site's broad 120rem
+ * editorial measure. Fluid outer spacing preserves negative space without
+ * imposing a fixed viewport-height composition.
+ */
+.interior-project-detail__article {
+	width: min(100%, 120rem);
+	min-width: 0;
+	min-height: inherit;
+	margin-inline: auto;
+	padding:
+		calc(var(--header-height) + clamp(2rem, 5vw, 4.5rem))
+		var(--page-gutter)
+		clamp(4rem, 8vw, 8rem);
+}
+
+/*
+ * Project navigation remains a separate labelled region that can later accept
+ * truthful adjacent-project links without changing the article's hierarchy.
+ */
+.interior-project-detail__navigation {
+	margin-bottom: clamp(2.5rem, 6vw, 6rem);
+}
+
+/*
+ * The return link's 2.75rem minimum height meets the 44px pointer-target
+ * baseline. Inline-flex keeps its decorative arrow and useful text aligned
+ * when browser zoom or localization causes wrapping.
+ */
+.interior-project-detail__back {
+	display: inline-flex;
+	min-height: 2.75rem;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.7rem 0.9rem;
+	border: 1px solid var(--interior-detail-control-rule);
+	color: var(--interior-detail-ink);
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	letter-spacing: 0.17em;
+	line-height: 1.3;
+	overflow-wrap: anywhere;
+	text-transform: uppercase;
+}
+
+/*
+ * Mouse hover and visible keyboard focus strengthen the same boundary
+ * immediately. There is no transform or transition, so feedback never shifts
+ * layout and requires no reduced-motion substitute.
+ */
+.interior-project-detail__back:hover,
+.interior-project-detail__back:focus-visible {
+	outline: 2px solid var(--interior-detail-ink);
+	outline-offset: 0.2rem;
+	border-color: var(--interior-detail-ink);
+}
+
+/*
+ * The wide intro creates a project-specific editorial rhythm: the identity
+ * occupies the larger left track and the known facts occupy the bounded right
+ * track. Both minmax values may shrink without widening the document.
+ */
+.interior-project-detail__intro {
+	display: grid;
+	grid-template-columns:
+		minmax(0, 1.3fr)
+		minmax(20rem, 0.7fr);
+	align-items: end;
+	gap: clamp(2.5rem, 7vw, 8rem);
+	padding-bottom: clamp(3rem, 7vw, 7rem);
+	border-bottom: 1px solid var(--interior-detail-rule);
+}
+
+/*
+ * An explicit shrink boundary on both editorial tracks lets long titles and
+ * managed values wrap inside their assigned columns.
+ */
+.interior-project-detail__identity,
+.interior-project-detail__summary {
+	min-width: 0;
+}
+
+/*
+ * The eyebrow pairs a structural label with the route-selected project number.
+ * Wrapping preserves both values at high zoom rather than clipping the row.
+ */
+.interior-project-detail__eyebrow {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.65rem 1rem;
+	margin: 0 0 clamp(1.25rem, 2.5vw, 2.25rem);
+	color: var(--interior-detail-soft);
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	letter-spacing: 0.2em;
+	line-height: 1.4;
+	text-transform: uppercase;
+}
+
+/*
+ * The one h1 gives the temporary study an architectural scale. Its bounded
+ * measure and aggressive wrapping protect the layout when future approved
+ * titles are longer or contain an unbroken managed value.
+ */
+.interior-project-detail__title {
+	max-width: 12ch;
+	min-width: 0;
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: clamp(3.5rem, 6.4vw, 7.75rem);
+	font-weight: 400;
+	letter-spacing: -0.04em;
+	line-height: 0.88;
+	overflow-wrap: anywhere;
+	text-wrap: balance;
+}
+
+/*
+ * The summary groups metadata and the temporary publication notice in one
+ * readable column. A maximum measure prevents the quieter text from spreading
+ * too widely when this column moves below the title on smaller viewports.
+ */
+.interior-project-detail__summary {
+	display: grid;
+	width: 100%;
+	max-width: 42rem;
+	gap: clamp(2rem, 4vw, 3.5rem);
+	justify-self: end;
+}
+
+/*
+ * The description list has no browser spacing of its own. Fine rules separate
+ * known values without making the rows look like interactive controls.
+ */
+.interior-project-detail__facts {
+	display: grid;
+	width: 100%;
+	margin: 0;
+	border-top: 1px solid var(--interior-detail-rule);
+}
+
+/*
+ * Each fact keeps its term and definition in a predictable relationship. The
+ * flexible value column can wrap without colliding with the interface label.
+ */
+.interior-project-detail__fact {
+	display: grid;
+	grid-template-columns:
+		minmax(8rem, 0.45fr)
+		minmax(0, 0.55fr);
+	gap: 1rem;
+	padding-block: 1rem;
+	border-bottom: 1px solid var(--interior-detail-rule);
+}
+
+.interior-project-detail__fact dt,
+.interior-project-detail__fact dd {
+	min-width: 0;
+	margin: 0;
+}
+
+.interior-project-detail__fact dt {
+	color: var(--interior-detail-soft);
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	letter-spacing: 0.15em;
+	line-height: 1.45;
+	overflow-wrap: anywhere;
+	text-transform: uppercase;
+}
+
+.interior-project-detail__fact dd {
+	font-family: var(--font-display);
+	font-size: clamp(1rem, 0.94rem + 0.25vw, 1.2rem);
+	line-height: 1.35;
+	overflow-wrap: anywhere;
+}
+
+/*
+ * The notice is interface copy, not a fabricated project description. Its
+ * restrained color and line length keep the factual hierarchy clear.
+ */
+.interior-project-detail__notice {
+	max-width: 34rem;
+	margin: 0;
+	color: var(--interior-detail-soft);
+	font-family: var(--font-interface);
+	font-size: clamp(0.9rem, 0.86rem + 0.18vw, 1.05rem);
+	line-height: 1.7;
+	overflow-wrap: anywhere;
+}
+
+/*
+ * A dominant landscape field follows the semantic intro in both source and
+ * visual order. Its viewport-aware minimum height creates spatial presence on
+ * wide screens without requiring a real image or a fixed full-screen canvas.
+ */
+.interior-project-detail__media {
+	position: relative;
+	isolation: isolate;
+	display: grid;
+	min-width: 0;
+	min-height: clamp(30rem, 68vh, 54rem);
+	overflow: hidden;
+	grid-template-rows: auto 1fr;
+	margin-top: clamp(2rem, 4vw, 4rem);
+	padding: clamp(1rem, 2vw, 1.75rem);
+	border: 1px solid var(--interior-detail-rule);
+	background:
+		radial-gradient(
+			circle at 72% 27%,
+			rgba(216, 199, 170, 0.24),
+			transparent 30%
+		),
+		linear-gradient(
+			145deg,
+			#514a3f,
+			#2c2923 54%,
+			var(--interior-detail-dark)
+		);
+}
+
+/*
+ * The first generated plane suggests an interior wall and framed opening using
+ * geometry alone. It remains inside the aria-hidden parent and therefore does
+ * not carry content or alternative-text responsibility.
+ */
+.interior-project-detail__media::before {
+	position: absolute;
+	z-index: -1;
+	inset: 11% 9% 22% 30%;
+	border: 1px solid rgba(243, 240, 233, 0.19);
+	background:
+		linear-gradient(
+			90deg,
+			rgba(243, 240, 233, 0.07) 0 48%,
+			rgba(17, 16, 13, 0.2) 48% 52%,
+			rgba(243, 240, 233, 0.04) 52% 100%
+		);
+	box-shadow: 0 2.5rem 5rem rgba(0, 0, 0, 0.28);
+	content: "";
+}
+
+/*
+ * A low clipped plane establishes depth beneath the wall. Negative stacking
+ * remains contained by isolation:isolate, so it cannot disappear behind the
+ * page or cover real text outside the decorative field.
+ */
+.interior-project-detail__media::after {
+	position: absolute;
+	z-index: -2;
+	right: -6%;
+	bottom: -1px;
+	left: -6%;
+	height: 38%;
+	background:
+		linear-gradient(
+			155deg,
+			rgba(202, 184, 153, 0.18),
+			rgba(17, 16, 13, 0.3)
+		);
+	clip-path: polygon(7% 18%, 92% 0, 100% 100%, 0 100%);
+	content: "";
+}
+
+/*
+ * The small media label provides visual context only. The containing field is
+ * aria-hidden because this identity is already expressed by the h1 and facts.
+ */
+.interior-project-detail__media-label {
+	color: rgba(243, 240, 233, 0.7);
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	letter-spacing: 0.18em;
+	line-height: 1.4;
+	text-transform: uppercase;
+}
+
+/*
+ * The oversized number anchors the lower edge and repeats the semantic project
+ * number without adding a second accessible announcement.
+ */
+.interior-project-detail__media-number {
+	align-self: end;
+	color: rgba(243, 240, 233, 0.42);
+	font-family: var(--font-display);
+	font-size: clamp(6rem, 15vw, 15rem);
+	letter-spacing: -0.08em;
+	line-height: 0.7;
+}
+
+/*
+ * At and below 64rem the intro follows one natural source-order column.
+ * Landscape media uses a ratio instead of the desktop viewport-height floor so
+ * tablets do not inherit an unnecessarily tall decorative region.
+ */
+@media (max-width: 64rem) {
+	.interior-project-detail__intro {
+		grid-template-columns: minmax(0, 1fr);
+		align-items: start;
+		gap: clamp(2.5rem, 6vw, 4.5rem);
+	}
+
+	.interior-project-detail__title {
+		max-width: 14ch;
+	}
+
+	.interior-project-detail__summary {
+		justify-self: start;
+	}
+
+	.interior-project-detail__media {
+		aspect-ratio: 16 / 10;
+		min-height: 0;
+	}
+}
+
+/*
+ * Narrow phones use the established one-rem page edge. Fact rows stack when a
+ * side-by-side label/value relationship would become cramped, and the media
+ * receives a slightly taller project-friendly proportion.
+ */
+@media (max-width: 36rem) {
+	.interior-project-detail__article {
+		padding-inline: 1rem;
+	}
+
+	.interior-project-detail__title {
+		font-size: clamp(2.8rem, 14vw, 4.4rem);
+	}
+
+	.interior-project-detail__fact {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0.45rem;
+	}
+
+	.interior-project-detail__media {
+		aspect-ratio: 4 / 3;
+	}
+}
+
+/*
+ * Short landscape screens receive tighter outer spacing and a bounded media
+ * height. The page remains naturally scrollable, and all real text and controls
+ * stay in document flow above the decorative field.
+ */
+@media
+	(max-height: 32rem) and
+	(orientation: landscape) {
+	.interior-project-detail__article {
+		padding-top: calc(var(--header-height) + 1.5rem);
+		padding-bottom: 2rem;
+	}
+
+	.interior-project-detail__navigation {
+		margin-bottom: 1.5rem;
+	}
+
+	.interior-project-detail__intro {
+		padding-bottom: 2rem;
+	}
+
+	.interior-project-detail__media {
+		height: clamp(15rem, 60vh, 20rem);
+		min-height: 0;
+		aspect-ratio: auto;
+	}
+}
+
+/*
+ * Increased contrast removes atmospheric transparency and strengthens every
+ * meaningful boundary. Decorative geometry remains visible without soft
+ * shadows, while metadata receives the full ink color.
+ */
+@media (prefers-contrast: more) {
+	.site-header {
+		background: #11100d;
+	}
+
+	.interior-project-detail__back,
+	.interior-project-detail__intro,
+	.interior-project-detail__facts,
+	.interior-project-detail__fact {
+		border-color: var(--interior-detail-ink);
+	}
+
+	.interior-project-detail__eyebrow,
+	.interior-project-detail__fact dt,
+	.interior-project-detail__notice {
+		color: var(--interior-detail-ink);
+	}
+
+	.interior-project-detail__media,
+	.interior-project-detail__media::before {
+		border-color: var(--interior-detail-light);
+	}
+
+	.interior-project-detail__media {
+		background: var(--interior-detail-dark);
+	}
+
+	.interior-project-detail__media::before,
+	.interior-project-detail__media::after {
+		background: transparent;
+		box-shadow: none;
+	}
+
+	.interior-project-detail__media::after {
+		border-top: 1px solid var(--interior-detail-light);
+	}
+
+	.interior-project-detail__media-label,
+	.interior-project-detail__media-number {
+		color: var(--interior-detail-light);
+	}
+}
+
+/*
+ * Stage 9 introduces no animation, transition, parallax, or smooth scrolling.
+ * The page therefore respects reduced-motion preference without a separate
+ * state override; hover and focus feedback appears immediately.
+ */

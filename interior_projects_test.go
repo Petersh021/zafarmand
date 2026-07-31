@@ -10,9 +10,10 @@ import (
 // extractInteriorPreviewArticles returns complete interior-preview articles in
 // their document order.
 //
-// Stage 8 does not nest article elements, so a direct opening/closing scan keeps
-// this focused test helper independent from a third-party HTML parser. An empty
-// result is valid and lets empty-state tests prove that no cards were emitted.
+// The preview template does not nest article elements, so a direct
+// opening/closing scan keeps this focused test helper independent from a
+// third-party HTML parser. An empty result is valid and lets empty-state tests
+// prove that no cards were emitted.
 func extractInteriorPreviewArticles(
 	t *testing.T,
 	source string,
@@ -75,12 +76,14 @@ func TestInteriorProjectPreviewsPreservesOrderAndFields(t *testing.T) {
 	source := []interiorProject{
 		{
 			Number:   "A-17",
+			Slug:     "first-sentinel",
 			Title:    "First sentinel title",
 			Typology: "First sentinel typology",
 			Status:   "First sentinel status",
 		},
 		{
 			Number:   "B-29",
+			Slug:     "second-sentinel",
 			Title:    "Second sentinel title",
 			Typology: "Second sentinel typology",
 			Status:   "Second sentinel status",
@@ -131,6 +134,15 @@ func TestInteriorProjectPreviewsPreservesOrderAndFields(t *testing.T) {
 				project.Status,
 			)
 		}
+		expectedPath := interiorProjectDetailPath(project.Slug)
+		if preview.Path != expectedPath {
+			t.Errorf(
+				"preview %d path: got %q, want %q",
+				index,
+				preview.Path,
+				expectedPath,
+			)
+		}
 	}
 
 	if previews := interiorProjectPreviews(nil); len(previews) != 0 {
@@ -141,12 +153,12 @@ func TestInteriorProjectPreviewsPreservesOrderAndFields(t *testing.T) {
 	}
 }
 
-// TestInteriorDesignRouteRendersPortfolio verifies the complete public Stage 8
-// response produced by interiorDesignHandler.
+// TestInteriorDesignRouteRendersPortfolio verifies the complete public Stage
+// 8-9 response produced by interiorDesignHandler.
 //
 // Expected records are derived from the application's temporary source rather
 // than duplicated as test fixtures. The assertions own semantic structure,
-// stylesheet ordering, source association, and the listing-only stage boundary.
+// stylesheet ordering, source association, and each Stage 9 detail destination.
 func TestInteriorDesignRouteRendersPortfolio(t *testing.T) {
 	app := newTestApplication(t)
 	// Replacing the application-owned source before the request proves the
@@ -156,12 +168,14 @@ func TestInteriorDesignRouteRendersPortfolio(t *testing.T) {
 	app.interiorProjects = []interiorProject{
 		{
 			Number:   "R-17",
+			Slug:     "route-sentinel-one",
 			Title:    "Route sentinel one",
 			Typology: "Route typology one",
 			Status:   "Route status one",
 		},
 		{
 			Number:   "R-29",
+			Slug:     "route-sentinel-two",
 			Title:    "Route sentinel two",
 			Typology: "Route typology two",
 			Status:   "Route status two",
@@ -344,6 +358,52 @@ func TestInteriorDesignRouteRendersPortfolio(t *testing.T) {
 			)
 		}
 
+		// Each article contains one native anchor whose href was constructed by
+		// Go from the same source record. Sending that URL through the real
+		// router proves the listing never advertises an unregistered destination.
+		previewLink := extractElementByMarker(
+			t,
+			article,
+			`class="interior-preview__link"`,
+			"a",
+		)
+		previewOpening := extractOpeningTag(t, previewLink)
+		expectedHref := `href="` + expected.Path + `"`
+		if !strings.Contains(
+			previewOpening,
+			expectedHref,
+		) {
+			t.Errorf(
+				"article %d link does not contain %q",
+				index,
+				expectedHref,
+			)
+		}
+		if count := strings.Count(article, `href="`); count != 1 {
+			t.Errorf(
+				"article %d href count: got %d, want 1",
+				index,
+				count,
+			)
+		}
+
+		detailRecorder := httptest.NewRecorder()
+		detailRequest := httptest.NewRequest(
+			http.MethodGet,
+			expected.Path,
+			nil,
+		)
+		handler.ServeHTTP(detailRecorder, detailRequest)
+		if detailRecorder.Code != http.StatusOK {
+			t.Errorf(
+				"article %d detail path %q status: got %d, want %d",
+				index,
+				expected.Path,
+				detailRecorder.Code,
+				http.StatusOK,
+			)
+		}
+
 		// The repeated editorial number is decorative because the same value is
 		// present in visible metadata. Verify the media container, rather than a
 		// descendant, owns the assistive-technology exclusion.
@@ -364,8 +424,8 @@ func TestInteriorDesignRouteRendersPortfolio(t *testing.T) {
 		}
 	}
 
-	// Placeholder fragment links and design composites are never valid public
-	// content, even though the reference image informed the grid composition.
+	// Placeholder fragments and design composites are never valid public
+	// navigation, even though the reference image informed the grid composition.
 	if strings.Contains(mainElement, `href="#"`) {
 		t.Error(
 			"Interior Design main must not contain a placeholder href",
@@ -397,12 +457,14 @@ func TestInteriorDesignTemplateUsesDataAndEscapesHTML(t *testing.T) {
 		Items: []interiorProjectPreviewData{
 			{
 				Number:   "A1",
+				Path:     "/interior-design/sentinel-one",
 				Title:    "<b>Unsafe interior title</b>",
 				Typology: "<em>Unsafe typology</em>",
 				Status:   "First sentinel status",
 			},
 			{
 				Number:   "B2",
+				Path:     "/interior-design/sentinel-two",
 				Title:    "Second sentinel title",
 				Typology: "Second sentinel typology",
 				Status:   "<script>Unsafe status</script>",
@@ -689,6 +751,7 @@ func TestInteriorPresentationDoesNotLeak(t *testing.T) {
 		"/",
 		"/products",
 		"/products/furniture-study-01",
+		"/interior-design/interior-study-01",
 		"/architecture-design",
 	}
 
@@ -717,7 +780,7 @@ func TestInteriorPresentationDoesNotLeak(t *testing.T) {
 				`href="/static/css/interior-design.css"`,
 			) {
 				t.Error(
-					"non-Interior route loads Interior stylesheet",
+					"non-listing route loads Interior listing stylesheet",
 				)
 			}
 			if strings.Contains(
@@ -725,7 +788,7 @@ func TestInteriorPresentationDoesNotLeak(t *testing.T) {
 				"interior-portfolio",
 			) {
 				t.Error(
-					"non-Interior route renders Interior portfolio",
+					"non-listing route renders Interior portfolio",
 				)
 			}
 			if strings.Contains(
@@ -733,7 +796,7 @@ func TestInteriorPresentationDoesNotLeak(t *testing.T) {
 				"interior-preview",
 			) {
 				t.Error(
-					"non-Interior route renders an Interior preview",
+					"non-listing route renders an Interior preview",
 				)
 			}
 		})

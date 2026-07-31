@@ -1,7 +1,8 @@
 {{/*
-The Interior Design page remains a separate template-cache entry. Stage 8 keeps
-the shared discipline hero and route navigation, then specializes only the
-selected-work block with a temporary data-driven project index.
+The Interior Design page remains a separate template-cache entry. Stage 8
+introduced the temporary data-driven project index, and Stage 9 connects each
+preview to its own real server-rendered detail route while preserving the
+shared discipline hero and route navigation.
 */}}
 
 {{/*
@@ -56,9 +57,9 @@ DisciplinePage "with" action.
 
 	{{/*
 	A nonempty preview slice becomes one semantic ordered list. Go controls the
-	editorial order and html/template escapes every visible field. Articles are
-	deliberately noninteractive because Stage 8 has no project-detail routes;
-	Stage 9 can introduce native anchors only after real destinations exist.
+	editorial order and html/template escapes every visible field. Each article
+	contains one native anchor supplied by the Stage 9 view model, so ordinary
+	browser navigation, new-tab commands, and history work without JavaScript.
 	*/}}
 	{{if .Items}}
 	<ol
@@ -69,35 +70,40 @@ DisciplinePage "with" action.
 		{{range .Items}}
 		<li class="interior-portfolio__item">
 			<article class="interior-preview">
-				{{/*
-				The media field is an honest CSS-only structural placeholder. It
-				reserves the future landscape-image area without serving the
-				reference composite or implying that approved photography exists.
-				The repeated number is decorative, so the whole field is hidden
-				from assistive technology.
-				*/}}
-				<div
-					class="interior-preview__media"
-					aria-hidden="true"
+				<a
+					class="interior-preview__link"
+					href="{{.Path}}"
 				>
-					<span class="interior-preview__number">
-						{{.Number}}
-					</span>
-				</div>
+					{{/*
+					The media field is an honest CSS-only structural placeholder.
+					It reserves the future landscape-image area without serving
+					the reference composite or implying that approved photography
+					exists. The repeated number is decorative, so the whole field
+					is hidden from assistive technology.
+					*/}}
+					<div
+						class="interior-preview__media"
+						aria-hidden="true"
+					>
+						<span class="interior-preview__number">
+							{{.Number}}
+						</span>
+					</div>
 
-				<div class="interior-preview__body">
-					<p class="interior-preview__label">
-						{{.Typology}} / Project slot {{.Number}}
-					</p>
+					<div class="interior-preview__body">
+						<p class="interior-preview__label">
+							{{.Typology}} / Project slot {{.Number}}
+						</p>
 
-					<h3 class="interior-preview__title">
-						{{.Title}}
-					</h3>
+						<h3 class="interior-preview__title">
+							{{.Title}}
+						</h3>
 
-					<p class="interior-preview__status">
-						{{.Status}}
-					</p>
-				</div>
+						<p class="interior-preview__status">
+							{{.Status}}
+						</p>
+					</div>
+				</a>
 			</article>
 		</li>
 		{{end}}

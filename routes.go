@@ -37,6 +37,13 @@ func (app *application) routes() http.Handler {
 		"GET /interior-design",
 		app.interiorDesignHandler,
 	)
+	// The Interior wildcard follows the same real server-rendered routing
+	// contract as Products. The exact listing route above remains the more
+	// specific match, while the detail handler validates one captured slug.
+	mux.HandleFunc(
+		"GET /interior-design/{slug}",
+		app.interiorProjectDetailHandler,
+	)
 	mux.HandleFunc(
 		"GET /architecture-design",
 		app.architectureDesignHandler,

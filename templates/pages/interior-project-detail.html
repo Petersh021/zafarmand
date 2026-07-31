@@ -1,0 +1,137 @@
+{{/*
+The Interior project detail page is a separate template-cache entry discovered
+by the existing templates/pages glob. It renders one structural Stage 9 record
+without reusing the landing-page discipline shell, keeping project-detail
+semantics and presentation independent from /interior-design.
+*/}}
+
+{{/*
+Only Interior detail responses load interior-project-detail.css. base.html has
+already emitted main.css and navigation.css, so the route-specific stylesheet
+can own the warm editorial composition and fixed-header contrast without
+leaking those decisions into another public page.
+*/}}
+{{define "pageStyles"}}
+<link
+	rel="stylesheet"
+	href="/static/css/interior-project-detail.css"
+>
+{{end}}
+
+{{/*
+The main landmark is intentionally persistent. If future handler code omits
+InteriorProjectDetail, the shared skip link still reaches one valid,
+uniquely-named destination; only the incomplete article is withheld.
+*/}}
+{{define "content"}}
+<main
+	class="interior-project-detail"
+	id="main-content"
+>
+	{{with .InteriorProjectDetail}}
+	{{/*
+	The article represents the complete route-selected project subject. Its
+	aria-labelledby value points to the page's one h1 rather than introducing a
+	second main landmark or relying on nearby visual placement for association.
+	*/}}
+	<article
+		class="interior-project-detail__article"
+		aria-labelledby="interior-project-title"
+	>
+		{{/*
+		A native return link works with JavaScript disabled, copied URLs,
+		new-tab commands, and normal browser history. The fragment returns
+		directly to the existing labelled project index on the landing page.
+		*/}}
+		<nav
+			class="interior-project-detail__navigation"
+			aria-label="Interior project navigation"
+		>
+			<a
+				class="interior-project-detail__back"
+				href="/interior-design#selected-work"
+			>
+				<span aria-hidden="true">&larr;</span>
+				Back to Interior Design
+			</a>
+		</nav>
+
+		{{/*
+		Identity and known facts precede decorative media in source order. This
+		order remains unchanged at every breakpoint, so screen readers, keyboard
+		users, zoomed layouts, and CSS-disabled documents encounter the project
+		meaning before its non-content visual field.
+		*/}}
+		<header class="interior-project-detail__intro">
+			<div class="interior-project-detail__identity">
+				<p class="interior-project-detail__eyebrow">
+					<span>Interior project</span>
+					<span>{{.Number}}</span>
+				</p>
+
+				<h1
+					class="interior-project-detail__title"
+					id="interior-project-title"
+				>
+					{{.Title}}
+				</h1>
+			</div>
+
+			<div class="interior-project-detail__summary">
+				{{/*
+				A description list communicates the relationship between each
+				label and value. Every fact comes from the narrow Stage 9 view
+				model; no location, year, client, or descriptive claim is invented.
+				*/}}
+				<dl class="interior-project-detail__facts">
+					<div class="interior-project-detail__fact">
+						<dt>Project number</dt>
+						<dd>{{.Number}}</dd>
+					</div>
+
+					<div class="interior-project-detail__fact">
+						<dt>Typology</dt>
+						<dd>{{.Typology}}</dd>
+					</div>
+
+					<div class="interior-project-detail__fact">
+						<dt>Publication status</dt>
+						<dd>{{.Status}}</dd>
+					</div>
+				</dl>
+
+				{{/*
+				This restrained interface note states the temporary content state
+				truthfully. Approved copy and real project photography remain
+				deferred to the later publishing and media-management stages.
+				*/}}
+				<p class="interior-project-detail__notice">
+					Approved project information and media are being
+					prepared for publication.
+				</p>
+			</div>
+		</header>
+
+		{{/*
+		The landscape field establishes the spatial scale of an Interior project
+		page without publishing the supplied reference composite as content.
+		Everything inside repeats information already exposed above and is
+		decorative, so the complete field is hidden from assistive technology.
+		*/}}
+		<div
+			class="interior-project-detail__media"
+			aria-hidden="true"
+		>
+			<span class="interior-project-detail__media-label">
+				Zafarmand / Interior Design
+			</span>
+
+			<span class="interior-project-detail__media-number">
+				{{.Number}}
+			</span>
+		</div>
+	</article>
+	{{/* End the optional project record and restore pageData as dot. */}}
+	{{end}}
+</main>
+{{end}}

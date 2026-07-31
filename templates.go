@@ -22,7 +22,8 @@ type application struct {
 	// Handlers treat this slice as read-only. A later database-backed repository
 	// can replace it without changing the current page view models.
 	products []product
-	// interiorProjects is the ordered temporary source for the Interior listing.
+	// interiorProjects is the ordered temporary source shared by Interior
+	// listing and detail handlers.
 	//
 	// Keeping it on application follows the same dependency pattern as Products
 	// without introducing a generic Project abstraction before Architecture's
@@ -157,9 +158,9 @@ type interiorProjectListingData struct {
 // interiorProjectPreviewData is the minimal presentation shape for one
 // temporary Interior Design project slot.
 //
-// It intentionally contains no Slug or Path because Stage 8 does not create
-// detail routes. Locations, years, descriptions, and media also remain deferred
-// until approved data exists.
+// It receives a complete trusted Path rather than exposing the source Slug.
+// Locations, years, descriptions, and media remain deferred until approved data
+// exists.
 type interiorProjectPreviewData struct {
 	// Number is the zero-padded sequence visible in the structural media field.
 	Number string
@@ -168,6 +169,25 @@ type interiorProjectPreviewData struct {
 	// Typology identifies the broad interior category reserved by the slot.
 	Typology string
 	// Status truthfully communicates that approved project content is pending.
+	Status string
+	// Path is the real server-rendered project detail URL used by the card link.
+	Path string
+}
+
+// interiorProjectDetailData is the complete view model needed by one
+// structural Interior Design project detail page.
+//
+// It deliberately includes only facts present in the temporary source. Final
+// location, year, client, description, photography, and gallery information
+// remain outside Stage 9.
+type interiorProjectDetailData struct {
+	// Number is the portfolio sequence displayed as editorial context.
+	Number string
+	// Title is the detail page's one primary heading.
+	Title string
+	// Typology identifies the broad interior category in the visible facts list.
+	Typology string
+	// Status communicates that the page is a temporary portfolio preview.
 	Status string
 }
 
@@ -197,6 +217,8 @@ type pageData struct {
 	ProductDetail *productDetailData
 	// InteriorProjectListing contains portfolio data only for Interior Design.
 	InteriorProjectListing *interiorProjectListingData
+	// InteriorProjectDetail contains one Interior detail view, or nil elsewhere.
+	InteriorProjectDetail *interiorProjectDetailData
 }
 
 // newApplication creates a ready-to-serve application and its shared template

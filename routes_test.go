@@ -148,6 +148,14 @@ func TestPageRoutes(t *testing.T) {
 			activeToken: "page",
 		},
 		{
+			name:        "interior project detail",
+			path:        "/interior-design/interior-study-01",
+			currentPath: "/interior-design/interior-study-01",
+			title:       "Interior Study 01",
+			activeLinks: 2,
+			activeToken: "location",
+		},
+		{
 			name:        "architecture design",
 			path:        "/architecture-design",
 			currentPath: "/architecture-design",
@@ -213,8 +221,8 @@ func TestPageRoutes(t *testing.T) {
 				)
 			}
 
-			// Discipline pages and nested product details render their active
-			// parent in desktop and drawer navigation; Home uses one drawer link.
+			// Discipline pages and nested detail pages render their active parent
+			// in desktop and drawer navigation; Home uses one drawer link.
 			expectedCurrent := `aria-current="` +
 				test.activeToken +
 				`"`
@@ -648,6 +656,7 @@ func TestPageRoutesRejectUnsupportedMethods(t *testing.T) {
 		"/products",
 		"/products/furniture-study-01",
 		"/interior-design",
+		"/interior-design/interior-study-01",
 		"/architecture-design",
 	}
 

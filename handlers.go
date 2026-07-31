@@ -140,10 +140,10 @@ func (app *application) productDetailHandler(
 
 // interiorDesignHandler renders the Interior Design landing page.
 //
-// The handler supplies both the shared discipline shell and the Stage 8
-// Interior-only listing. The listing maps the application's temporary source
-// into a narrow template view model; final projects, detail routes, descriptions,
-// images, database state, and admin controls remain deferred.
+// The handler supplies both the shared discipline shell and the Interior-only
+// listing. Stage 9 maps each application-owned source record to a preview with a
+// real detail path, while final descriptions, images, database state, and admin
+// controls remain deferred.
 func (app *application) interiorDesignHandler(
 	w http.ResponseWriter,
 	_ *http.Request,
@@ -156,8 +156,8 @@ func (app *application) interiorDesignHandler(
 	}
 
 	// Section copy and ordered preview data travel to the template as one value.
-	// Both the source and mapper are independent from Products because the two
-	// interfaces have different fields and visual compositions.
+	// The listing and detail handler share app.interiorProjects, which prevents
+	// card destinations and route lookup records from drifting apart.
 	interiorProjectListing := &interiorProjectListingData{
 		Eyebrow: "Zafarmand interiors",
 		Heading: "Interior project index",
@@ -177,6 +177,43 @@ func (app *application) interiorDesignHandler(
 			CurrentPath:            "/interior-design",
 			DisciplinePage:         disciplinePage,
 			InteriorProjectListing: interiorProjectListing,
+		},
+	)
+}
+
+// interiorProjectDetailHandler renders one temporary Interior Design project
+// selected by the slug captured in GET /interior-design/{slug}.
+//
+// PathValue returns the wildcard already decoded by Go's ServeMux. Looking it
+// up in the application-owned source keeps visitor input away from template
+// names and page content. An unknown or differently cased slug receives a
+// normal 404 response before the detail template is executed.
+func (app *application) interiorProjectDetailHandler(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	slug := r.PathValue("slug")
+	project, exists := findInteriorProjectBySlug(
+		app.interiorProjects,
+		slug,
+	)
+	if !exists {
+		http.NotFound(w, r)
+		return
+	}
+
+	projectDetail := newInteriorProjectDetailData(project)
+	currentPath := interiorProjectDetailPath(project.Slug)
+
+	app.render(
+		w,
+		http.StatusOK,
+		"interior-project-detail.html",
+		pageData{
+			Title:                 projectDetail.Title,
+			CurrentPath:           currentPath,
+			NavigationPath:        "/interior-design",
+			InteriorProjectDetail: &projectDetail,
 		},
 	)
 }

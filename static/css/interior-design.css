@@ -1,10 +1,12 @@
 /* --------------------------------------------------
-   Stage 8: Interior Design portfolio foundation
+   Stages 8–9: Interior Design portfolio and detail entrances
 
    This stylesheet specializes only the selected-work region on
    /interior-design. discipline.css continues to own the shared hero and route
    navigation. Every selector is namespaced with "interior-portfolio" or
    "interior-preview" so no presentation leaks into another public route.
+   Stage 9 adds native full-card links while the detail composition remains
+   isolated in interior-project-detail.css.
 -------------------------------------------------- */
 
 /*
@@ -44,14 +46,43 @@
 }
 
 /*
- * Each noninteractive article follows media-then-copy reading order. No hover
- * treatment or pointer cursor suggests a destination before Stage 9 creates
- * real project-detail routes.
+ * Each article remains the semantic boundary for one temporary project. Its
+ * single child anchor owns the complete interactive region, giving mouse,
+ * touch, keyboard, and new-tab users one consistent real destination.
  */
 .interior-preview {
+	min-width: 0;
+}
+
+/*
+ * The anchor preserves the established media-then-copy order and stretches
+ * through the complete article. Inherited color and a dedicated focus outline
+ * replace browser-default link styling without obscuring interactivity.
+ */
+.interior-preview__link {
 	display: grid;
 	min-width: 0;
+	min-height: 100%;
 	gap: clamp(1.1rem, 2vw, 1.6rem);
+	color: inherit;
+	text-decoration: none;
+}
+
+/*
+ * Keyboard focus outlines the complete card without changing its dimensions.
+ * Hover and focus also strengthen existing media and copy rules immediately;
+ * no transform or transition introduces motion.
+ */
+.interior-preview__link:focus-visible {
+	outline: 2px solid var(--discipline-light-ink);
+	outline-offset: 0.3rem;
+}
+
+.interior-preview__link:hover .interior-preview__media,
+.interior-preview__link:focus-visible .interior-preview__media,
+.interior-preview__link:hover .interior-preview__body,
+.interior-preview__link:focus-visible .interior-preview__body {
+	border-color: var(--discipline-light-ink);
 }
 
 /*
@@ -269,9 +300,9 @@
 }
 
 /*
- * Increased-contrast users receive opaque fields and strong boundaries. Stage
- * 8 introduces no animation, transition, or smooth scrolling, so reduced-motion
- * preference already requires no additional override.
+ * Increased-contrast users receive opaque fields and strong boundaries.
+ * Stages 8–9 introduce no animation, transition, or smooth scrolling, so
+ * reduced-motion preference already requires no additional override.
  */
 @media (prefers-contrast: more) {
 	.interior-preview__media,
