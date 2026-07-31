@@ -1,22 +1,137 @@
 {{/*
-The Interior Design page stays as its own thin composition wrapper. Its later
-vertical slice can extend this file independently while Stage 5 reuses the
-shared discipline structure and avoids duplicating the complete HTML body.
+The Interior Design page remains a separate template-cache entry. Stage 8 keeps
+the shared discipline hero and route navigation, then specializes only the
+selected-work block with a temporary data-driven project index.
 */}}
 
 {{/*
-Only this route's template set executes disciplinePageStyles. The partial is
-also parsed into other page sets, but its uniquely named definition does not
-override the base template's optional pageStyles block by itself.
+discipline.css supplies the established landing-page shell. The Interior-only
+stylesheet loads second so its namespaced rules can compose that warm work
+surface without leaking into Products, Architecture Design, or the homepage.
 */}}
 {{define "pageStyles"}}
 	{{template "disciplinePageStyles" .}}
+
+	<link
+		rel="stylesheet"
+		href="/static/css/interior-design.css"
+	>
 {{end}}
 
 {{/*
-disciplinePageContent owns the one main landmark and reads the route-specific
-DisciplinePage pointer passed by interiorDesignHandler.
+The shared content template continues to own the one main landmark, hero h1,
+and route navigation. This wrapper supplies root pageData unchanged.
 */}}
 {{define "content"}}
 	{{template "disciplinePageContent" .}}
+{{end}}
+
+{{/*
+disciplineWorkContent overrides the shared default only inside the separately
+parsed Interior Design template set. The Products and Architecture template
+sets therefore cannot inherit this project markup accidentally.
+
+The shared partial calls the block with root $, so InteriorProjectListing is
+available even though disciplinePageContent is temporarily inside a
+DisciplinePage "with" action.
+*/}}
+{{define "disciplineWorkContent"}}
+	{{with .InteriorProjectListing}}
+	<header class="discipline-work__header interior-portfolio__header">
+		<p class="discipline-work__eyebrow">
+			{{.Eyebrow}}
+		</p>
+
+		<h2
+			class="discipline-work__title"
+			id="selected-work-title"
+		>
+			{{.Heading}}
+		</h2>
+
+		<p class="discipline-work__status">
+			{{.Introduction}}
+		</p>
+	</header>
+
+	{{/*
+	A nonempty preview slice becomes one semantic ordered list. Go controls the
+	editorial order and html/template escapes every visible field. Articles are
+	deliberately noninteractive because Stage 8 has no project-detail routes;
+	Stage 9 can introduce native anchors only after real destinations exist.
+	*/}}
+	{{if .Items}}
+	<ol
+		class="interior-portfolio"
+		aria-label="Interior project previews"
+		role="list"
+	>
+		{{range .Items}}
+		<li class="interior-portfolio__item">
+			<article class="interior-preview">
+				{{/*
+				The media field is an honest CSS-only structural placeholder. It
+				reserves the future landscape-image area without serving the
+				reference composite or implying that approved photography exists.
+				The repeated number is decorative, so the whole field is hidden
+				from assistive technology.
+				*/}}
+				<div
+					class="interior-preview__media"
+					aria-hidden="true"
+				>
+					<span class="interior-preview__number">
+						{{.Number}}
+					</span>
+				</div>
+
+				<div class="interior-preview__body">
+					<p class="interior-preview__label">
+						{{.Typology}} / Project slot {{.Number}}
+					</p>
+
+					<h3 class="interior-preview__title">
+						{{.Title}}
+					</h3>
+
+					<p class="interior-preview__status">
+						{{.Status}}
+					</p>
+				</div>
+			</article>
+		</li>
+		{{end}}
+	</ol>
+	{{else}}
+	{{/*
+	A visible empty state keeps the h2-labelled work section useful when a future
+	database query returns no published projects. An empty list is not emitted.
+	*/}}
+	<p class="interior-portfolio__empty">
+		{{.EmptyMessage}}
+	</p>
+	{{end}}
+	{{else}}
+	{{/*
+	The production handler always supplies InteriorProjectListing. This defensive
+	fallback preserves a truthful labelled section if future code accidentally
+	omits that optional view model.
+	*/}}
+	<header class="discipline-work__header interior-portfolio__header">
+		<p class="discipline-work__eyebrow">
+			Zafarmand interiors
+		</p>
+
+		<h2
+			class="discipline-work__title"
+			id="selected-work-title"
+		>
+			Interior project index
+		</h2>
+
+		<p class="discipline-work__status">
+			Interior project entries are being prepared for publication.
+		</p>
+	</header>
+	{{end}}
 {{end}}

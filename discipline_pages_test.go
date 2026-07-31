@@ -131,9 +131,9 @@ func extractOpeningTag(
 //
 // This test complements TestPageRoutes: that existing test owns the common
 // document title, CurrentPath, and aria-current contract, while this table owns
-// discipline-page semantics, stylesheet isolation, and route-cycle data. Stage
-// 6 specializes only the Products work content, so the table also states which
-// visible h2 and default-status behavior belongs to each route.
+// discipline-page semantics, stylesheet isolation, and route-cycle data.
+// Products and Interior Design now specialize their work content, so the table
+// also states which visible h2 and default-status behavior belongs to each route.
 func TestDisciplinePageRoutes(t *testing.T) {
 	app := newTestApplication(t)
 	handler := app.routes()
@@ -169,8 +169,8 @@ func TestDisciplinePageRoutes(t *testing.T) {
 			number:          "01",
 			nextName:        "Architecture Design",
 			nextPath:        "/architecture-design",
-			workHeading:     "Selected work",
-			usesDefaultWork: true,
+			workHeading:     "Interior project index",
+			usesDefaultWork: false,
 		},
 		{
 			name:            "Architecture Design",
@@ -385,7 +385,7 @@ func TestDisciplinePageRoutes(t *testing.T) {
 			}
 
 			// Only routes that still use the shared default block should expose
-			// its neutral status. Products now owns a dedicated catalogue block.
+			// its neutral status. Specialized listing routes own dedicated copy.
 			defaultStatus := "Selected entries are being prepared " +
 				"for publication."
 			hasDefaultStatus := strings.Contains(
@@ -399,7 +399,7 @@ func TestDisciplinePageRoutes(t *testing.T) {
 			}
 			if !test.usesDefaultWork && hasDefaultStatus {
 				t.Error(
-					"Products unexpectedly renders the default work status",
+					"specialized route unexpectedly renders the default work status",
 				)
 			}
 

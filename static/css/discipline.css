@@ -273,8 +273,9 @@
 
 /*
  * This light section mirrors the reference pages' transition from cinematic
- * introduction to editorial index. It holds only an honest status and a ruled
- * noninteractive field until Stages 6-8 add real data-driven entries.
+ * introduction to editorial index. Its named template block now hosts the
+ * Products and Interior Design data-driven listings, while the ruled default
+ * remains an honest noninteractive state for Architecture Design.
  */
 .discipline-work {
 	scroll-margin-top: var(--header-height);

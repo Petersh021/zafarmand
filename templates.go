@@ -22,6 +22,12 @@ type application struct {
 	// Handlers treat this slice as read-only. A later database-backed repository
 	// can replace it without changing the current page view models.
 	products []product
+	// interiorProjects is the ordered temporary source for the Interior listing.
+	//
+	// Keeping it on application follows the same dependency pattern as Products
+	// without introducing a generic Project abstraction before Architecture's
+	// different interface has been designed.
+	interiorProjects []interiorProject
 }
 
 // homeHeroData describes the content and media needed by the homepage hero.
@@ -130,14 +136,48 @@ type productDetailData struct {
 	Status string
 }
 
+// interiorProjectListingData describes the Interior Design portfolio section.
+//
+// The pointer to this value is optional on pageData because only the
+// /interior-design route uses it. Section-level copy stays beside the ordered
+// preview slice so a later database result can use the same template contract.
+type interiorProjectListingData struct {
+	// Eyebrow is the short interface label displayed above the section heading.
+	Eyebrow string
+	// Heading names the project index and labels the shared work section.
+	Heading string
+	// Introduction explains the temporary index without inventing project claims.
+	Introduction string
+	// EmptyMessage is shown when Items is nil or empty.
+	EmptyMessage string
+	// Items contains structural project previews in their editorial order.
+	Items []interiorProjectPreviewData
+}
+
+// interiorProjectPreviewData is the minimal presentation shape for one
+// temporary Interior Design project slot.
+//
+// It intentionally contains no Slug or Path because Stage 8 does not create
+// detail routes. Locations, years, descriptions, and media also remain deferred
+// until approved data exists.
+type interiorProjectPreviewData struct {
+	// Number is the zero-padded sequence visible in the structural media field.
+	Number string
+	// Title is the temporary study heading displayed by the preview article.
+	Title string
+	// Typology identifies the broad interior category reserved by the slot.
+	Typology string
+	// Status truthfully communicates that approved project content is pending.
+	Status string
+}
+
 // pageData is the common top-level value passed to every page template.
 //
 // A pointer is used for HomeHero because only the homepage has hero data. A nil
 // pointer lets other templates omit that optional section naturally. A slice
 // is used for HomeDisciplines because templates can range over any number of
-// entries, while a nil or empty slice renders no discipline section. The
-// DisciplinePage, ProductListing, and ProductDetail pointers follow the same
-// optional-data pattern for their route-specific presentations.
+// entries, while a nil or empty slice renders no discipline section. The route-
+// specific pointers below follow the same optional-data pattern.
 type pageData struct {
 	// Title becomes the page-specific portion of the browser document title.
 	Title string
@@ -155,6 +195,8 @@ type pageData struct {
 	ProductListing *productListingData
 	// ProductDetail contains one Products detail view, or nil on other routes.
 	ProductDetail *productDetailData
+	// InteriorProjectListing contains portfolio data only for Interior Design.
+	InteriorProjectListing *interiorProjectListingData
 }
 
 // newApplication creates a ready-to-serve application and its shared template
@@ -170,8 +212,9 @@ func newApplication() (*application, error) {
 	}
 
 	app := &application{
-		templates: templateCache,
-		products:  temporaryProducts(),
+		templates:        templateCache,
+		products:         temporaryProducts(),
+		interiorProjects: temporaryInteriorProjects(),
 	}
 
 	return app, nil

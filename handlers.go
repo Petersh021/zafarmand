@@ -140,10 +140,10 @@ func (app *application) productDetailHandler(
 
 // interiorDesignHandler renders the Interior Design landing page.
 //
-// The handler supplies the shared discipline view model while common response
-// behavior such as template lookup, execution, headers, and errors remains in
-// application.render. No fictional interior projects or descriptions are
-// introduced during this shared-pattern stage.
+// The handler supplies both the shared discipline shell and the Stage 8
+// Interior-only listing. The listing maps the application's temporary source
+// into a narrow template view model; final projects, detail routes, descriptions,
+// images, database state, and admin controls remain deferred.
 func (app *application) interiorDesignHandler(
 	w http.ResponseWriter,
 	_ *http.Request,
@@ -155,14 +155,28 @@ func (app *application) interiorDesignHandler(
 		NextPath: "/architecture-design",
 	}
 
+	// Section copy and ordered preview data travel to the template as one value.
+	// Both the source and mapper are independent from Products because the two
+	// interfaces have different fields and visual compositions.
+	interiorProjectListing := &interiorProjectListingData{
+		Eyebrow: "Zafarmand interiors",
+		Heading: "Interior project index",
+		Introduction: "A developing index of residential, hospitality, " +
+			"workplace, and cultural interior studies.",
+		EmptyMessage: "Interior project entries are being prepared " +
+			"for publication.",
+		Items: interiorProjectPreviews(app.interiorProjects),
+	}
+
 	app.render(
 		w,
 		http.StatusOK,
 		"interior-design.html",
 		pageData{
-			Title:          disciplinePage.Name,
-			CurrentPath:    "/interior-design",
-			DisciplinePage: disciplinePage,
+			Title:                  disciplinePage.Name,
+			CurrentPath:            "/interior-design",
+			DisciplinePage:         disciplinePage,
+			InteriorProjectListing: interiorProjectListing,
 		},
 	)
 }

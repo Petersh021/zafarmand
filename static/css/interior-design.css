@@ -1,0 +1,302 @@
+/* --------------------------------------------------
+   Stage 8: Interior Design portfolio foundation
+
+   This stylesheet specializes only the selected-work region on
+   /interior-design. discipline.css continues to own the shared hero and route
+   navigation. Every selector is namespaced with "interior-portfolio" or
+   "interior-preview" so no presentation leaks into another public route.
+-------------------------------------------------- */
+
+/*
+ * The reference uses a restrained introduction before a two-column landscape
+ * index. This header keeps the shared asymmetric grid but gives the explanatory
+ * copy slightly more room than the Products catalogue needs.
+ */
+.interior-portfolio__header {
+	grid-template-columns:
+		minmax(0, 1.3fr)
+		minmax(18rem, 0.7fr);
+}
+
+/*
+ * The ordered list establishes a stable two-column project rhythm. Removing
+ * browser markers is paired with role="list" in the template for dependable
+ * list semantics in Safari and VoiceOver. minmax(0, 1fr) prevents long future
+ * managed text from widening the page.
+ */
+.interior-portfolio {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap:
+		clamp(3.5rem, 7vw, 7rem)
+		clamp(1rem, 2.5vw, 2.75rem);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+/*
+ * Grid children receive an explicit shrink boundary. This small rule is
+ * important when future database titles contain long unbroken text.
+ */
+.interior-portfolio__item {
+	min-width: 0;
+}
+
+/*
+ * Each noninteractive article follows media-then-copy reading order. No hover
+ * treatment or pointer cursor suggests a destination before Stage 9 creates
+ * real project-detail routes.
+ */
+.interior-preview {
+	display: grid;
+	min-width: 0;
+	gap: clamp(1.1rem, 2vw, 1.6rem);
+}
+
+/*
+ * A 16:10 landscape field echoes the supplied portfolio composition without
+ * displaying its baked-in projects. Layered charcoal and umber gradients
+ * provide sufficient visual weight while remaining clearly abstract.
+ */
+.interior-preview__media {
+	position: relative;
+	isolation: isolate;
+	display: grid;
+	aspect-ratio: 16 / 10;
+	min-width: 0;
+	overflow: hidden;
+	place-items: end start;
+	border: 1px solid var(--discipline-light-rule);
+	background:
+		radial-gradient(
+			circle at 68% 32%,
+			rgba(216, 199, 170, 0.22),
+			transparent 30%
+		),
+		linear-gradient(
+			145deg,
+			#4c463b,
+			#2c2923 54%,
+			#171613
+		);
+}
+
+/*
+ * The first generated layer suggests an interior wall and opening through
+ * simple geometry. It remains inside the aria-hidden media field and therefore
+ * carries no content or alternative-text responsibility.
+ */
+.interior-preview__media::before {
+	position: absolute;
+	z-index: -1;
+	inset: 12% 10% 23% 32%;
+	border:
+		1px
+		solid
+		rgba(232, 224, 209, 0.18);
+	background:
+		linear-gradient(
+			90deg,
+			rgba(232, 224, 209, 0.06) 0 48%,
+			rgba(17, 16, 13, 0.16) 48% 52%,
+			rgba(232, 224, 209, 0.035) 52% 100%
+		);
+	box-shadow: 0 1.5rem 3rem rgba(0, 0, 0, 0.24);
+	content: "";
+}
+
+/*
+ * The second layer establishes a low floor plane. Its clipped polygon creates
+ * perspective without raster imagery, scripting, or animation.
+ */
+.interior-preview__media::after {
+	position: absolute;
+	z-index: -2;
+	right: -8%;
+	bottom: -1px;
+	left: -8%;
+	height: 34%;
+	background:
+		linear-gradient(
+			155deg,
+			rgba(202, 184, 153, 0.16),
+			rgba(17, 16, 13, 0.26)
+		);
+	clip-path: polygon(9% 15%, 91% 0, 100% 100%, 0 100%);
+	content: "";
+}
+
+/*
+ * Alternating geometry prevents four structural slots from looking like a
+ * repeated bitmap. These changes affect presentation only; source and reading
+ * order still come directly from the Go slice.
+ */
+.interior-portfolio__item:nth-child(even) .interior-preview__media::before {
+	inset: 18% 34% 18% 10%;
+	background:
+		linear-gradient(
+			90deg,
+			rgba(232, 224, 209, 0.04) 0 62%,
+			rgba(17, 16, 13, 0.2) 62% 66%,
+			rgba(232, 224, 209, 0.08) 66% 100%
+		);
+}
+
+.interior-portfolio__item:nth-child(3n) .interior-preview__media::before {
+	inset: 10% 16% 28% 22%;
+	transform: skewX(-5deg);
+}
+
+/*
+ * The large number acts as an editorial marker over the dark field. The same
+ * value appears in visible card text, while the aria-hidden parent prevents a
+ * duplicate announcement for screen-reader users.
+ */
+.interior-preview__number {
+	padding: clamp(0.8rem, 1.7vw, 1.4rem);
+	color: rgba(243, 240, 233, 0.56);
+	font-family: var(--font-display);
+	font-size: clamp(2.25rem, 4.5vw, 5rem);
+	letter-spacing: -0.04em;
+	line-height: 0.9;
+}
+
+/*
+ * Text sits outside the decorative media for reliable contrast and zoom
+ * reflow. A fine top rule connects each copy block to its image field without
+ * making the article appear interactive.
+ */
+.interior-preview__body {
+	display: grid;
+	min-width: 0;
+	gap: 0.6rem;
+	padding-top: 1rem;
+	border-top: 1px solid var(--discipline-light-rule);
+}
+
+.interior-preview__label,
+.interior-preview__status {
+	min-width: 0;
+	margin: 0;
+	color: var(--discipline-light-soft);
+	font-family: var(--font-interface);
+	font-size: clamp(0.75rem, 0.72rem + 0.1vw, 0.82rem);
+	letter-spacing: 0.16em;
+	line-height: 1.45;
+	overflow-wrap: anywhere;
+	text-transform: uppercase;
+}
+
+/*
+ * The h3 names an explicitly temporary study. Fluid type and aggressive
+ * wrapping protect future localized or editor-managed project titles.
+ */
+.interior-preview__title {
+	min-width: 0;
+	margin: 0;
+	color: var(--discipline-light-ink);
+	font-family: var(--font-display);
+	font-size: clamp(1.75rem, 1.45rem + 1vw, 2.75rem);
+	font-weight: 400;
+	letter-spacing: -0.02em;
+	line-height: 1;
+	overflow-wrap: anywhere;
+	text-wrap: balance;
+}
+
+/*
+ * Empty query results retain a visible, ruled portfolio boundary rather than
+ * producing an empty list. This will remain useful after database integration.
+ */
+.interior-portfolio__empty {
+	min-height: clamp(12rem, 24vw, 22rem);
+	margin: 0;
+	padding-block: clamp(2rem, 4vw, 4rem);
+	border-top: 1px solid var(--discipline-light-rule);
+	border-bottom: 1px solid var(--discipline-light-rule);
+	color: var(--discipline-light-soft);
+	font-family: var(--font-interface);
+	font-size: clamp(0.9rem, 0.86rem + 0.18vw, 1.05rem);
+	line-height: 1.7;
+}
+
+/*
+ * The shared compact-header breakpoint also stacks the asymmetric section
+ * introduction. The project grid remains two columns at exactly 768px because
+ * two landscape cards still have a practical reading width there.
+ */
+@media (max-width: 48rem) {
+	.interior-portfolio__header {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+/*
+ * At and below 40rem each landscape preview receives the full content width. This
+ * content-driven breakpoint avoids cramped titles while leaving the navigation
+ * breakpoint independent.
+ */
+@media (max-width: 40rem) {
+	.interior-portfolio {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 3.75rem;
+	}
+}
+
+/*
+ * Very narrow phones use a slightly taller field so the abstract spatial
+ * composition retains presence without forcing an excessive page length.
+ */
+@media (max-width: 36rem) {
+	.interior-preview__media {
+		aspect-ratio: 4 / 3;
+	}
+}
+
+/*
+ * Short landscape screens keep the two-column index but reduce each field's
+ * vertical footprint. The page remains naturally scrollable and no content is
+ * hidden or absolutely positioned outside its article.
+ */
+@media
+	(max-height: 32rem) and
+	(orientation: landscape) and
+	(min-width: 40.0625rem) {
+	.interior-preview__media {
+		aspect-ratio: 16 / 8;
+	}
+}
+
+/*
+ * Increased-contrast users receive opaque fields and strong boundaries. Stage
+ * 8 introduces no animation, transition, or smooth scrolling, so reduced-motion
+ * preference already requires no additional override.
+ */
+@media (prefers-contrast: more) {
+	.interior-preview__media,
+	.interior-preview__body,
+	.interior-portfolio__empty {
+		border-color: var(--discipline-light-ink);
+	}
+
+	.interior-preview__media {
+		background: var(--discipline-dark);
+	}
+
+	.interior-preview__media::before {
+		border-color: var(--discipline-light);
+		background: transparent;
+		box-shadow: none;
+	}
+
+	.interior-preview__media::after {
+		background: transparent;
+		border-top: 1px solid var(--discipline-light);
+	}
+
+	.interior-preview__label,
+	.interior-preview__status {
+		color: var(--discipline-light-ink);
+	}
+}
