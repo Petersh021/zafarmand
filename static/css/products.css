@@ -1,10 +1,11 @@
 /* --------------------------------------------------
-   Stage 6: Products catalogue foundation
+   Stage 6–7: Products catalogue and detail entrances
 
    This stylesheet specializes only the warm selected-work region on
    /products. The shared discipline hero remains owned by discipline.css.
    Every new selector is namespaced with "products-" or "product-preview" so
-   the catalogue cannot alter the other public routes.
+   the catalogue cannot alter the other public routes. Stage 7 adds real native
+   anchors while the detail page keeps its presentation in product-detail.css.
 -------------------------------------------------- */
 
 /*
@@ -44,14 +45,43 @@
 }
 
 /*
- * Each article follows a simple media-then-copy reading order. There is no
- * hover-only affordance or pointer cursor because cards are intentionally not
- * interactive until real product detail routes exist.
+ * Each article is the semantic boundary for one preview. Its single child link
+ * owns the complete interactive area, so mouse, touch, and keyboard visitors
+ * activate the same real server-rendered destination.
  */
 .product-preview {
+	min-width: 0;
+}
+
+/*
+ * The anchor preserves the media-then-copy reading order and stretches through
+ * the complete article. Inheriting color and removing default underlining lets
+ * the component supply its own strong focus treatment without hiding meaning.
+ */
+.product-preview__link {
 	display: grid;
 	min-width: 0;
+	min-height: 100%;
 	gap: clamp(1.25rem, 2vw, 1.75rem);
+	color: inherit;
+	text-decoration: none;
+}
+
+/*
+ * Keyboard focus outlines the complete card without changing its dimensions.
+ * Hover and focus also strengthen existing rules immediately; no transform or
+ * transition is used, so motion preference is respected automatically.
+ */
+.product-preview__link:focus-visible {
+	outline: 2px solid var(--discipline-light-ink);
+	outline-offset: 0.3rem;
+}
+
+.product-preview__link:hover .product-preview__media,
+.product-preview__link:focus-visible .product-preview__media,
+.product-preview__link:hover .product-preview__body,
+.product-preview__link:focus-visible .product-preview__body {
+	border-color: var(--discipline-light-ink);
 }
 
 /*
@@ -154,8 +184,8 @@
 }
 
 /*
- * The category is the article heading, not a fabricated product name. Fluid
- * sizing and overflow-wrap protect future localized or user-managed content.
+ * The neutral temporary product name is the article heading. Fluid sizing and
+ * overflow-wrap protect future localized or user-managed content.
  */
 .product-preview__title {
 	min-width: 0;

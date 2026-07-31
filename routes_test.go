@@ -112,6 +112,8 @@ func TestPageRoutes(t *testing.T) {
 		title string
 		// activeLinks accounts for desktop and drawer versions of navigation.
 		activeLinks int
+		// activeToken distinguishes exact pages from nested section locations.
+		activeToken string
 	}{
 		{
 			name:        "home",
@@ -119,6 +121,7 @@ func TestPageRoutes(t *testing.T) {
 			currentPath: "/",
 			title:       "Home",
 			activeLinks: 1,
+			activeToken: "page",
 		},
 		{
 			name:        "products",
@@ -126,6 +129,15 @@ func TestPageRoutes(t *testing.T) {
 			currentPath: "/products",
 			title:       "Products",
 			activeLinks: 2,
+			activeToken: "page",
+		},
+		{
+			name:        "product detail",
+			path:        "/products/furniture-study-01",
+			currentPath: "/products/furniture-study-01",
+			title:       "Furniture Study 01",
+			activeLinks: 2,
+			activeToken: "location",
 		},
 		{
 			name:        "interior design",
@@ -133,6 +145,7 @@ func TestPageRoutes(t *testing.T) {
 			currentPath: "/interior-design",
 			title:       "Interior Design",
 			activeLinks: 2,
+			activeToken: "page",
 		},
 		{
 			name:        "architecture design",
@@ -140,6 +153,7 @@ func TestPageRoutes(t *testing.T) {
 			currentPath: "/architecture-design",
 			title:       "Architecture Design",
 			activeLinks: 2,
+			activeToken: "page",
 		},
 	}
 
@@ -199,16 +213,20 @@ func TestPageRoutes(t *testing.T) {
 				)
 			}
 
-			// Discipline pages render active links in both the desktop
-			// navigation and drawer; the homepage renders only its drawer link.
+			// Discipline pages and nested product details render their active
+			// parent in desktop and drawer navigation; Home uses one drawer link.
+			expectedCurrent := `aria-current="` +
+				test.activeToken +
+				`"`
 			activeLinks := strings.Count(
 				string(body),
-				`aria-current="page"`,
+				expectedCurrent,
 			)
 
 			if activeLinks != test.activeLinks {
 				t.Errorf(
-					"active links: got %d, want %d",
+					"%s active links: got %d, want %d",
+					test.activeToken,
 					activeLinks,
 					test.activeLinks,
 				)
@@ -628,6 +646,7 @@ func TestPageRoutesRejectUnsupportedMethods(t *testing.T) {
 	paths := []string{
 		"/",
 		"/products",
+		"/products/furniture-study-01",
 		"/interior-design",
 		"/architecture-design",
 	}

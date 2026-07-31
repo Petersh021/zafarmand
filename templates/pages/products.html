@@ -1,7 +1,8 @@
 {{/*
-The Products page remains a separate cache entry and now composes the shared
-discipline shell with a focused Stage 6 catalogue. Interior Design and
-Architecture Design continue using the shared default selected-work content.
+The Products page remains a separate cache entry and composes the shared
+discipline shell with the Stage 6 catalogue foundation and Stage 7 detail
+entrances. Interior Design and Architecture Design continue using the shared
+default selected-work content.
 */}}
 
 {{/*
@@ -58,8 +59,9 @@ currently inside "with .DisciplinePage".
 	{{/*
 	A nonempty []productPreviewData slice becomes one semantic ordered list.
 	The slice order comes directly from Go and remains meaningful without
-	JavaScript. Cards are articles rather than links because product detail URLs
-	do not exist yet; this prevents fake controls and href="#" placeholders.
+	JavaScript. Each article contains one native anchor supplied by Go, so opening
+	a detail in the same tab, a new tab, or browser history follows normal web
+	behavior without href="#" placeholders or JavaScript navigation.
 	*/}}
 	{{if .Items}}
 	<ol
@@ -70,34 +72,39 @@ currently inside "with .DisciplinePage".
 		{{range .Items}}
 		<li class="products-catalogue__item">
 			<article class="product-preview">
-				{{/*
-				The media field is an honest CSS-only structural placeholder.
-				It reserves the future image area without displaying or cropping
-				the reference screenshot. aria-hidden prevents its repeated
-				number from adding noise for assistive-technology users.
-				*/}}
-				<div
-					class="product-preview__media"
-					aria-hidden="true"
+				<a
+					class="product-preview__link"
+					href="{{.Path}}"
 				>
-					<span class="product-preview__number">
-						{{.Number}}
-					</span>
-				</div>
+					{{/*
+					The media field is an honest CSS-only structural placeholder.
+					It reserves the future image area without displaying or cropping
+					the reference screenshot. aria-hidden prevents its repeated
+					number from adding noise for assistive-technology users.
+					*/}}
+					<div
+						class="product-preview__media"
+						aria-hidden="true"
+					>
+						<span class="product-preview__number">
+							{{.Number}}
+						</span>
+					</div>
 
-				<div class="product-preview__body">
-					<p class="product-preview__label">
-						Catalogue slot {{.Number}}
-					</p>
+					<div class="product-preview__body">
+						<p class="product-preview__label">
+							{{.Category}} / Catalogue slot {{.Number}}
+						</p>
 
-					<h3 class="product-preview__title">
-						{{.Category}}
-					</h3>
+						<h3 class="product-preview__title">
+							{{.Name}}
+						</h3>
 
-					<p class="product-preview__status">
-						{{.Status}}
-					</p>
-				</div>
+						<p class="product-preview__status">
+							{{.Status}}
+						</p>
+					</div>
+				</a>
 			</article>
 		</li>
 		{{end}}

@@ -17,6 +17,11 @@ type application struct {
 	// templates maps a page filename, such as "home.html", to the parsed
 	// template set containing that page, the shared base layout, and partials.
 	templates map[string]*template.Template
+	// products is the ordered temporary source shared by listing and detail handlers.
+	//
+	// Handlers treat this slice as read-only. A later database-backed repository
+	// can replace it without changing the current page view models.
+	products []product
 }
 
 // homeHeroData describes the content and media needed by the homepage hero.
@@ -56,9 +61,9 @@ type disciplineEntranceData struct {
 // disciplinePageData is the minimal view model shared by the three discipline
 // landing pages.
 //
-// It contains route-level interface information only. Project records, product
-// records, descriptions, images, and publication state belong to later view
-// models once the corresponding vertical slices are designed.
+// It contains route-level interface information only. Catalogue records belong
+// to the product-specific view models below, while project descriptions, images,
+// and publication state will enter their own vertical slices when designed.
 type disciplinePageData struct {
 	// Number is the zero-padded position displayed in the editorial sequence.
 	Number string
@@ -92,15 +97,36 @@ type productListingData struct {
 // productPreviewData is the minimal presentation shape for one temporary
 // catalogue slot.
 //
-// These values are not final Product records. They intentionally omit prices,
-// descriptions, slugs, database IDs, and media until approved content and real
-// detail routes are introduced in their own focused stages.
+// These values are not final Product records. They receive a complete trusted
+// Path rather than the source Slug and intentionally omit prices, descriptions,
+// database IDs, and media until approved content is introduced.
 type productPreviewData struct {
 	// Number is the zero-padded editorial position visible in the media field.
 	Number string
+	// Name is the temporary product heading displayed inside the catalogue card.
+	Name string
 	// Category identifies the broad product family reserved by this slot.
 	Category string
 	// Status truthfully communicates that approved catalogue content is pending.
+	Status string
+	// Path is the real server-rendered detail URL used by the card anchor.
+	Path string
+}
+
+// productDetailData is the complete view model needed by one structural
+// product detail page.
+//
+// It deliberately contains only facts present in the temporary source. Final
+// specifications, descriptive copy, pricing, imagery, and purchasing controls
+// remain outside Stage 7.
+type productDetailData struct {
+	// Number is the catalogue position displayed as editorial context.
+	Number string
+	// Name is the detail page's one primary heading.
+	Name string
+	// Category identifies the product family in the visible facts list.
+	Category string
+	// Status communicates that the page is a temporary catalogue preview.
 	Status string
 }
 
@@ -110,13 +136,15 @@ type productPreviewData struct {
 // pointer lets other templates omit that optional section naturally. A slice
 // is used for HomeDisciplines because templates can range over any number of
 // entries, while a nil or empty slice renders no discipline section. The
-// DisciplinePage and ProductListing pointers follow the same optional-data
-// pattern for the discipline routes and Products-only catalogue respectively.
+// DisciplinePage, ProductListing, and ProductDetail pointers follow the same
+// optional-data pattern for their route-specific presentations.
 type pageData struct {
 	// Title becomes the page-specific portion of the browser document title.
 	Title string
-	// CurrentPath identifies the active navigation destination.
+	// CurrentPath is the real canonical URL represented by the response.
 	CurrentPath string
+	// NavigationPath optionally identifies a parent route for active navigation.
+	NavigationPath string
 	// HomeHero contains homepage-only content, or nil for other pages.
 	HomeHero *homeHeroData
 	// HomeDisciplines contains the ordered homepage route entrances.
@@ -125,6 +153,8 @@ type pageData struct {
 	DisciplinePage *disciplinePageData
 	// ProductListing contains catalogue data only for the Products route.
 	ProductListing *productListingData
+	// ProductDetail contains one Products detail view, or nil on other routes.
+	ProductDetail *productDetailData
 }
 
 // newApplication creates a ready-to-serve application and its shared template
@@ -141,6 +171,7 @@ func newApplication() (*application, error) {
 
 	app := &application{
 		templates: templateCache,
+		products:  temporaryProducts(),
 	}
 
 	return app, nil

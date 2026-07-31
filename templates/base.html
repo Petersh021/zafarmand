@@ -73,10 +73,24 @@ sent to the browser.
 </head>
 
 {{/*
-.CurrentPath is the canonical route supplied by the handler. Besides driving
-the active-link conditions below, exposing it as a data attribute gives future
-progressive-enhancement JavaScript access to route state without parsing URLs.
+.CurrentPath is the canonical URL represented by this response and remains the
+truthful data-current-path value. Nested pages may also provide NavigationPath
+to identify their parent discipline in the shared header and drawer.
+
+The local $navigationPath variable defaults to CurrentPath for all existing
+top-level pages. "with" replaces it only when NavigationPath is a nonempty
+string, so a product detail URL can keep /products active without pretending
+that its own canonical path is /products. $navigationCurrent uses "page" for
+an exact route and "location" when the active link represents a parent section.
 */}}
+{{$navigationPath := .CurrentPath}}
+{{with .NavigationPath}}
+	{{$navigationPath = .}}
+{{end}}
+{{$navigationCurrent := "page"}}
+{{if ne $navigationPath .CurrentPath}}
+	{{$navigationCurrent = "location"}}
+{{end}}
 <body
 	class="site-body"
 	data-current-path="{{.CurrentPath}}"
@@ -139,11 +153,12 @@ progressive-enhancement JavaScript access to route state without parsing URLs.
 			{{/*
 			Each discipline uses a real URL, so browser history, Back/Forward,
 			refreshing, and opening in a new tab work normally. The conditional
-			template expressions compare .CurrentPath with the link destination.
-			A match adds both:
+			template expressions compare the resolved $navigationPath with the
+			link destination. A match adds both:
 
 			- is-active, a visual styling hook; and
-			- aria-current="page", a semantic announcement for assistive technology.
+			- aria-current="page" for an exact route, or "location" when a nested
+			  page activates its parent discipline.
 
 			The separators are presentation only and therefore aria-hidden.
 			*/}}
@@ -153,10 +168,10 @@ progressive-enhancement JavaScript access to route state without parsing URLs.
 			>
 				<a
 					class="discipline-nav__link
-					{{if eq .CurrentPath "/interior-design"}}is-active{{end}}"
+					{{if eq $navigationPath "/interior-design"}}is-active{{end}}"
 					href="/interior-design"
-					{{if eq .CurrentPath "/interior-design"}}
-						aria-current="page"
+					{{if eq $navigationPath "/interior-design"}}
+						aria-current="{{$navigationCurrent}}"
 					{{end}}
 				>
 					Interior Design
@@ -169,10 +184,10 @@ progressive-enhancement JavaScript access to route state without parsing URLs.
 
 				<a
 					class="discipline-nav__link
-					{{if eq .CurrentPath "/architecture-design"}}is-active{{end}}"
+					{{if eq $navigationPath "/architecture-design"}}is-active{{end}}"
 					href="/architecture-design"
-					{{if eq .CurrentPath "/architecture-design"}}
-						aria-current="page"
+					{{if eq $navigationPath "/architecture-design"}}
+						aria-current="{{$navigationCurrent}}"
 					{{end}}
 				>
 					Architecture Design
@@ -185,10 +200,10 @@ progressive-enhancement JavaScript access to route state without parsing URLs.
 
 				<a
 					class="discipline-nav__link
-					{{if eq .CurrentPath "/products"}}is-active{{end}}"
+					{{if eq $navigationPath "/products"}}is-active{{end}}"
 					href="/products"
-					{{if eq .CurrentPath "/products"}}
-						aria-current="page"
+					{{if eq $navigationPath "/products"}}
+						aria-current="{{$navigationCurrent}}"
 					{{end}}
 				>
 					Product
@@ -313,10 +328,10 @@ progressive-enhancement JavaScript access to route state without parsing URLs.
 				>
 					<a
 						class="drawer-disciplines__link
-						{{if eq .CurrentPath "/interior-design"}}is-active{{end}}"
+						{{if eq $navigationPath "/interior-design"}}is-active{{end}}"
 						href="/interior-design"
-						{{if eq .CurrentPath "/interior-design"}}
-							aria-current="page"
+						{{if eq $navigationPath "/interior-design"}}
+							aria-current="{{$navigationCurrent}}"
 						{{end}}
 						data-menu-link
 					>
@@ -326,10 +341,10 @@ progressive-enhancement JavaScript access to route state without parsing URLs.
 
 					<a
 						class="drawer-disciplines__link
-						{{if eq .CurrentPath "/architecture-design"}}is-active{{end}}"
+						{{if eq $navigationPath "/architecture-design"}}is-active{{end}}"
 						href="/architecture-design"
-						{{if eq .CurrentPath "/architecture-design"}}
-							aria-current="page"
+						{{if eq $navigationPath "/architecture-design"}}
+							aria-current="{{$navigationCurrent}}"
 						{{end}}
 						data-menu-link
 					>
@@ -339,10 +354,10 @@ progressive-enhancement JavaScript access to route state without parsing URLs.
 
 					<a
 						class="drawer-disciplines__link
-						{{if eq .CurrentPath "/products"}}is-active{{end}}"
+						{{if eq $navigationPath "/products"}}is-active{{end}}"
 						href="/products"
-						{{if eq .CurrentPath "/products"}}
-							aria-current="page"
+						{{if eq $navigationPath "/products"}}
+							aria-current="{{$navigationCurrent}}"
 						{{end}}
 						data-menu-link
 					>
@@ -363,10 +378,10 @@ progressive-enhancement JavaScript access to route state without parsing URLs.
 				>
 					<a
 						class="drawer-navigation__link
-						{{if eq .CurrentPath "/"}}is-active{{end}}"
+						{{if eq $navigationPath "/"}}is-active{{end}}"
 						href="/"
-						{{if eq .CurrentPath "/"}}
-							aria-current="page"
+						{{if eq $navigationPath "/"}}
+							aria-current="{{$navigationCurrent}}"
 						{{end}}
 						data-menu-link
 					>

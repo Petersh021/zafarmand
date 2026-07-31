@@ -1,0 +1,133 @@
+{{/*
+The product detail page is a separate template-cache entry discovered by the
+existing templates/pages glob. It renders one structural Stage 7 record and
+does not reuse the landing-page discipline shell, which keeps detail semantics
+and presentation independent from /products.
+*/}}
+
+{{/*
+Only the detail route loads product-detail.css. The shared main.css and
+navigation.css files have already been emitted by base.html, so this stylesheet
+can focus on the warm detail composition and header contrast.
+*/}}
+{{define "pageStyles"}}
+<link
+	rel="stylesheet"
+	href="/static/css/product-detail.css"
+>
+{{end}}
+
+{{/*
+The main landmark is always emitted so the shared skip link keeps a valid,
+unique destination even if future handler code accidentally supplies nil
+ProductDetail data. The optional record controls only the article inside it.
+*/}}
+{{define "content"}}
+<main
+	class="product-detail"
+	id="main-content"
+>
+	{{with .ProductDetail}}
+	{{/*
+	The article is explicitly labelled by its one h1. It represents a complete
+	product-detail subject inside the page's main landmark without creating a
+	second main region.
+	*/}}
+	<article
+		class="product-detail__article"
+		aria-labelledby="product-detail-title"
+	>
+		{{/*
+		A native catalogue link is predictable with JavaScript disabled and works
+		with browser history, copied URLs, and new-tab commands. The fragment
+		returns visitors directly to the real catalogue section.
+		*/}}
+		<nav
+			class="product-detail__navigation"
+			aria-label="Product navigation"
+		>
+			<a
+				class="product-detail__back"
+				href="/products#selected-work"
+			>
+				<span aria-hidden="true">&larr;</span>
+				Back to products
+			</a>
+		</nav>
+
+		<div class="product-detail__layout">
+			{{/*
+			Content appears before decorative media in source order so narrow
+			screens and assistive technologies reach the identity and facts first.
+			CSS places the media first only in the wide two-column composition.
+			*/}}
+			<div class="product-detail__content">
+				<p class="product-detail__eyebrow">
+					<span>Catalogue entry</span>
+					<span>{{.Number}}</span>
+				</p>
+
+				<h1
+					class="product-detail__title"
+					id="product-detail-title"
+				>
+					{{.Name}}
+				</h1>
+
+				{{/*
+				A description list expresses name/value relationships more clearly
+				than visually aligned paragraphs. Every value comes from the same
+				Go productDetailData record selected by the route slug.
+				*/}}
+				<dl class="product-detail__facts">
+					<div class="product-detail__fact">
+						<dt>Catalogue number</dt>
+						<dd>{{.Number}}</dd>
+					</div>
+
+					<div class="product-detail__fact">
+						<dt>Category</dt>
+						<dd>{{.Category}}</dd>
+					</div>
+
+					<div class="product-detail__fact">
+						<dt>Publication status</dt>
+						<dd>{{.Status}}</dd>
+					</div>
+				</dl>
+
+				{{/*
+				This interface note is intentionally truthful and generic. It does
+				not invent materials, dimensions, designers, prices, or descriptive
+				claims before approved content exists.
+				*/}}
+				<p class="product-detail__notice">
+					Approved product information and media are being
+					prepared for publication.
+				</p>
+			</div>
+
+			{{/*
+			The visual field reserves future product-media space without publishing
+			or cropping the supplied reference composite. Everything inside is
+			decorative and repeated as visible text elsewhere, so the complete
+			field is hidden from assistive technology.
+			*/}}
+			<div
+				class="product-detail__media"
+				aria-hidden="true"
+			>
+				<span class="product-detail__media-label">
+					Zafarmand / Product
+				</span>
+
+				<span class="product-detail__media-number">
+					{{.Number}}
+				</span>
+			</div>
+		</div>
+	</article>
+	{{/* End the optional product detail record and restore pageData as dot. */}}
+	{{end}}
+</main>
+{{end}}

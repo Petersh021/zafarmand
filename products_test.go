@@ -56,14 +56,15 @@ func extractProductPreviewArticles(
 	return articles
 }
 
-// TestProductsRouteRendersCatalogue verifies the complete public Stage 6
+// TestProductsRouteRendersCatalogue verifies the complete public Stage 6–7
 // response produced by productsHandler.
 //
 // The assertions prove that route data becomes one labelled semantic list in
-// the same order as the Go slice. They deliberately avoid product-detail links
-// because no such server routes exist in this stage.
+// the same order as the Go slice. Stage 7 also requires each article's one
+// native anchor to reach the matching real detail page.
 func TestProductsRouteRendersCatalogue(t *testing.T) {
 	app := newTestApplication(t)
+	handler := app.routes()
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(
 		http.MethodGet,
@@ -71,7 +72,7 @@ func TestProductsRouteRendersCatalogue(t *testing.T) {
 		nil,
 	)
 
-	app.routes().ServeHTTP(recorder, request)
+	handler.ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf(
@@ -175,30 +176,42 @@ func TestProductsRouteRendersCatalogue(t *testing.T) {
 	expectedItems := []struct {
 		// number is the visible catalogue-slot sequence supplied by Go.
 		number string
-		// category is the article's h3 and broad product family.
+		// name is the article's h3 and matching detail-page h1.
+		name string
+		// category is the broad product family shown in card metadata.
 		category string
 		// status is the truthful temporary-content state.
 		status string
+		// path is the real server-rendered detail URL paired with the card.
+		path string
 	}{
 		{
 			number:   "01",
+			name:     "Furniture Study 01",
 			category: "Furniture",
-			status:   "Content in preparation",
+			status:   "Catalogue preview",
+			path:     "/products/furniture-study-01",
 		},
 		{
 			number:   "02",
+			name:     "Lighting Study 01",
 			category: "Lighting",
-			status:   "Content in preparation",
+			status:   "Catalogue preview",
+			path:     "/products/lighting-study-01",
 		},
 		{
 			number:   "03",
+			name:     "Object Study 01",
 			category: "Objects",
-			status:   "Content in preparation",
+			status:   "Catalogue preview",
+			path:     "/products/object-study-01",
 		},
 		{
 			number:   "04",
+			name:     "Material Study 01",
 			category: "Materials",
-			status:   "Content in preparation",
+			status:   "Catalogue preview",
+			path:     "/products/material-study-01",
 		},
 	}
 
@@ -219,6 +232,7 @@ func TestProductsRouteRendersCatalogue(t *testing.T) {
 		// editorial ordering and that fields stay associated inside one article.
 		expectedStrings := []string{
 			"Catalogue slot " + expected.number,
+			expected.name,
 			expected.category,
 			expected.status,
 		}
@@ -235,35 +249,93 @@ func TestProductsRouteRendersCatalogue(t *testing.T) {
 			}
 		}
 
-		categoryHeading := extractElementByMarker(
+		nameHeading := extractElementByMarker(
 			t,
 			article,
-			expected.category,
+			expected.name,
 			"h3",
 		)
 		if count := strings.Count(
-			categoryHeading,
+			nameHeading,
 			"<h3",
 		); count != 1 {
 			t.Errorf(
-				"article %d category heading count: got %d, want 1",
+				"article %d name heading count: got %d, want 1",
 				index,
 				count,
 			)
 		}
+
+		// The complete article contains one anchor whose href and visible values
+		// all originate from the same productPreviewData record.
+		expectedHref := `href="` + expected.path + `"`
+		detailAnchor := extractElementByMarker(
+			t,
+			article,
+			expectedHref,
+			"a",
+		)
+		if count := strings.Count(
+			detailAnchor,
+			"href=",
+		); count != 1 {
+			t.Errorf(
+				"article %d detail href count: got %d, want 1",
+				index,
+				count,
+			)
+		}
+		if !strings.Contains(detailAnchor, expected.name) {
+			t.Errorf(
+				"article %d detail anchor does not contain product name %q",
+				index,
+				expected.name,
+			)
+		}
+
+		// Following the same native href through the real mux proves that the
+		// listing never advertises an unregistered or mismatched destination.
+		detailRecorder := httptest.NewRecorder()
+		detailRequest := httptest.NewRequest(
+			http.MethodGet,
+			expected.path,
+			nil,
+		)
+		handler.ServeHTTP(detailRecorder, detailRequest)
+
+		if detailRecorder.Code != http.StatusOK {
+			t.Errorf(
+				"detail path %q status: got %d, want %d",
+				expected.path,
+				detailRecorder.Code,
+				http.StatusOK,
+			)
+			continue
+		}
+
+		detailMain := extractMainElement(
+			t,
+			detailRecorder.Body.String(),
+		)
+		detailHeading := extractElementByMarker(
+			t,
+			detailMain,
+			`id="product-detail-title"`,
+			"h1",
+		)
+		if !strings.Contains(
+			normalizeHTMLWhitespace(detailHeading),
+			expected.name,
+		) {
+			t.Errorf(
+				"detail path %q h1 does not contain %q",
+				expected.path,
+				expected.name,
+			)
+		}
 	}
 
-	// Nonexistent detail routes must not be represented as fake controls.
-	if strings.Contains(catalogue, "href=") {
-		t.Error(
-			"Products catalogue must not link before detail routes exist",
-		)
-	}
-	if strings.Contains(catalogue, "<button") {
-		t.Error(
-			"Products catalogue must not expose an inactive button",
-		)
-	}
+	// Stage 7 uses real detail URLs and must not regress to placeholder anchors.
 	if strings.Contains(mainElement, `href="#"`) {
 		t.Error(
 			"Products main must not contain a placeholder href",
@@ -300,13 +372,17 @@ func TestProductsTemplateUsesDataAndEscapesHTML(t *testing.T) {
 		Items: []productPreviewData{
 			{
 				Number:   "A1",
-				Category: "<b>Unsafe category</b>",
+				Name:     "<b>Unsafe product</b>",
+				Category: "<em>Unsafe category</em>",
 				Status:   "First sentinel status",
+				Path:     "/products/sentinel-one",
 			},
 			{
 				Number:   "B2",
+				Name:     "Second sentinel product",
 				Category: "Second sentinel category",
 				Status:   "<script>Unsafe status</script>",
+				Path:     "/products/sentinel-two",
 			},
 		},
 	}
@@ -367,8 +443,10 @@ func TestProductsTemplateUsesDataAndEscapesHTML(t *testing.T) {
 	firstArticle := normalizeHTMLWhitespace(articles[0])
 	for _, expected := range []string{
 		"Catalogue slot A1",
-		"&lt;b&gt;Unsafe category&lt;/b&gt;",
+		"&lt;b&gt;Unsafe product&lt;/b&gt;",
+		"&lt;em&gt;Unsafe category&lt;/em&gt;",
 		"First sentinel status",
+		`href="/products/sentinel-one"`,
 	} {
 		if !strings.Contains(firstArticle, expected) {
 			t.Errorf(
@@ -381,8 +459,10 @@ func TestProductsTemplateUsesDataAndEscapesHTML(t *testing.T) {
 	secondArticle := normalizeHTMLWhitespace(articles[1])
 	for _, expected := range []string{
 		"Catalogue slot B2",
+		"Second sentinel product",
 		"Second sentinel category",
 		"&lt;script&gt;Unsafe status&lt;/script&gt;",
+		`href="/products/sentinel-two"`,
 	} {
 		if !strings.Contains(secondArticle, expected) {
 			t.Errorf(
@@ -393,7 +473,8 @@ func TestProductsTemplateUsesDataAndEscapesHTML(t *testing.T) {
 	}
 
 	for _, unsafeMarkup := range []string{
-		"<b>Unsafe category</b>",
+		"<b>Unsafe product</b>",
+		"<em>Unsafe category</em>",
 		"<script>Unsafe status</script>",
 	} {
 		if strings.Contains(mainElement, unsafeMarkup) {
@@ -404,21 +485,22 @@ func TestProductsTemplateUsesDataAndEscapesHTML(t *testing.T) {
 		}
 	}
 
-	// Production categories inside the scoped main would reveal hard-coded card
+	// Production values inside the scoped main would reveal hard-coded card
 	// content instead of the custom ProductListing supplied by this test.
-	for _, productionCategory := range []string{
+	for _, productionValue := range []string{
 		"Furniture",
 		"Lighting",
 		"Objects",
 		"Materials",
+		"Study 01",
 	} {
 		if strings.Contains(
 			normalizedMain,
-			productionCategory,
+			productionValue,
 		) {
 			t.Errorf(
-				"sentinel Products main contains production category %q",
-				productionCategory,
+				"sentinel Products main contains production value %q",
+				productionValue,
 			)
 		}
 	}

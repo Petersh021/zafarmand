@@ -1,0 +1,427 @@
+/* --------------------------------------------------
+   Stage 7: Structural product detail page
+
+   This file is loaded only by product-detail.html. It creates a premium
+   editorial detail composition without relying on the reference composite,
+   final product imagery, or landing-page-specific discipline.css rules.
+-------------------------------------------------- */
+
+/*
+ * The shared header remains fixed above a warm page. A consistently dark
+ * surface guarantees sufficient light-text contrast while detail content
+ * scrolls underneath.
+ */
+.site-header {
+	background: rgba(17, 16, 13, 0.92);
+	box-shadow: 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+/*
+ * Supporting browsers receive restrained backdrop blur. The darker opaque
+ * declaration above remains the complete fallback.
+ */
+@supports (
+		(-webkit-backdrop-filter: blur(0.75rem)) or
+		(backdrop-filter: blur(0.75rem))
+	) {
+	.site-header {
+		background: rgba(17, 16, 13, 0.82);
+		-webkit-backdrop-filter: blur(0.75rem);
+		backdrop-filter: blur(0.75rem);
+	}
+}
+
+/*
+ * The main landmark defines page-specific surface and text tokens locally,
+ * preventing temporary detail colors from becoming global design decisions.
+ * min-width:0 is the outer guard against long future managed content.
+ */
+.product-detail {
+	--product-detail-surface: #e8e3d9;
+	--product-detail-ink: #1a1814;
+	--product-detail-soft: rgba(26, 24, 20, 0.66);
+	--product-detail-rule: rgba(26, 24, 20, 0.24);
+	--product-detail-control-rule: rgba(26, 24, 20, 0.52);
+	--product-detail-field: #c9c1b4;
+
+	min-width: 0;
+	min-height: 100vh;
+	min-height: 100svh;
+	background: var(--product-detail-surface);
+	color: var(--product-detail-ink);
+}
+
+/*
+ * The article stays within a generous editorial maximum and clears the fixed
+ * header. Viewport-aware padding leaves comfortable negative space without
+ * forcing fixed heights.
+ */
+.product-detail__article {
+	width: min(100%, 120rem);
+	min-width: 0;
+	min-height: inherit;
+	margin-inline: auto;
+	padding:
+		calc(var(--header-height) + clamp(2rem, 5vw, 4.5rem))
+		var(--page-gutter)
+		clamp(4rem, 8vw, 8rem);
+}
+
+/*
+ * The navigation is a semantic region even though it currently contains only
+ * the real catalogue return link. Future route navigation can extend this
+ * region without changing article structure.
+ */
+.product-detail__navigation {
+	margin-bottom: clamp(2rem, 5vw, 4.5rem);
+}
+
+/*
+ * The back link exceeds the 44px touch-target recommendation through its
+ * padding and minimum height. Its dedicated control boundary has stronger
+ * contrast than quiet editorial rules, while the visible arrow is decorative
+ * because the text already communicates the destination.
+ */
+.product-detail__back {
+	display: inline-flex;
+	min-height: 2.75rem;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.7rem 0.9rem;
+	border: 1px solid var(--product-detail-control-rule);
+	color: var(--product-detail-ink);
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	letter-spacing: 0.17em;
+	line-height: 1.3;
+	text-transform: uppercase;
+}
+
+/*
+ * Hover and keyboard focus strengthen the existing boundary immediately. No
+ * transform, transition, or animated scroll is introduced.
+ */
+.product-detail__back:hover,
+.product-detail__back:focus-visible {
+	outline: 2px solid var(--product-detail-ink);
+	outline-offset: 0.2rem;
+	border-color: var(--product-detail-ink);
+}
+
+/*
+ * Wide layouts place the structural media field first and the source-first
+ * content second. minmax(0, ...) lets both columns shrink without widening the
+ * document, while the gap scales with available space.
+ */
+.product-detail__layout {
+	display: grid;
+	grid-template-areas: "media content";
+	grid-template-columns:
+		minmax(0, 1.15fr)
+		minmax(20rem, 0.85fr);
+	align-items: stretch;
+	gap: clamp(2.5rem, 6vw, 7rem);
+}
+
+/*
+ * The content column is vertically centered beside the media field. Every text
+ * child retains a bounded measure for comfortable reading and zoom behavior.
+ */
+.product-detail__content {
+	grid-area: content;
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+	justify-content: center;
+	align-items: flex-start;
+	padding-block: clamp(1rem, 4vw, 4rem);
+}
+
+/*
+ * The eyebrow pairs the structural label and route-selected catalogue number.
+ * Wrapping keeps both values available when text is enlarged.
+ */
+.product-detail__eyebrow {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.65rem 1rem;
+	margin: 0 0 clamp(1.25rem, 2.5vw, 2.25rem);
+	color: var(--product-detail-soft);
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	letter-spacing: 0.2em;
+	line-height: 1.4;
+	text-transform: uppercase;
+}
+
+/*
+ * The one h1 establishes the selected temporary record. Fluid type preserves
+ * the editorial scale while overflow-wrap protects future managed names.
+ */
+.product-detail__title {
+	max-width: 11ch;
+	min-width: 0;
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: clamp(3rem, 5.8vw, 7rem);
+	font-weight: 400;
+	letter-spacing: -0.035em;
+	line-height: 0.9;
+	overflow-wrap: anywhere;
+	text-wrap: balance;
+}
+
+/*
+ * The description list groups only known Stage 7 facts. A top rule separates
+ * metadata from the h1 without implying an interactive control.
+ */
+.product-detail__facts {
+	display: grid;
+	width: 100%;
+	margin:
+		clamp(2.5rem, 5vw, 5rem)
+		0
+		0;
+	border-top: 1px solid var(--product-detail-rule);
+}
+
+/*
+ * Each fact row keeps its term and description in a predictable two-column
+ * relationship. The definition may wrap without colliding with its label.
+ */
+.product-detail__fact {
+	display: grid;
+	grid-template-columns:
+		minmax(8rem, 0.45fr)
+		minmax(0, 0.55fr);
+	gap: 1rem;
+	padding-block: 1rem;
+	border-bottom: 1px solid var(--product-detail-rule);
+}
+
+.product-detail__fact dt,
+.product-detail__fact dd {
+	margin: 0;
+}
+
+.product-detail__fact dt {
+	color: var(--product-detail-soft);
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	letter-spacing: 0.15em;
+	line-height: 1.45;
+	text-transform: uppercase;
+}
+
+.product-detail__fact dd {
+	min-width: 0;
+	font-family: var(--font-display);
+	font-size: clamp(1rem, 0.94rem + 0.25vw, 1.2rem);
+	line-height: 1.35;
+	overflow-wrap: anywhere;
+}
+
+/*
+ * The notice is restrained interface copy rather than a fabricated product
+ * description. Its bounded measure remains readable beside the large title.
+ */
+.product-detail__notice {
+	max-width: 32rem;
+	margin: clamp(2rem, 4vw, 3.5rem) 0 0;
+	color: var(--product-detail-soft);
+	font-family: var(--font-interface);
+	font-size: clamp(0.9rem, 0.86rem + 0.18vw, 1.05rem);
+	line-height: 1.7;
+}
+
+/*
+ * The structural media field occupies the first desktop grid area. Layered
+ * neutral gradients and a single plane reserve visual space without claiming
+ * to show a real product.
+ */
+.product-detail__media {
+	position: relative;
+	isolation: isolate;
+	grid-area: media;
+	display: grid;
+	min-width: 0;
+	min-height: clamp(32rem, 68vh, 52rem);
+	overflow: hidden;
+	grid-template-rows: auto 1fr;
+	padding: clamp(1rem, 2vw, 1.75rem);
+	border: 1px solid var(--product-detail-rule);
+	background:
+		radial-gradient(
+			circle at 68% 28%,
+			rgba(255, 255, 255, 0.64),
+			transparent 27%
+		),
+		linear-gradient(
+			145deg,
+			#d8d1c5,
+			var(--product-detail-field) 58%,
+			#a79d8d
+		);
+}
+
+/*
+ * The generated plane echoes the catalogue previews while using a larger
+ * detail-page proportion. It remains inside the aria-hidden media container.
+ */
+.product-detail__media::before {
+	position: absolute;
+	z-index: -1;
+	inset: 16% 14% 12% 28%;
+	border: 1px solid rgba(26, 24, 20, 0.2);
+	background:
+		linear-gradient(
+			135deg,
+			rgba(255, 255, 255, 0.34),
+			rgba(26, 24, 20, 0.08)
+		);
+	box-shadow: 0 2rem 4rem rgba(26, 24, 20, 0.13);
+	content: "";
+	transform: skewY(-5deg);
+}
+
+.product-detail__media-label {
+	color: rgba(26, 24, 20, 0.5);
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	letter-spacing: 0.18em;
+	line-height: 1.4;
+	text-transform: uppercase;
+}
+
+/*
+ * The oversized number anchors the lower edge and repeats information already
+ * exposed in the semantic facts list.
+ */
+.product-detail__media-number {
+	align-self: end;
+	color: rgba(26, 24, 20, 0.42);
+	font-family: var(--font-display);
+	font-size: clamp(5rem, 12vw, 12rem);
+	letter-spacing: -0.08em;
+	line-height: 0.72;
+}
+
+/*
+ * Below 64rem the layout follows source order: identity and facts first, media
+ * second. A responsive aspect ratio replaces desktop minimum height so tablets
+ * and phones do not inherit an unnecessarily tall decorative field.
+ */
+@media (max-width: 64rem) {
+	.product-detail__layout {
+		grid-template-areas:
+			"content"
+			"media";
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.product-detail__content {
+		padding-block: 0;
+	}
+
+	.product-detail__title {
+		max-width: 14ch;
+	}
+
+	.product-detail__media {
+		aspect-ratio: 5 / 4;
+		min-height: 0;
+	}
+}
+
+/*
+ * Compact screens reduce gutters and allow fact rows to stack when their
+ * labels and values no longer fit comfortably beside one another.
+ */
+@media (max-width: 36rem) {
+	.product-detail__article {
+		padding-inline: 1rem;
+	}
+
+	.product-detail__title {
+		font-size: clamp(2.75rem, 14vw, 4.25rem);
+	}
+
+	.product-detail__fact {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0.45rem;
+	}
+}
+
+/*
+ * Every short landscape screen receives tighter outer spacing. This shared
+ * rule also keeps the navigation close to the identity content before the
+ * width-specific media treatments below are applied.
+ */
+@media
+	(max-height: 32rem) and
+	(orientation: landscape) {
+	.product-detail__article {
+		padding-top: calc(var(--header-height) + 1.5rem);
+		padding-bottom: 2rem;
+	}
+
+	.product-detail__navigation {
+		margin-bottom: 1.5rem;
+	}
+}
+
+/*
+ * On stacked short-landscape layouts, a bounded viewport-relative height
+ * replaces the 5:4 ratio. The decorative field remains substantial without
+ * becoming taller than the entire available screen.
+ */
+@media
+	(max-height: 32rem) and
+	(orientation: landscape) and
+	(max-width: 64rem) {
+	.product-detail__media {
+		height: clamp(14rem, 56vh, 20rem);
+		aspect-ratio: auto;
+	}
+}
+
+/*
+ * Short landscapes wider than the tablet boundary retain the two-column
+ * composition and a useful, but restrained, structural media height.
+ */
+@media
+	(max-height: 32rem) and
+	(orientation: landscape) and
+	(min-width: 64.0625rem) {
+	.product-detail__media {
+		min-height: 24rem;
+	}
+}
+
+/*
+ * Increased contrast removes atmospheric transparency and strengthens every
+ * structural boundary. No Stage 7 rule animates or scrolls smoothly, so the
+ * page already respects reduced-motion preference without a separate override.
+ */
+@media (prefers-contrast: more) {
+	.site-header {
+		background: #11100d;
+	}
+
+	.product-detail__back,
+	.product-detail__facts,
+	.product-detail__fact,
+	.product-detail__media,
+	.product-detail__media::before {
+		border-color: var(--product-detail-ink);
+	}
+
+	.product-detail__media {
+		background: var(--product-detail-surface);
+	}
+
+	.product-detail__media::before {
+		background: transparent;
+		box-shadow: none;
+	}
+}

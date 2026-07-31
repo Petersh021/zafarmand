@@ -118,8 +118,8 @@ pageData to disciplinePageData only while valid landing data exists.
 	{{/*
 	This warm editorial section is the stable boundary for discipline-specific
 	work. Its default block gives Interior Design and Architecture Design an
-	honest empty state, while Products replaces only the inner block with
-	structural Stage 6 catalogue previews. The shared shell itself stays free of
+	honest empty state, while Products replaces only the inner block with its
+	structural Stage 6–7 catalogue. The shared shell itself stays free of
 	route-specific records, prices, controls, media, and placeholder URLs.
 	*/}}
 	<section
@@ -131,10 +131,10 @@ pageData to disciplinePageData only while valid landing data exists.
 			{{/*
 			disciplineWorkContent is an intentional extension point. Interior
 			Design and Architecture Design use this default Stage 5 empty state,
-			while products.html replaces only this inner content with its Stage 6
-			catalogue. Passing root $ is essential because the surrounding "with"
-			has changed dot to disciplinePageData; the Products override needs the
-			complete pageData value and its ProductListing field.
+			while products.html replaces only this inner content with its Stage
+			6–7 catalogue. Passing root $ is essential because the surrounding
+			"with" has changed dot to disciplinePageData; the Products override
+			needs the complete pageData value and its ProductListing field.
 			*/}}
 			{{block "disciplineWorkContent" $}}
 			<header class="discipline-work__header">

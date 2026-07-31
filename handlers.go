@@ -62,9 +62,9 @@ func (app *application) homeHandler(
 // CurrentPath matches the route exactly so shared navigation templates can
 // mark Products as the current page for sighted users and assistive technology.
 // DisciplinePage contains truthful route-level presentation data, while
-// ProductListing introduces the first Products-only vertical slice. Its items
-// are clearly structural catalogue slots rather than final product records:
-// prices, descriptions, media, slugs, and database state remain deferred.
+// ProductListing maps the application's shared temporary product source into
+// catalogue previews. Each preview now includes a real Stage 7 detail path,
+// while prices, final descriptions, media, and database state remain deferred.
 func (app *application) productsHandler(
 	w http.ResponseWriter,
 	_ *http.Request,
@@ -76,38 +76,16 @@ func (app *application) productsHandler(
 		NextPath: "/interior-design",
 	}
 
-	// Temporary slice data demonstrates how a handler supplies an ordered
-	// collection to html/template. These broad product families are structural
-	// placeholders drawn from the approved design direction, not claims about
-	// products that Zafarmand has already published.
+	// The listing view keeps section copy beside a mapped preview slice. Both the
+	// catalogue and detail handler read app.products, so card URLs and lookup
+	// records cannot drift into two independent hard-coded collections.
 	productListing := &productListingData{
 		Eyebrow: "Zafarmand objects",
 		Heading: "Product catalogue",
 		Introduction: "An evolving index of furniture, lighting, " +
 			"objects, and material studies.",
 		EmptyMessage: "Product entries are being prepared for publication.",
-		Items: []productPreviewData{
-			{
-				Number:   "01",
-				Category: "Furniture",
-				Status:   "Content in preparation",
-			},
-			{
-				Number:   "02",
-				Category: "Lighting",
-				Status:   "Content in preparation",
-			},
-			{
-				Number:   "03",
-				Category: "Objects",
-				Status:   "Content in preparation",
-			},
-			{
-				Number:   "04",
-				Category: "Materials",
-				Status:   "Content in preparation",
-			},
-		},
+		Items:        productPreviews(app.products),
 	}
 
 	app.render(
@@ -119,6 +97,43 @@ func (app *application) productsHandler(
 			CurrentPath:    "/products",
 			DisciplinePage: disciplinePage,
 			ProductListing: productListing,
+		},
+	)
+}
+
+// productDetailHandler renders one temporary product detail selected by the
+// slug captured in the GET /products/{slug} route.
+//
+// Request.PathValue reads the decoded wildcard supplied by Go's ServeMux. An
+// exact whitelist lookup prevents arbitrary visitor input from becoming page
+// content or a template name. Unknown slugs receive a normal HTTP 404 before
+// any detail template is executed.
+func (app *application) productDetailHandler(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	slug := r.PathValue("slug")
+	product, exists := findProductBySlug(
+		app.products,
+		slug,
+	)
+	if !exists {
+		http.NotFound(w, r)
+		return
+	}
+
+	productDetail := newProductDetailData(product)
+	currentPath := productDetailPath(product.Slug)
+
+	app.render(
+		w,
+		http.StatusOK,
+		"product-detail.html",
+		pageData{
+			Title:          productDetail.Name,
+			CurrentPath:    currentPath,
+			NavigationPath: "/products",
+			ProductDetail:  &productDetail,
 		},
 	)
 }

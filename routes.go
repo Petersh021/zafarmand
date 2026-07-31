@@ -26,6 +26,13 @@ func (app *application) routes() http.Handler {
 	// correct 404 response for URLs the application does not define.
 	mux.HandleFunc("GET /{$}", app.homeHandler)
 	mux.HandleFunc("GET /products", app.productsHandler)
+	// The one-segment wildcard creates a real server-rendered URL for each
+	// product. ServeMux gives the static /products route higher specificity, and
+	// productDetailHandler validates the captured slug before rendering.
+	mux.HandleFunc(
+		"GET /products/{slug}",
+		app.productDetailHandler,
+	)
 	mux.HandleFunc(
 		"GET /interior-design",
 		app.interiorDesignHandler,
