@@ -1,0 +1,600 @@
+/* --------------------------------------------------
+   Stage 11: Structural Architecture project detail page
+
+   This stylesheet is loaded only by architecture-project-detail.html. It uses
+   a monumental dark hero followed by a warm project-information band, keeping
+   Architecture visually distinct from the Product and Interior detail pages.
+   All visual massing is CSS-generated and does not represent final imagery.
+-------------------------------------------------- */
+
+/*
+ * The shared fixed header remains dark above both route surfaces. A stable
+ * background protects the light controls while the page moves between the
+ * dark hero and warm information band.
+ */
+.site-header {
+	background: rgba(17, 16, 13, 0.94);
+	box-shadow: 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+/*
+ * Supporting browsers receive restrained backdrop blur. The opaque rule above
+ * remains the complete fallback when either prefixed filter is unavailable.
+ */
+@supports (
+		(-webkit-backdrop-filter: blur(0.75rem)) or
+		(backdrop-filter: blur(0.75rem))
+	) {
+	.site-header {
+		background: rgba(17, 16, 13, 0.84);
+		-webkit-backdrop-filter: blur(0.75rem);
+		backdrop-filter: blur(0.75rem);
+	}
+}
+
+/*
+ * Route-local tokens prevent this temporary palette from becoming a global
+ * design decision. The warm surface is also a truthful fallback if generated
+ * hero geometry is unavailable.
+ */
+.architecture-project-detail {
+	--architecture-detail-surface: #e8e3d9;
+	--architecture-detail-ink: #1a1814;
+	--architecture-detail-soft: rgba(26, 24, 20, 0.66);
+	--architecture-detail-rule: rgba(26, 24, 20, 0.25);
+	--architecture-detail-dark: #11120f;
+	--architecture-detail-dark-soft: rgba(243, 240, 233, 0.72);
+	--architecture-detail-light: #f3f0e9;
+	--architecture-detail-light-rule: rgba(243, 240, 233, 0.28);
+
+	min-width: 0;
+	min-height: 100vh;
+	min-height: 100svh;
+	background: var(--architecture-detail-surface);
+	color: var(--architecture-detail-ink);
+}
+
+/*
+ * The article clears the fixed header and caps the composition at the same
+ * generous 120rem editorial width used by sibling detail pages. Its dark
+ * background fills any area above the warm information band.
+ */
+.architecture-project-detail__article {
+	width: min(100%, 120rem);
+	min-width: 0;
+	min-height: inherit;
+	margin-inline: auto;
+	padding-top: var(--header-height);
+	background: var(--architecture-detail-dark);
+}
+
+/*
+ * Navigation occupies its own labelled region above the hero. Fluid inline
+ * padding aligns the control with hero identity while preserving the site's
+ * responsive page edge.
+ */
+.architecture-project-detail__navigation {
+	padding:
+		clamp(1.5rem, 3vw, 2.5rem)
+		var(--page-gutter);
+	border-bottom: 1px solid var(--architecture-detail-light-rule);
+}
+
+/*
+ * The native back link meets the 44px pointer-target baseline and wraps safely
+ * at browser zoom. A visible light rule separates it from quiet sheet rules.
+ */
+.architecture-project-detail__back {
+	display: inline-flex;
+	min-width: 0;
+	min-height: 2.75rem;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.7rem 0.9rem;
+	border: 1px solid rgba(243, 240, 233, 0.58);
+	color: var(--architecture-detail-light);
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	letter-spacing: 0.17em;
+	line-height: 1.3;
+	overflow-wrap: anywhere;
+	text-transform: uppercase;
+}
+
+/*
+ * Hover and keyboard focus strengthen the boundary immediately. Nothing
+ * transforms or transitions, so feedback neither shifts layout nor adds motion.
+ */
+.architecture-project-detail__back:hover,
+.architecture-project-detail__back:focus-visible {
+	outline: 2px solid var(--architecture-detail-light);
+	outline-offset: 0.2rem;
+	border-color: var(--architecture-detail-light);
+}
+
+/*
+ * Hero children share one named Grid area: meaningful identity comes first in
+ * source order while CSS places it above the decorative field. Both are normal
+ * grid items, so enlarged text can grow the track instead of being clipped.
+ */
+.architecture-project-detail__hero {
+	position: relative;
+	isolation: isolate;
+	display: grid;
+	grid-template-areas: "architecture-hero";
+	min-width: 0;
+	min-height: clamp(34rem, 72vh, 58rem);
+	min-height: clamp(34rem, 72svh, 58rem);
+	overflow: hidden;
+	border-bottom: 1px solid var(--architecture-detail-light-rule);
+	background: var(--architecture-detail-dark);
+	color: var(--architecture-detail-light);
+}
+
+/*
+ * A bottom veil guarantees title contrast over generated geometry. It remains
+ * presentation and sits below the semantic identity.
+ */
+.architecture-project-detail__hero::after {
+	position: absolute;
+	z-index: 2;
+	inset: 32% 0 0;
+	background:
+		linear-gradient(
+			to top,
+			rgba(10, 10, 8, 0.98),
+			rgba(10, 10, 8, 0.7) 56%,
+			rgba(10, 10, 8, 0)
+		);
+	content: "";
+	pointer-events: none;
+}
+
+/*
+ * Identity is a lower-aligned Grid item above the veil. Fluid padding creates
+ * negative space without removing the h1 from document flow.
+ */
+.architecture-project-detail__identity {
+	position: relative;
+	z-index: 3;
+	display: grid;
+	grid-area: architecture-hero;
+	min-width: 0;
+	align-self: end;
+	gap: clamp(1rem, 2vw, 1.75rem);
+	padding:
+		clamp(5rem, 11vw, 10rem)
+		var(--page-gutter)
+		clamp(2rem, 4vw, 4rem);
+}
+
+/*
+ * The eyebrow pairs the discipline label and route-selected number. Wrapping
+ * keeps both pieces available when zoom or localization reduces line length.
+ */
+.architecture-project-detail__eyebrow {
+	display: flex;
+	max-width: 62rem;
+	min-width: 0;
+	flex-wrap: wrap;
+	gap: 0.65rem 1rem;
+	margin: 0;
+	color: var(--architecture-detail-dark-soft);
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	letter-spacing: 0.2em;
+	line-height: 1.4;
+	text-transform: uppercase;
+}
+
+/*
+ * The one expansive h1 supplies architectural scale. Its bounded measure,
+ * balanced wrapping, and overflow fallback protect future managed titles.
+ */
+.architecture-project-detail__title {
+	max-width: 12ch;
+	min-width: 0;
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: clamp(3.75rem, 7.4vw, 9rem);
+	font-weight: 400;
+	letter-spacing: -0.045em;
+	line-height: 0.86;
+	overflow-wrap: anywhere;
+	text-wrap: balance;
+}
+
+/*
+ * The CSS-only massing field occupies the same hero area below real content.
+ * Its minimum height supports the track, while the template hides the entire
+ * decorative field from assistive technology.
+ */
+.architecture-project-detail__media {
+	position: relative;
+	z-index: 0;
+	display: grid;
+	grid-area: architecture-hero;
+	grid-template-columns: minmax(0, 1fr) auto;
+	min-width: 0;
+	min-height: clamp(34rem, 72vh, 58rem);
+	min-height: clamp(34rem, 72svh, 58rem);
+	align-items: start;
+	gap: 1rem;
+	padding: clamp(1rem, 2vw, 1.75rem) var(--page-gutter);
+	overflow: hidden;
+	background:
+		radial-gradient(
+			circle at 78% 20%,
+			rgba(220, 211, 193, 0.22),
+			transparent 29%
+		),
+		linear-gradient(
+			142deg,
+			#505351,
+			#2e302e 48%,
+			var(--architecture-detail-dark)
+		);
+}
+
+/*
+ * A clipped, divided plane suggests one monumental facade without claiming to
+ * depict a real building. Its aria-hidden parent carries no alt-text duty.
+ */
+.architecture-project-detail__media::before {
+	position: absolute;
+	z-index: -1;
+	inset: 10% 5% 12% 25%;
+	border: 1px solid rgba(243, 240, 233, 0.2);
+	background:
+		linear-gradient(
+			90deg,
+			rgba(226, 217, 200, 0.17) 0 34%,
+			rgba(10, 10, 8, 0.24) 34% 37%,
+			rgba(226, 217, 200, 0.08) 37% 70%,
+			rgba(10, 10, 8, 0.28) 70% 73%,
+			rgba(226, 217, 200, 0.13) 73% 100%
+		);
+	box-shadow: 0 3rem 6rem rgba(0, 0, 0, 0.34);
+	clip-path: polygon(13% 0, 100% 14%, 100% 100%, 0 100%, 0 22%);
+	content: "";
+}
+
+/*
+ * A low perspective plane grounds the generated facade. Its edges scale with
+ * the hero instead of depending on fixed raster dimensions.
+ */
+.architecture-project-detail__media::after {
+	position: absolute;
+	z-index: -2;
+	right: -7%;
+	bottom: -1px;
+	left: -7%;
+	height: 32%;
+	background:
+		linear-gradient(
+			155deg,
+			rgba(211, 201, 182, 0.18),
+			rgba(8, 8, 7, 0.44)
+		);
+	clip-path: polygon(8% 20%, 92% 0, 100% 100%, 0 100%);
+	content: "";
+}
+
+/*
+ * These project-sheet markers repeat information exposed in semantic content,
+ * and therefore remain visual-only inside the aria-hidden field.
+ */
+.architecture-project-detail__media-label,
+.architecture-project-detail__media-number {
+	position: relative;
+	z-index: 1;
+	min-width: 0;
+	color: rgba(243, 240, 233, 0.52);
+}
+
+.architecture-project-detail__media-label {
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	letter-spacing: 0.18em;
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+	text-transform: uppercase;
+}
+
+.architecture-project-detail__media-number {
+	justify-self: end;
+	font-family: var(--font-display);
+	font-size: clamp(3rem, 7vw, 8rem);
+	letter-spacing: -0.06em;
+	line-height: 0.8;
+}
+
+/*
+ * The warm band forms a two-column architectural sheet below the hero. Both
+ * tracks can shrink below min-content width, preventing future managed content
+ * from widening the document.
+ */
+.architecture-project-detail__information {
+	display: grid;
+	grid-template-columns:
+		minmax(0, 0.72fr)
+		minmax(20rem, 1.28fr);
+	min-width: 0;
+	gap: clamp(3rem, 8vw, 9rem);
+	padding:
+		clamp(3rem, 7vw, 7rem)
+		var(--page-gutter)
+		clamp(4rem, 9vw, 9rem);
+	border-bottom: 1px solid var(--architecture-detail-rule);
+	background: var(--architecture-detail-surface);
+	color: var(--architecture-detail-ink);
+}
+
+/*
+ * Both information tracks receive explicit shrink boundaries. The facts body
+ * receives the wider measure while the section title stays concise.
+ */
+.architecture-project-detail__information-header,
+.architecture-project-detail__information-body {
+	min-width: 0;
+}
+
+/*
+ * The information eyebrow uses tracked interface language on the warm surface.
+ */
+.architecture-project-detail__information-eyebrow {
+	margin: 0 0 1rem;
+	color: var(--architecture-detail-soft);
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	letter-spacing: 0.18em;
+	line-height: 1.4;
+	text-transform: uppercase;
+}
+
+/*
+ * The h2 names this region for sighted and assistive-technology users while a
+ * moderate scale leaves the route-selected h1 dominant.
+ */
+.architecture-project-detail__information-title {
+	max-width: 12ch;
+	min-width: 0;
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: clamp(2rem, 2.4vw, 3.25rem);
+	font-weight: 400;
+	letter-spacing: -0.02em;
+	line-height: 1;
+	overflow-wrap: anywhere;
+	text-wrap: balance;
+}
+
+/*
+ * Facts and the truthful notice share one bounded column, preserving readable
+ * line lengths beside the shorter information heading.
+ */
+.architecture-project-detail__information-body {
+	display: grid;
+	width: 100%;
+	max-width: 56rem;
+	gap: clamp(2rem, 4vw, 3.5rem);
+	justify-self: end;
+}
+
+/*
+ * The description list removes browser spacing and begins with a quiet rule.
+ */
+.architecture-project-detail__facts {
+	display: grid;
+	width: 100%;
+	margin: 0;
+	border-top: 1px solid var(--architecture-detail-rule);
+}
+
+/*
+ * Each row keeps a predictable term/value relationship. The flexible value
+ * column wraps independently when text is enlarged or future content is long.
+ */
+.architecture-project-detail__fact {
+	display: grid;
+	grid-template-columns:
+		minmax(9rem, 0.45fr)
+		minmax(0, 0.55fr);
+	gap: 1rem;
+	padding-block: 1rem;
+	border-bottom: 1px solid var(--architecture-detail-rule);
+}
+
+.architecture-project-detail__fact dt,
+.architecture-project-detail__fact dd {
+	min-width: 0;
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.architecture-project-detail__fact dt {
+	color: var(--architecture-detail-soft);
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	letter-spacing: 0.15em;
+	line-height: 1.45;
+	text-transform: uppercase;
+}
+
+.architecture-project-detail__fact dd {
+	font-family: var(--font-display);
+	font-size: clamp(1rem, 0.94rem + 0.25vw, 1.2rem);
+	line-height: 1.35;
+}
+
+/*
+ * The notice is interface copy, not an invented project description. Its soft
+ * ink and bounded measure preserve the hierarchy beneath known facts.
+ */
+.architecture-project-detail__notice {
+	max-width: 36rem;
+	margin: 0;
+	color: var(--architecture-detail-soft);
+	font-family: var(--font-interface);
+	font-size: clamp(0.9rem, 0.86rem + 0.18vw, 1.05rem);
+	line-height: 1.7;
+	overflow-wrap: anywhere;
+}
+
+/*
+ * At and below 64rem the warm band follows one source-order column. The hero
+ * keeps its presence but uses a smaller floor so tablets avoid desktop scale.
+ */
+@media (max-width: 64rem) {
+	.architecture-project-detail__hero,
+	.architecture-project-detail__media {
+		min-height: clamp(30rem, 66vh, 44rem);
+		min-height: clamp(30rem, 66svh, 44rem);
+	}
+
+	.architecture-project-detail__title {
+		max-width: 14ch;
+	}
+
+	.architecture-project-detail__information {
+		grid-template-columns: minmax(0, 1fr);
+		gap: clamp(2.5rem, 6vw, 4.5rem);
+	}
+
+	.architecture-project-detail__information-body {
+		justify-self: start;
+	}
+}
+
+/*
+ * Phones use the established one-rem edge, stack fact rows, and reduce visual
+ * markers. Identity stays in flow, so 200% text can grow the hero vertically.
+ */
+@media (max-width: 36rem) {
+	.architecture-project-detail__navigation,
+	.architecture-project-detail__identity,
+	.architecture-project-detail__media,
+	.architecture-project-detail__information {
+		padding-inline: 1rem;
+	}
+
+	.architecture-project-detail__hero,
+	.architecture-project-detail__media {
+		min-height: clamp(28rem, 78vh, 40rem);
+		min-height: clamp(28rem, 78svh, 40rem);
+	}
+
+	.architecture-project-detail__identity {
+		padding-top: 6rem;
+		padding-bottom: 2rem;
+	}
+
+	.architecture-project-detail__title {
+		font-size: clamp(2.9rem, 14vw, 4.6rem);
+	}
+
+	.architecture-project-detail__media::before {
+		inset: 14% 5% 18% 18%;
+	}
+
+	.architecture-project-detail__media-number {
+		font-size: clamp(3rem, 18vw, 5rem);
+	}
+
+	.architecture-project-detail__fact {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0.45rem;
+	}
+}
+
+/*
+ * Short landscape screens reduce outer spacing and hero height while retaining
+ * natural scrolling. A minimum, not fixed height, lets zoomed content expand.
+ */
+@media
+	(max-height: 32rem) and
+	(orientation: landscape) {
+	.architecture-project-detail__navigation {
+		padding-block: 1rem;
+	}
+
+	.architecture-project-detail__hero,
+	.architecture-project-detail__media {
+		min-height: clamp(19rem, 76vh, 24rem);
+	}
+
+	.architecture-project-detail__identity {
+		padding-top: 4rem;
+		padding-bottom: 1.5rem;
+	}
+
+	.architecture-project-detail__information {
+		padding-block: 2.5rem;
+	}
+}
+
+/*
+ * Increased contrast uses opaque surfaces and explicit boundaries. Generated
+ * massing remains recognizable without soft shadows, and meaningful text uses
+ * the strongest available color.
+ */
+@media (prefers-contrast: more) {
+	.site-header {
+		background: #11100d;
+	}
+
+	.architecture-project-detail__article,
+	.architecture-project-detail__hero,
+	.architecture-project-detail__media {
+		background: var(--architecture-detail-dark);
+	}
+
+	.architecture-project-detail__back,
+	.architecture-project-detail__navigation,
+	.architecture-project-detail__hero,
+	.architecture-project-detail__media::before {
+		border-color: var(--architecture-detail-light);
+	}
+
+	.architecture-project-detail__hero::after {
+		background: linear-gradient(
+			to top,
+			var(--architecture-detail-dark),
+			transparent
+		);
+	}
+
+	.architecture-project-detail__media::before,
+	.architecture-project-detail__media::after {
+		background: transparent;
+		box-shadow: none;
+	}
+
+	.architecture-project-detail__media::after {
+		border-top: 1px solid var(--architecture-detail-light);
+	}
+
+	.architecture-project-detail__eyebrow,
+	.architecture-project-detail__media-label,
+	.architecture-project-detail__media-number {
+		color: var(--architecture-detail-light);
+	}
+
+	.architecture-project-detail__information,
+	.architecture-project-detail__facts,
+	.architecture-project-detail__fact {
+		border-color: var(--architecture-detail-ink);
+	}
+
+	.architecture-project-detail__information-eyebrow,
+	.architecture-project-detail__fact dt,
+	.architecture-project-detail__notice {
+		color: var(--architecture-detail-ink);
+	}
+}
+
+/*
+ * Stage 11 adds no animation, transition, parallax, autoplay, or smooth
+ * scrolling. Native route and fragment navigation therefore remain immediate
+ * under prefers-reduced-motion without requiring a compensating override.
+ */

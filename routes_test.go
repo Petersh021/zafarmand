@@ -163,6 +163,14 @@ func TestPageRoutes(t *testing.T) {
 			activeLinks: 2,
 			activeToken: "page",
 		},
+		{
+			name:        "architecture project detail",
+			path:        "/architecture-design/architecture-study-01",
+			currentPath: "/architecture-design/architecture-study-01",
+			title:       "Architecture Study 01",
+			activeLinks: 2,
+			activeToken: "location",
+		},
 	}
 
 	for _, test := range tests {
@@ -658,6 +666,7 @@ func TestPageRoutesRejectUnsupportedMethods(t *testing.T) {
 		"/interior-design",
 		"/interior-design/interior-study-01",
 		"/architecture-design",
+		"/architecture-design/architecture-study-01",
 	}
 
 	for _, path := range paths {

@@ -48,6 +48,13 @@ func (app *application) routes() http.Handler {
 		"GET /architecture-design",
 		app.architectureDesignHandler,
 	)
+	// The one-segment Architecture wildcard creates a real URL for each project.
+	// ServeMux keeps the exact listing route above more specific, while the
+	// handler validates the captured slug before rendering any detail content.
+	mux.HandleFunc(
+		"GET /architecture-design/{slug}",
+		app.architectureProjectDetailHandler,
+	)
 
 	return mux
 }

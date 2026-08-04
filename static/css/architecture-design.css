@@ -1,10 +1,12 @@
 /* --------------------------------------------------
-   Stage 10: Architecture Design portfolio foundation
+   Stages 10-11: Architecture Design portfolio and detail entrances
 
    This stylesheet specializes only the selected-work region on
    /architecture-design. discipline.css continues to own the shared hero and
    route navigation. Every selector is namespaced with "architecture-portfolio"
    or "architecture-preview" so no presentation leaks into another route.
+   Stage 11 adds real full-card links; the detail page remains isolated in
+   architecture-project-detail.css.
 -------------------------------------------------- */
 
 /*
@@ -45,22 +47,50 @@
 }
 
 /*
- * One semantic article overlays its real text and decorative field in the same
- * named Grid area. Unlike absolute positioning, both layers participate in
- * track sizing, so browser zoom or longer text can increase the article's
- * height instead of clipping the caption. The component is intentionally not
- * styled as interactive because Stage 10 defines no Architecture detail URL.
+ * The article remains the semantic boundary for one project and fills its grid
+ * cell so the nested anchor can provide one complete mouse, touch, keyboard,
+ * and new-tab target. Presentation belongs to the anchor because it is the
+ * actual interactive surface introduced by Stage 11.
  */
 .architecture-preview {
+	min-width: 0;
+	min-height: 100%;
+}
+
+/*
+ * One native anchor overlays its real text and decorative field in the same
+ * named Grid area. Unlike absolute positioning, both layers participate in
+ * track sizing, so browser zoom or longer managed text can increase the link's
+ * height rather than clipping its caption. Removing the default underline is
+ * paired with explicit boundary and focus treatments below.
+ */
+.architecture-preview__link {
 	position: relative;
 	isolation: isolate;
 	display: grid;
 	grid-template-areas: "preview";
 	min-width: 0;
+	min-height: 100%;
 	overflow: hidden;
 	border: 1px solid var(--discipline-light-rule);
 	background: var(--discipline-dark);
 	color: var(--color-text);
+	text-decoration: none;
+}
+
+/*
+ * Keyboard focus outlines the complete card without altering its dimensions.
+ * Hover and focus also strengthen the existing card boundary immediately;
+ * Stage 11 introduces no transform, transition, zoom, or other motion.
+ */
+.architecture-preview__link:hover,
+.architecture-preview__link:focus-visible {
+	border-color: var(--discipline-light-ink);
+}
+
+.architecture-preview__link:focus-visible {
+	outline: 2px solid var(--discipline-light-ink);
+	outline-offset: 0.3rem;
 }
 
 /*
@@ -363,11 +393,11 @@
  * Increased-contrast preference replaces atmospheric transparency with opaque
  * surfaces and explicit light rules. Metadata receives the same strong text
  * color as headings, while generated geometry remains distinguishable without
- * shadows. Stage 10 adds no transitions or animation, so reduced-motion
+ * shadows. Stages 10-11 add no transitions or animation, so reduced-motion
  * preference already requires no separate behavioral override.
  */
 @media (prefers-contrast: more) {
-	.architecture-preview,
+	.architecture-preview__link,
 	.architecture-portfolio__empty {
 		border-color: var(--discipline-light-ink);
 	}

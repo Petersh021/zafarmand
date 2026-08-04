@@ -1,7 +1,8 @@
 {{/*
 The Architecture Design page remains a separate template-cache entry. Stage 10
-adds a temporary data-driven project index while preserving the shared
-discipline hero, route navigation, and selected-work section boundary.
+added the temporary data-driven project index, and Stage 11 connects every
+preview to its own real server-rendered detail route while preserving the
+shared discipline hero, route navigation, and selected-work section boundary.
 */}}
 
 {{/*
@@ -58,9 +59,9 @@ remains available even while the shared outer template is inside its temporary
 	{{/*
 	A nonempty preview slice becomes one semantic ordered list. Its source order
 	identifies the first entry as the featured structural field without changing
-	the document's reading order. Cards deliberately contain no anchors, buttons,
-	hover states, or pointer affordances because Architecture detail routes do not
-	exist in Stage 10; real navigation will be introduced with those routes.
+	the document's reading order. Each article contains one native anchor supplied
+	by the Stage 11 view model, so normal navigation, browser history, new-tab
+	commands, and copied URLs work without JavaScript.
 	*/}}
 	{{if .Items}}
 	<ol
@@ -71,39 +72,45 @@ remains available even while the shared outer template is inside its temporary
 		{{range .Items}}
 		<li class="architecture-portfolio__item">
 			<article class="architecture-preview">
-				{{/*
-				The media field is a CSS-only architectural study, not a published
-				project image. Its repeated sequence number is decorative because the
-				same value appears in visible metadata, so aria-hidden keeps it from
-				being announced twice by assistive technology.
-				*/}}
-				<div
-					class="architecture-preview__media"
-					aria-hidden="true"
+				<a
+					class="architecture-preview__link"
+					href="{{.Path}}"
 				>
-					<span class="architecture-preview__number">
-						{{.Number}}
-					</span>
-				</div>
+					{{/*
+					The media field is a CSS-only architectural study, not a
+					published project image. Its repeated sequence number is
+					decorative because the same value appears in visible metadata,
+					so aria-hidden prevents a duplicate announcement.
+					*/}}
+					<div
+						class="architecture-preview__media"
+						aria-hidden="true"
+					>
+						<span class="architecture-preview__number">
+							{{.Number}}
+						</span>
+					</div>
 
-				{{/*
-				Real text remains in normal document structure and labels one article.
-				CSS visually layers this body over the decorative field while Grid lets
-				long or enlarged text increase the card height instead of being clipped.
-				*/}}
-				<div class="architecture-preview__body">
-					<p class="architecture-preview__label">
-						{{.Typology}} / Project slot {{.Number}}
-					</p>
+					{{/*
+					Real text remains in normal document structure and gives the
+					anchor its accessible name through the h3. CSS visually layers
+					this body over the decorative field while Grid lets long or
+					enlarged text increase the card height instead of being clipped.
+					*/}}
+					<div class="architecture-preview__body">
+						<p class="architecture-preview__label">
+							{{.Typology}} / Project slot {{.Number}}
+						</p>
 
-					<h3 class="architecture-preview__title">
-						{{.Title}}
-					</h3>
+						<h3 class="architecture-preview__title">
+							{{.Title}}
+						</h3>
 
-					<p class="architecture-preview__status">
-						{{.Status}}
-					</p>
-				</div>
+						<p class="architecture-preview__status">
+							{{.Status}}
+						</p>
+					</div>
+				</a>
 			</article>
 		</li>
 		{{end}}

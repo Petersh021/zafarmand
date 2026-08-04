@@ -28,12 +28,12 @@ type application struct {
 	// Keeping it separate from Architecture allows each discipline's fields and
 	// publishing needs to evolve without a premature generic Project abstraction.
 	interiorProjects []interiorProject
-	// architectureProjects is the ordered temporary source for the Architecture
-	// Design listing.
+	// architectureProjects is the ordered temporary source shared by Architecture
+	// Design listing and detail handlers.
 	//
-	// The Stage 10 handler treats this slice as read-only. Its dedicated type keeps
-	// Architecture's visual and future data requirements independent from the
-	// already established Interior listing and detail flow.
+	// Both Architecture handlers treat this slice as read-only. Its dedicated
+	// type keeps Architecture's visual and future data requirements independent
+	// from the already established Interior listing and detail flow.
 	architectureProjects []architectureProject
 }
 
@@ -219,9 +219,9 @@ type architectureProjectListingData struct {
 // architectureProjectPreviewData is the minimal presentation shape for one
 // temporary Architecture Design project slot.
 //
-// Stage 10 deliberately omits Slug and Path because project detail routes do
-// not exist yet. Locations, years, descriptions, images, database identifiers,
-// and publication controls also remain deferred.
+// It receives a complete trusted Path rather than exposing the source Slug.
+// Locations, years, descriptions, images, database identifiers, and publication
+// controls remain deferred.
 type architectureProjectPreviewData struct {
 	// Number is the zero-padded sequence visible in the structural media field.
 	Number string
@@ -230,6 +230,25 @@ type architectureProjectPreviewData struct {
 	// Typology identifies the broad architectural category reserved by the slot.
 	Typology string
 	// Status truthfully communicates that approved project content is pending.
+	Status string
+	// Path is the real server-rendered project detail URL used by the card link.
+	Path string
+}
+
+// architectureProjectDetailData is the complete view model needed by one
+// structural Architecture Design project detail page.
+//
+// It deliberately includes only facts present in the temporary source. Final
+// location, year, client, description, photography, and gallery information
+// remain outside Stage 11.
+type architectureProjectDetailData struct {
+	// Number is the portfolio sequence displayed as editorial context.
+	Number string
+	// Title is the detail page's one primary heading.
+	Title string
+	// Typology identifies the broad architecture category in the visible facts.
+	Typology string
+	// Status communicates that the page is a temporary portfolio preview.
 	Status string
 }
 
@@ -263,6 +282,8 @@ type pageData struct {
 	InteriorProjectDetail *interiorProjectDetailData
 	// ArchitectureProjectListing contains only the Architecture portfolio data.
 	ArchitectureProjectListing *architectureProjectListingData
+	// ArchitectureProjectDetail contains one Architecture detail view, or nil.
+	ArchitectureProjectDetail *architectureProjectDetailData
 }
 
 // newApplication creates a ready-to-serve application and its shared template

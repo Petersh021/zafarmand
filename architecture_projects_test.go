@@ -79,12 +79,14 @@ func TestArchitectureProjectPreviewsPreservesOrderAndFields(t *testing.T) {
 	source := []architectureProject{
 		{
 			Number:   "A-17",
+			Slug:     "first-sentinel",
 			Title:    "First sentinel title",
 			Typology: "First sentinel typology",
 			Status:   "First sentinel status",
 		},
 		{
 			Number:   "B-29",
+			Slug:     "second-sentinel",
 			Title:    "Second sentinel title",
 			Typology: "Second sentinel typology",
 			Status:   "Second sentinel status",
@@ -135,6 +137,15 @@ func TestArchitectureProjectPreviewsPreservesOrderAndFields(t *testing.T) {
 				project.Status,
 			)
 		}
+		expectedPath := architectureProjectDetailPath(project.Slug)
+		if preview.Path != expectedPath {
+			t.Errorf(
+				"preview %d path: got %q, want %q",
+				index,
+				preview.Path,
+				expectedPath,
+			)
+		}
 	}
 
 	if previews := architectureProjectPreviews(nil); len(previews) != 0 {
@@ -146,23 +157,25 @@ func TestArchitectureProjectPreviewsPreservesOrderAndFields(t *testing.T) {
 }
 
 // TestArchitectureDesignRouteRendersPortfolio verifies the complete public
-// Stage 10 response produced by architectureDesignHandler.
+// Stages 10-11 response produced by architectureDesignHandler.
 //
 // Replacing the application-owned source proves the handler uses its injected
 // dependency instead of rebuilding temporary records internally. The remaining
 // assertions own stylesheet ordering, shared-section semantics, record order,
-// and the deliberate absence of detail navigation during this listing stage.
+// and each real Stage 11 detail destination.
 func TestArchitectureDesignRouteRendersPortfolio(t *testing.T) {
 	app := newTestApplication(t)
 	app.architectureProjects = []architectureProject{
 		{
 			Number:   "R-17",
+			Slug:     "route-sentinel-one",
 			Title:    "Route sentinel one",
 			Typology: "Route typology one",
 			Status:   "Route status one",
 		},
 		{
 			Number:   "R-29",
+			Slug:     "route-sentinel-two",
 			Title:    "Route sentinel two",
 			Typology: "Route typology two",
 			Status:   "Route status two",
@@ -360,21 +373,46 @@ func TestArchitectureDesignRouteRendersPortfolio(t *testing.T) {
 			)
 		}
 
-		// Stage 10 has no registered Architecture detail route. Keeping each card
-		// noninteractive avoids fake URLs and gives Stage 11 a clear responsibility.
-		// Complete anchor prefixes avoid treating the enclosing <article> text as
-		// an anchor merely because both element names begin with the letter "a".
-		hasAnchor := strings.Contains(article, "<a ") ||
-			strings.Contains(article, "<a>") ||
-			strings.Contains(article, "<a\n") ||
-			strings.Contains(article, "<a\r")
-		if hasAnchor ||
-			strings.Contains(article, `href=`) ||
-			strings.Contains(article, `role="link"`) ||
-			strings.Contains(article, `tabindex=`) {
+		// Each article contains one native anchor whose URL is constructed from
+		// the same source record. Routing the href verifies that the portfolio
+		// never advertises a placeholder or unregistered destination.
+		previewLink := extractElementByMarker(
+			t,
+			article,
+			`class="architecture-preview__link"`,
+			"a",
+		)
+		previewOpening := extractOpeningTag(t, previewLink)
+		expectedHref := `href="` + expected.Path + `"`
+		if !strings.Contains(previewOpening, expectedHref) {
 			t.Errorf(
-				"article %d must remain noninteractive until detail routes exist",
+				"article %d link does not contain %q",
 				index,
+				expectedHref,
+			)
+		}
+		if count := strings.Count(article, `href="`); count != 1 {
+			t.Errorf(
+				"article %d href count: got %d, want 1",
+				index,
+				count,
+			)
+		}
+
+		detailRecorder := httptest.NewRecorder()
+		detailRequest := httptest.NewRequest(
+			http.MethodGet,
+			expected.Path,
+			nil,
+		)
+		handler.ServeHTTP(detailRecorder, detailRequest)
+		if detailRecorder.Code != http.StatusOK {
+			t.Errorf(
+				"article %d detail path %q status: got %d, want %d",
+				index,
+				expected.Path,
+				detailRecorder.Code,
+				http.StatusOK,
 			)
 		}
 	}
@@ -393,23 +431,6 @@ func TestArchitectureDesignRouteRendersPortfolio(t *testing.T) {
 		)
 	}
 
-	// An apparent project path must remain a normal 404 during the listing-only
-	// stage. This explicitly prevents the tests from silently accepting a detail
-	// route that was implemented ahead of the agreed vertical slice.
-	detailRecorder := httptest.NewRecorder()
-	detailRequest := httptest.NewRequest(
-		http.MethodGet,
-		"/architecture-design/architecture-study-01",
-		nil,
-	)
-	handler.ServeHTTP(detailRecorder, detailRequest)
-	if detailRecorder.Code != http.StatusNotFound {
-		t.Errorf(
-			"future detail path status: got %d, want %d",
-			detailRecorder.Code,
-			http.StatusNotFound,
-		)
-	}
 }
 
 // TestArchitectureDesignTemplateUsesDataAndEscapesHTML renders the Architecture
@@ -430,12 +451,14 @@ func TestArchitectureDesignTemplateUsesDataAndEscapesHTML(t *testing.T) {
 		Items: []architectureProjectPreviewData{
 			{
 				Number:   "A1",
+				Path:     "/architecture-design/sentinel-one",
 				Title:    "<b>Unsafe architecture title</b>",
 				Typology: "<em>Unsafe architecture typology</em>",
 				Status:   "First sentinel status",
 			},
 			{
 				Number:   "B2",
+				Path:     "/architecture-design/sentinel-two",
 				Title:    "Second sentinel architecture title",
 				Typology: "Second sentinel architecture typology",
 				Status:   "<script>Unsafe status</script>",
@@ -530,6 +553,20 @@ func TestArchitectureDesignTemplateUsesDataAndEscapesHTML(t *testing.T) {
 			t.Errorf(
 				"sentinel Architecture main contains raw markup %q",
 				unsafeMarkup,
+			)
+		}
+	}
+
+	// Each sentinel route belongs to its matching article. Keeping this assertion
+	// inside the template-data test catches a future hard-coded href even when
+	// all escaped visible values still render correctly.
+	for index, item := range listing.Items {
+		expectedHref := `href="` + item.Path + `"`
+		if !strings.Contains(articles[index], expectedHref) {
+			t.Errorf(
+				"sentinel article %d does not contain %q",
+				index,
+				expectedHref,
 			)
 		}
 	}
@@ -738,8 +775,9 @@ func TestArchitectureDesignTemplatePreservesSectionWithoutListingData(
 // route-stylesheet isolation.
 //
 // architecture-design.html defines the same named work-block override as the
-// other discipline wrappers. Separate template sets must keep its stylesheet
-// and markup absent from the homepage and every Product or Interior route.
+// other discipline wrappers. Separate template sets must keep its listing
+// stylesheet and markup absent from the homepage, sibling routes, and the
+// Architecture detail route.
 func TestArchitecturePresentationDoesNotLeak(t *testing.T) {
 	app := newTestApplication(t)
 	handler := app.routes()
@@ -750,6 +788,7 @@ func TestArchitecturePresentationDoesNotLeak(t *testing.T) {
 		"/products/furniture-study-01",
 		"/interior-design",
 		"/interior-design/interior-study-01",
+		"/architecture-design/architecture-study-01",
 	}
 
 	for _, path := range paths {
@@ -777,7 +816,7 @@ func TestArchitecturePresentationDoesNotLeak(t *testing.T) {
 				`href="/static/css/architecture-design.css"`,
 			) {
 				t.Error(
-					"non-Architecture route loads Architecture stylesheet",
+					"non-listing route loads Architecture listing stylesheet",
 				)
 			}
 			if strings.Contains(
@@ -785,14 +824,14 @@ func TestArchitecturePresentationDoesNotLeak(t *testing.T) {
 				`class="architecture-portfolio"`,
 			) {
 				t.Error(
-					"non-Architecture route renders Architecture portfolio",
+					"non-listing route renders Architecture portfolio",
 				)
 			}
 			if len(
 				extractArchitecturePreviewArticles(t, body),
 			) != 0 {
 				t.Error(
-					"non-Architecture route renders an Architecture preview",
+					"non-listing route renders an Architecture preview",
 				)
 			}
 		})

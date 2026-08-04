@@ -1,0 +1,160 @@
+{{/*
+The Architecture project detail page is a separate template-cache entry found
+by the existing templates/pages glob. Stage 11 gives one temporary Architecture
+record a real server-rendered page without coupling its semantic structure to
+the shared discipline landing shell.
+*/}}
+
+{{/*
+Only Architecture detail responses load architecture-project-detail.css.
+base.html has already emitted main.css and navigation.css, so this route-only
+stylesheet can create the monumental project composition and fixed-header
+contrast without leaking those choices into another public page.
+*/}}
+{{define "pageStyles"}}
+<link
+	rel="stylesheet"
+	href="/static/css/architecture-project-detail.css"
+>
+{{end}}
+
+{{/*
+The main landmark is always present so the shared skip link retains one valid,
+unique destination if future handler code omits ArchitectureProjectDetail.
+Only the incomplete article is withheld when the optional record is absent.
+*/}}
+{{define "content"}}
+<main
+	class="architecture-project-detail"
+	id="main-content"
+>
+	{{with .ArchitectureProjectDetail}}
+	{{/*
+	The article represents the complete route-selected project. Its accessible
+	name comes from the page's one h1, preserving a clear hierarchy without
+	introducing another main landmark.
+	*/}}
+	<article
+		class="architecture-project-detail__article"
+		aria-labelledby="architecture-project-title"
+	>
+		{{/*
+		The native return link works without JavaScript and supports copied URLs,
+		new-tab commands, and browser history. The fragment returns directly to
+		the existing labelled Architecture project index.
+		*/}}
+		<nav
+			class="architecture-project-detail__navigation"
+			aria-label="Architecture project navigation"
+		>
+			<a
+				class="architecture-project-detail__back"
+				href="/architecture-design#selected-work"
+			>
+				<span aria-hidden="true">&larr;</span>
+				Back to Architecture Design
+			</a>
+		</nav>
+
+		{{/*
+		The semantic identity precedes decorative media in source order. Both
+		become normal items in the same CSS Grid area on visual browsers, so the
+		title can sit over the structural field while long or enlarged text still
+		participates in sizing instead of being clipped by absolute positioning.
+		*/}}
+		<header class="architecture-project-detail__hero">
+			<div class="architecture-project-detail__identity">
+				<p class="architecture-project-detail__eyebrow">
+					<span>Architecture project</span>
+					<span>{{.Number}}</span>
+				</p>
+
+				<h1
+					class="architecture-project-detail__title"
+					id="architecture-project-title"
+				>
+					{{.Title}}
+				</h1>
+			</div>
+
+			{{/*
+			The CSS-only field reserves the scale of future approved project media
+			without serving the supplied reference composite as public content.
+			Its label and number repeat semantic information, so the entire field
+			is decorative and hidden from assistive technology.
+			*/}}
+			<div
+				class="architecture-project-detail__media"
+				aria-hidden="true"
+			>
+				<span class="architecture-project-detail__media-label">
+					Zafarmand / Architecture Design
+				</span>
+
+				<span class="architecture-project-detail__media-number">
+					{{.Number}}
+				</span>
+			</div>
+		</header>
+
+		{{/*
+		A separately labelled warm information band follows the dark hero. This
+		project-sheet rhythm distinguishes Architecture from the Product split
+		layout and Interior's warm introduction followed by landscape media.
+		*/}}
+		<section
+			class="architecture-project-detail__information"
+			aria-labelledby="architecture-project-information-title"
+		>
+			<header class="architecture-project-detail__information-header">
+				<p class="architecture-project-detail__information-eyebrow">
+					Project record
+				</p>
+
+				<h2
+					class="architecture-project-detail__information-title"
+					id="architecture-project-information-title"
+				>
+					Available project information
+				</h2>
+			</header>
+
+			<div class="architecture-project-detail__information-body">
+				{{/*
+				A description list expresses each known label/value relationship.
+				Every value comes from the narrow Stage 11 detail model; location,
+				year, client, description, and other unapproved facts are not invented.
+				*/}}
+				<dl class="architecture-project-detail__facts">
+					<div class="architecture-project-detail__fact">
+						<dt>Project number</dt>
+						<dd>{{.Number}}</dd>
+					</div>
+
+					<div class="architecture-project-detail__fact">
+						<dt>Typology</dt>
+						<dd>{{.Typology}}</dd>
+					</div>
+
+					<div class="architecture-project-detail__fact">
+						<dt>Publication status</dt>
+						<dd>{{.Status}}</dd>
+					</div>
+				</dl>
+
+				{{/*
+				This truthful interface note replaces fabricated project prose until
+				approved descriptions and media can arrive through the later content
+				and administration stages.
+				*/}}
+				<p class="architecture-project-detail__notice">
+					Approved project information and media are being
+					prepared for publication.
+				</p>
+			</div>
+		</section>
+	</article>
+	{{/* End the optional project record and restore pageData as dot. */}}
+	{{end}}
+</main>
+{{end}}

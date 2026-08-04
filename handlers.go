@@ -220,10 +220,10 @@ func (app *application) interiorProjectDetailHandler(
 
 // architectureDesignHandler renders the Architecture Design landing page.
 //
-// The handler combines the shared discipline shell with the Stage 10
-// Architecture-only listing. Temporary application records are mapped into a
-// narrow view model while detail routes, final content, media, database state,
-// and admin controls remain deferred.
+// The handler combines the shared discipline shell with the Architecture-only
+// listing. Stage 11 maps each application-owned source record to a preview with
+// a real detail path, while final content, media, database state, and admin
+// controls remain deferred.
 func (app *application) architectureDesignHandler(
 	w http.ResponseWriter,
 	_ *http.Request,
@@ -236,8 +236,8 @@ func (app *application) architectureDesignHandler(
 	}
 
 	// Section copy and ordered previews travel as one Architecture-specific
-	// value. Keeping this mapper independent from Interior allows the two public
-	// compositions and later persistence requirements to evolve separately.
+	// value. The listing and detail handler share app.architectureProjects, so
+	// card destinations and accepted lookup records cannot drift apart.
 	architectureProjectListing := &architectureProjectListingData{
 		Eyebrow: "Zafarmand architecture",
 		Heading: "Architecture project index",
@@ -257,6 +257,43 @@ func (app *application) architectureDesignHandler(
 			CurrentPath:                "/architecture-design",
 			DisciplinePage:             disciplinePage,
 			ArchitectureProjectListing: architectureProjectListing,
+		},
+	)
+}
+
+// architectureProjectDetailHandler renders one temporary Architecture Design
+// project selected by the slug captured in GET /architecture-design/{slug}.
+//
+// PathValue returns the wildcard decoded by Go's ServeMux. Looking it up in the
+// application-owned source prevents visitor input from becoming template names
+// or arbitrary page content. Unknown or differently cased slugs receive a
+// normal 404 before the detail template is executed.
+func (app *application) architectureProjectDetailHandler(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	slug := r.PathValue("slug")
+	project, exists := findArchitectureProjectBySlug(
+		app.architectureProjects,
+		slug,
+	)
+	if !exists {
+		http.NotFound(w, r)
+		return
+	}
+
+	projectDetail := newArchitectureProjectDetailData(project)
+	currentPath := architectureProjectDetailPath(project.Slug)
+
+	app.render(
+		w,
+		http.StatusOK,
+		"architecture-project-detail.html",
+		pageData{
+			Title:                     projectDetail.Title,
+			CurrentPath:               currentPath,
+			NavigationPath:            "/architecture-design",
+			ArchitectureProjectDetail: &projectDetail,
 		},
 	)
 }
