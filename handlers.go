@@ -220,9 +220,10 @@ func (app *application) interiorProjectDetailHandler(
 
 // architectureDesignHandler renders the Architecture Design landing page.
 //
-// Separating each route into its own handler leaves a clear place for the later
-// Architecture vertical slice, while DisciplinePage lets the current route
-// reuse the same accessible landing-page structure as the other disciplines.
+// The handler combines the shared discipline shell with the Stage 10
+// Architecture-only listing. Temporary application records are mapped into a
+// narrow view model while detail routes, final content, media, database state,
+// and admin controls remain deferred.
 func (app *application) architectureDesignHandler(
 	w http.ResponseWriter,
 	_ *http.Request,
@@ -234,14 +235,28 @@ func (app *application) architectureDesignHandler(
 		NextPath: "/products",
 	}
 
+	// Section copy and ordered previews travel as one Architecture-specific
+	// value. Keeping this mapper independent from Interior allows the two public
+	// compositions and later persistence requirements to evolve separately.
+	architectureProjectListing := &architectureProjectListingData{
+		Eyebrow: "Zafarmand architecture",
+		Heading: "Architecture project index",
+		Introduction: "A developing index of residential, commercial, " +
+			"cultural, and civic architecture studies.",
+		EmptyMessage: "Architecture project entries are being prepared " +
+			"for publication.",
+		Items: architectureProjectPreviews(app.architectureProjects),
+	}
+
 	app.render(
 		w,
 		http.StatusOK,
 		"architecture-design.html",
 		pageData{
-			Title:          disciplinePage.Name,
-			CurrentPath:    "/architecture-design",
-			DisciplinePage: disciplinePage,
+			Title:                      disciplinePage.Name,
+			CurrentPath:                "/architecture-design",
+			DisciplinePage:             disciplinePage,
+			ArchitectureProjectListing: architectureProjectListing,
 		},
 	)
 }

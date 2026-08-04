@@ -273,9 +273,9 @@
 
 /*
  * This light section mirrors the reference pages' transition from cinematic
- * introduction to editorial index. Its named template block now hosts the
- * Products and Interior Design data-driven listings, while the ruled default
- * remains an honest noninteractive state for Architecture Design.
+ * introduction to editorial index. Its named template block now hosts each
+ * discipline's data-driven listing, while the ruled default remains a truthful
+ * extension state for any future wrapper that has not supplied content yet.
  */
 .discipline-work {
 	scroll-margin-top: var(--header-height);

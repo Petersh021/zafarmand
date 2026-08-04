@@ -1,21 +1,144 @@
 {{/*
-The Architecture Design page is deliberately a small wrapper around the shared
-Stage 5 pattern. Keeping the file preserves a clean extension point for the
-future Architecture project listing and details work.
+The Architecture Design page remains a separate template-cache entry. Stage 10
+adds a temporary data-driven project index while preserving the shared
+discipline hero, route navigation, and selected-work section boundary.
 */}}
 
 {{/*
-Calling the uniquely named style partial loads discipline.css after the shared
-main.css and navigation.css files declared by base.html.
+discipline.css supplies the established landing-page shell. The Architecture-
+only stylesheet loads second so its namespaced portfolio rules can compose the
+warm work surface without leaking into Products, Interior Design, or Home.
 */}}
 {{define "pageStyles"}}
 	{{template "disciplinePageStyles" .}}
+
+	<link
+		rel="stylesheet"
+		href="/static/css/architecture-design.css"
+	>
 {{end}}
 
 {{/*
-The shared content partial receives the unchanged pageData value, including the
-Architecture-specific sequence and next-route information from its handler.
+The shared content partial continues to own the document's one main landmark,
+the discipline h1, and real route navigation. Root pageData passes through
+unchanged so the Architecture-specific block below can read its listing model.
 */}}
 {{define "content"}}
 	{{template "disciplinePageContent" .}}
+{{end}}
+
+{{/*
+disciplineWorkContent replaces the shared default only inside the separately
+parsed Architecture Design template set. newTemplateCache parses each page
+independently, preventing this markup from appearing on either sibling route.
+
+discipline-page.html calls the block with root $, so ArchitectureProjectListing
+remains available even while the shared outer template is inside its temporary
+"with .DisciplinePage" context.
+*/}}
+{{define "disciplineWorkContent"}}
+	{{with .ArchitectureProjectListing}}
+	<header class="discipline-work__header architecture-portfolio__header">
+		<p class="discipline-work__eyebrow">
+			{{.Eyebrow}}
+		</p>
+
+		<h2
+			class="discipline-work__title"
+			id="selected-work-title"
+		>
+			{{.Heading}}
+		</h2>
+
+		<p class="discipline-work__status">
+			{{.Introduction}}
+		</p>
+	</header>
+
+	{{/*
+	A nonempty preview slice becomes one semantic ordered list. Its source order
+	identifies the first entry as the featured structural field without changing
+	the document's reading order. Cards deliberately contain no anchors, buttons,
+	hover states, or pointer affordances because Architecture detail routes do not
+	exist in Stage 10; real navigation will be introduced with those routes.
+	*/}}
+	{{if .Items}}
+	<ol
+		class="architecture-portfolio"
+		aria-label="Architecture project previews"
+		role="list"
+	>
+		{{range .Items}}
+		<li class="architecture-portfolio__item">
+			<article class="architecture-preview">
+				{{/*
+				The media field is a CSS-only architectural study, not a published
+				project image. Its repeated sequence number is decorative because the
+				same value appears in visible metadata, so aria-hidden keeps it from
+				being announced twice by assistive technology.
+				*/}}
+				<div
+					class="architecture-preview__media"
+					aria-hidden="true"
+				>
+					<span class="architecture-preview__number">
+						{{.Number}}
+					</span>
+				</div>
+
+				{{/*
+				Real text remains in normal document structure and labels one article.
+				CSS visually layers this body over the decorative field while Grid lets
+				long or enlarged text increase the card height instead of being clipped.
+				*/}}
+				<div class="architecture-preview__body">
+					<p class="architecture-preview__label">
+						{{.Typology}} / Project slot {{.Number}}
+					</p>
+
+					<h3 class="architecture-preview__title">
+						{{.Title}}
+					</h3>
+
+					<p class="architecture-preview__status">
+						{{.Status}}
+					</p>
+				</div>
+			</article>
+		</li>
+		{{end}}
+	</ol>
+	{{else}}
+	{{/*
+	A visible empty state keeps the shared aria-labelledby relationship useful
+	when a future repository returns no published Architecture projects. Omitting
+	the ordered list avoids exposing an empty collection to assistive technology.
+	*/}}
+	<p class="architecture-portfolio__empty">
+		{{.EmptyMessage}}
+	</p>
+	{{end}}
+	{{else}}
+	{{/*
+	The production handler supplies ArchitectureProjectListing. This defensive
+	fallback still emits a truthful h2 and status if future code omits that
+	optional view model, preserving the shared section's accessible label.
+	*/}}
+	<header class="discipline-work__header architecture-portfolio__header">
+		<p class="discipline-work__eyebrow">
+			Zafarmand architecture
+		</p>
+
+		<h2
+			class="discipline-work__title"
+			id="selected-work-title"
+		>
+			Architecture project index
+		</h2>
+
+		<p class="discipline-work__status">
+			Architecture project entries are being prepared for publication.
+		</p>
+	</header>
+	{{end}}
 {{end}}

@@ -25,10 +25,16 @@ type application struct {
 	// interiorProjects is the ordered temporary source shared by Interior
 	// listing and detail handlers.
 	//
-	// Keeping it on application follows the same dependency pattern as Products
-	// without introducing a generic Project abstraction before Architecture's
-	// different interface has been designed.
+	// Keeping it separate from Architecture allows each discipline's fields and
+	// publishing needs to evolve without a premature generic Project abstraction.
 	interiorProjects []interiorProject
+	// architectureProjects is the ordered temporary source for the Architecture
+	// Design listing.
+	//
+	// The Stage 10 handler treats this slice as read-only. Its dedicated type keeps
+	// Architecture's visual and future data requirements independent from the
+	// already established Interior listing and detail flow.
+	architectureProjects []architectureProject
 }
 
 // homeHeroData describes the content and media needed by the homepage hero.
@@ -191,6 +197,42 @@ type interiorProjectDetailData struct {
 	Status string
 }
 
+// architectureProjectListingData describes the Architecture Design portfolio
+// section.
+//
+// Only /architecture-design receives this optional view model. Keeping section
+// copy beside its ordered preview slice creates a stable template boundary that
+// a later database query can populate without exposing persistence records.
+type architectureProjectListingData struct {
+	// Eyebrow is the short interface label displayed above the section heading.
+	Eyebrow string
+	// Heading names the project index and labels the shared work section.
+	Heading string
+	// Introduction explains the temporary index without inventing project claims.
+	Introduction string
+	// EmptyMessage is shown when Items is nil or empty.
+	EmptyMessage string
+	// Items contains structural Architecture previews in editorial order.
+	Items []architectureProjectPreviewData
+}
+
+// architectureProjectPreviewData is the minimal presentation shape for one
+// temporary Architecture Design project slot.
+//
+// Stage 10 deliberately omits Slug and Path because project detail routes do
+// not exist yet. Locations, years, descriptions, images, database identifiers,
+// and publication controls also remain deferred.
+type architectureProjectPreviewData struct {
+	// Number is the zero-padded sequence visible in the structural media field.
+	Number string
+	// Title is the temporary study heading displayed by the preview article.
+	Title string
+	// Typology identifies the broad architectural category reserved by the slot.
+	Typology string
+	// Status truthfully communicates that approved project content is pending.
+	Status string
+}
+
 // pageData is the common top-level value passed to every page template.
 //
 // A pointer is used for HomeHero because only the homepage has hero data. A nil
@@ -219,6 +261,8 @@ type pageData struct {
 	InteriorProjectListing *interiorProjectListingData
 	// InteriorProjectDetail contains one Interior detail view, or nil elsewhere.
 	InteriorProjectDetail *interiorProjectDetailData
+	// ArchitectureProjectListing contains only the Architecture portfolio data.
+	ArchitectureProjectListing *architectureProjectListingData
 }
 
 // newApplication creates a ready-to-serve application and its shared template
@@ -234,9 +278,10 @@ func newApplication() (*application, error) {
 	}
 
 	app := &application{
-		templates:        templateCache,
-		products:         temporaryProducts(),
-		interiorProjects: temporaryInteriorProjects(),
+		templates:            templateCache,
+		products:             temporaryProducts(),
+		interiorProjects:     temporaryInteriorProjects(),
+		architectureProjects: temporaryArchitectureProjects(),
 	}
 
 	return app, nil

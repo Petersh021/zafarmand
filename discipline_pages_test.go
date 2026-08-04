@@ -132,8 +132,8 @@ func extractOpeningTag(
 // This test complements TestPageRoutes: that existing test owns the common
 // document title, CurrentPath, and aria-current contract, while this table owns
 // discipline-page semantics, stylesheet isolation, and route-cycle data.
-// Products and Interior Design now specialize their work content, so the table
-// also states which visible h2 and default-status behavior belongs to each route.
+// All three disciplines now specialize their work content, so the table also
+// states which visible h2 and default-status behavior belongs to each route.
 func TestDisciplinePageRoutes(t *testing.T) {
 	app := newTestApplication(t)
 	handler := app.routes()
@@ -178,8 +178,8 @@ func TestDisciplinePageRoutes(t *testing.T) {
 			number:          "02",
 			nextName:        "Products",
 			nextPath:        "/products",
-			workHeading:     "Selected work",
-			usesDefaultWork: true,
+			workHeading:     "Architecture project index",
+			usesDefaultWork: false,
 		},
 	}
 
@@ -348,7 +348,8 @@ func TestDisciplinePageRoutes(t *testing.T) {
 			}
 
 			// The selected-work boundary remains structurally shared even when
-			// Products replaces its inner content through a named template block.
+			// Each discipline replaces its inner content through the same named
+			// template extension point without duplicating the shared shell.
 			workElement := extractElementByMarker(
 				t,
 				mainElement,

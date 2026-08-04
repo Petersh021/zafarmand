@@ -1,0 +1,398 @@
+/* --------------------------------------------------
+   Stage 10: Architecture Design portfolio foundation
+
+   This stylesheet specializes only the selected-work region on
+   /architecture-design. discipline.css continues to own the shared hero and
+   route navigation. Every selector is namespaced with "architecture-portfolio"
+   or "architecture-preview" so no presentation leaks into another route.
+-------------------------------------------------- */
+
+/*
+ * The Architecture introduction preserves the shared asymmetric editorial
+ * header while reserving slightly more room for the explanatory copy. The
+ * existing compact breakpoint below stacks these tracks before either column
+ * becomes cramped by enlarged or future managed text.
+ */
+.architecture-portfolio__header {
+	grid-template-columns:
+		minmax(0, 1.25fr)
+		minmax(18rem, 0.75fr);
+}
+
+/*
+ * The ordered list begins as one column so narrow screens need no overriding
+ * layout. List markers are removed only after the template adds role="list",
+ * preserving dependable collection semantics in Safari and VoiceOver.
+ * minmax(0, 1fr) and min-width safeguards prevent long content from widening
+ * the document beyond the viewport.
+ */
+.architecture-portfolio {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: clamp(1rem, 2.25vw, 2.25rem);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+/*
+ * Each grid child must be allowed to shrink below its min-content width. This
+ * protects the page when a future database supplies a long unbroken title or
+ * translated typology.
+ */
+.architecture-portfolio__item {
+	min-width: 0;
+}
+
+/*
+ * One semantic article overlays its real text and decorative field in the same
+ * named Grid area. Unlike absolute positioning, both layers participate in
+ * track sizing, so browser zoom or longer text can increase the article's
+ * height instead of clipping the caption. The component is intentionally not
+ * styled as interactive because Stage 10 defines no Architecture detail URL.
+ */
+.architecture-preview {
+	position: relative;
+	isolation: isolate;
+	display: grid;
+	grid-template-areas: "preview";
+	min-width: 0;
+	overflow: hidden;
+	border: 1px solid var(--discipline-light-rule);
+	background: var(--discipline-dark);
+	color: var(--color-text);
+}
+
+/*
+ * A 4:3 base ratio gives phones a substantial but controlled structural field.
+ * The layered slate and warm-stone gradients recall architectural massing
+ * without displaying the supplied reference composite or pretending approved
+ * photography exists. The template hides this entire layer from assistive
+ * technology because it communicates no project information.
+ */
+.architecture-preview__media {
+	position: relative;
+	z-index: 0;
+	display: grid;
+	grid-area: preview;
+	min-width: 0;
+	aspect-ratio: 4 / 3;
+	overflow: hidden;
+	place-items: start end;
+	background:
+		radial-gradient(
+			circle at 74% 24%,
+			rgba(218, 207, 187, 0.2),
+			transparent 27%
+		),
+		linear-gradient(
+			145deg,
+			#4a4c4b,
+			#2e302f 52%,
+			#161714
+		);
+}
+
+/*
+ * The first generated plane suggests a simplified building volume through
+ * clipped geometry and restrained tonal divisions. It remains presentation
+ * inside the aria-hidden media field and therefore requires no alternative
+ * text or accessible name.
+ */
+.architecture-preview__media::before {
+	position: absolute;
+	z-index: 0;
+	inset: 14% 9% 12% 26%;
+	border: 1px solid rgba(235, 229, 217, 0.18);
+	background:
+		linear-gradient(
+			90deg,
+			rgba(219, 211, 196, 0.18) 0 46%,
+			rgba(15, 15, 13, 0.18) 46% 50%,
+			rgba(219, 211, 196, 0.08) 50% 100%
+		);
+	box-shadow: 0 1.5rem 3rem rgba(0, 0, 0, 0.28);
+	clip-path: polygon(18% 0, 100% 13%, 100% 100%, 0 100%, 0 25%);
+	content: "";
+}
+
+/*
+ * A low perspective plane anchors the abstract volume to the bottom edge. It
+ * uses only CSS and expands with the media field, avoiding raster downloads or
+ * fixed pixel geometry at responsive widths.
+ */
+.architecture-preview__media::after {
+	position: absolute;
+	z-index: 1;
+	right: -8%;
+	bottom: -1px;
+	left: -8%;
+	height: 32%;
+	background:
+		linear-gradient(
+			155deg,
+			rgba(203, 193, 174, 0.18),
+			rgba(11, 11, 10, 0.42)
+		);
+	clip-path: polygon(8% 20%, 92% 0, 100% 100%, 0 100%);
+	content: "";
+}
+
+/*
+ * Alternating structural planes stop repeated temporary slots from resembling
+ * one duplicated bitmap. nth-child changes only visual geometry: Go source
+ * order, list semantics, and article text remain identical.
+ */
+.architecture-portfolio__item:nth-child(even)
+	.architecture-preview__media::before {
+	inset: 18% 28% 9% 8%;
+	background:
+		linear-gradient(
+			90deg,
+			rgba(219, 211, 196, 0.08) 0 60%,
+			rgba(15, 15, 13, 0.24) 60% 65%,
+			rgba(219, 211, 196, 0.17) 65% 100%
+		);
+	clip-path: polygon(0 12%, 76% 0, 100% 24%, 100% 100%, 0 100%);
+}
+
+.architecture-portfolio__item:nth-child(3n)
+	.architecture-preview__media::before {
+	inset: 10% 12% 18% 20%;
+	clip-path: polygon(12% 0, 88% 8%, 100% 100%, 0 100%);
+	transform: skewX(-4deg);
+}
+
+/*
+ * The low-contrast sequence number is an editorial marker rather than content.
+ * It sits above generated geometry but below the real caption. The same value
+ * is repeated in visible metadata, while the aria-hidden ancestor prevents a
+ * duplicate screen-reader announcement.
+ */
+.architecture-preview__number {
+	position: relative;
+	z-index: 2;
+	padding: clamp(0.8rem, 1.7vw, 1.4rem);
+	color: rgba(243, 240, 233, 0.46);
+	font-family: var(--font-display);
+	font-size: clamp(2.25rem, 4.5vw, 5rem);
+	letter-spacing: -0.04em;
+	line-height: 0.9;
+}
+
+/*
+ * Real article text occupies the same Grid area and aligns to its lower edge.
+ * The strong dark gradient provides reliable contrast over every generated
+ * field. Because this is a regular grid item rather than an absolutely placed
+ * overlay, enlarged text remains in flow and can make the card taller.
+ */
+.architecture-preview__body {
+	position: relative;
+	z-index: 3;
+	display: grid;
+	grid-area: preview;
+	min-width: 0;
+	align-self: end;
+	gap: 0.55rem;
+	padding:
+		clamp(3.5rem, 8vw, 7rem)
+		clamp(1rem, 2vw, 1.75rem)
+		clamp(1rem, 2vw, 1.75rem);
+	background:
+		linear-gradient(
+			to top,
+			rgba(13, 13, 11, 0.98),
+			rgba(13, 13, 11, 0.84) 56%,
+			rgba(13, 13, 11, 0) 100%
+		);
+}
+
+/*
+ * Interface metadata uses tracked capitals to echo the established discipline
+ * language. overflow-wrap:anywhere prevents future managed labels or statuses
+ * from forcing a horizontal scrollbar at narrow widths or high zoom.
+ */
+.architecture-preview__label,
+.architecture-preview__status {
+	min-width: 0;
+	margin: 0;
+	color: rgba(243, 240, 233, 0.84);
+	font-family: var(--font-interface);
+	font-size: clamp(0.75rem, 0.72rem + 0.1vw, 0.82rem);
+	letter-spacing: 0.14em;
+	line-height: 1.45;
+	overflow-wrap: anywhere;
+	text-transform: uppercase;
+}
+
+/*
+ * The h3 is the article's accessible name and uses the display face for strong
+ * editorial hierarchy. Fluid sizing, balanced wrapping, and an aggressive
+ * overflow fallback protect temporary, translated, or future database titles.
+ */
+.architecture-preview__title {
+	min-width: 0;
+	margin: 0;
+	color: var(--color-text);
+	font-family: var(--font-display);
+	font-size: clamp(1.7rem, 1.4rem + 1vw, 2.7rem);
+	font-weight: 400;
+	letter-spacing: -0.015em;
+	line-height: 1;
+	overflow-wrap: anywhere;
+	text-wrap: balance;
+}
+
+/*
+ * Source order identifies the first project as the featured record. A slightly
+ * larger heading reinforces that distinction while the same semantic article
+ * structure keeps every record equal in the accessibility tree.
+ */
+.architecture-portfolio__item:first-child
+	.architecture-preview__title {
+	font-size: clamp(2rem, 1.55rem + 1.5vw, 3.75rem);
+}
+
+/*
+ * A zero-row result retains a visible ruled portfolio boundary and truthful
+ * managed message. The template omits the list itself, so visitors never
+ * encounter a collection that claims to contain projects but has no entries.
+ */
+.architecture-portfolio__empty {
+	min-height: clamp(12rem, 24vw, 22rem);
+	margin: 0;
+	padding-block: clamp(2rem, 4vw, 4rem);
+	border-top: 1px solid var(--discipline-light-rule);
+	border-bottom: 1px solid var(--discipline-light-rule);
+	color: var(--discipline-light-soft);
+	font-family: var(--font-interface);
+	font-size: clamp(0.9rem, 0.86rem + 0.18vw, 1.05rem);
+	line-height: 1.7;
+	overflow-wrap: anywhere;
+}
+
+/*
+ * At the shared 48rem compact-header threshold, only the asymmetric section
+ * introduction needs to stack. The listing remains one column until its own
+ * content-driven 40.0625rem minimum-width query activates below.
+ */
+@media (max-width: 48rem) {
+	.architecture-portfolio__header {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+/*
+ * Above 640px, two practical landscape columns become available. The first
+ * source record spans both tracks as the featured project, reproducing the
+ * reference's wide editorial entrance without changing DOM order. Subsequent
+ * records flow naturally, so different future item counts do not require
+ * position-specific markup.
+ */
+@media (min-width: 40.0625rem) {
+	.architecture-portfolio {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.architecture-portfolio__item:first-child {
+		grid-column: 1 / -1;
+	}
+
+	.architecture-preview__media {
+		aspect-ratio: 16 / 10;
+	}
+
+	.architecture-portfolio__item:first-child
+		.architecture-preview__media {
+		aspect-ratio: 21 / 9;
+	}
+}
+
+/*
+ * At 1280px the work surface can support the reference-informed three-column
+ * rhythm without cramped captions. The feature spans all three tracks, then
+ * every following record receives an equal column. The shared 100rem container
+ * cap prevents cards from becoming excessively wide on 1920px displays.
+ */
+@media (min-width: 80rem) {
+	.architecture-portfolio {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+}
+
+/*
+ * Small phones use tighter caption padding and tracking while retaining the
+ * 4:3 field established by the mobile-first base rule. All real text remains
+ * in flow and no content is removed to create the compact composition.
+ */
+@media (max-width: 36rem) {
+	.architecture-preview__body {
+		gap: 0.45rem;
+		padding:
+			3.25rem
+			1rem
+			1rem;
+	}
+
+	.architecture-preview__label,
+	.architecture-preview__status {
+		letter-spacing: 0.11em;
+	}
+}
+
+/*
+ * Short landscape screens keep natural page scrolling but reduce media height
+ * so several records do not create needlessly tall fields. The feature remains
+ * visually distinct, and all captions stay visible in the shared Grid track.
+ */
+@media
+	(max-height: 32rem) and
+	(orientation: landscape) and
+	(min-width: 40.0625rem) {
+	.architecture-preview__media {
+		aspect-ratio: 16 / 8;
+	}
+
+	.architecture-portfolio__item:first-child
+		.architecture-preview__media {
+		aspect-ratio: 21 / 7;
+	}
+}
+
+/*
+ * Increased-contrast preference replaces atmospheric transparency with opaque
+ * surfaces and explicit light rules. Metadata receives the same strong text
+ * color as headings, while generated geometry remains distinguishable without
+ * shadows. Stage 10 adds no transitions or animation, so reduced-motion
+ * preference already requires no separate behavioral override.
+ */
+@media (prefers-contrast: more) {
+	.architecture-preview,
+	.architecture-portfolio__empty {
+		border-color: var(--discipline-light-ink);
+	}
+
+	.architecture-preview__media {
+		background: #11100d;
+	}
+
+	.architecture-preview__media::before {
+		border-color: var(--color-text);
+		background: transparent;
+		box-shadow: none;
+	}
+
+	.architecture-preview__media::after {
+		border-top: 1px solid var(--color-text);
+		background: transparent;
+	}
+
+	.architecture-preview__body {
+		background: #11100d;
+	}
+
+	.architecture-preview__label,
+	.architecture-preview__status {
+		color: var(--color-text);
+	}
+}
