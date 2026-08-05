@@ -252,6 +252,102 @@ type architectureProjectDetailData struct {
 	Status string
 }
 
+// contactPageData is the complete presentation contract for the public Contact
+// page and its non-persistent inquiry preview.
+//
+// The page deliberately receives display-ready values instead of an eventual
+// database record. Stage 12 can therefore teach secure form parsing and
+// validation without claiming to send or save a visitor's personal data.
+type contactPageData struct {
+	// Eyebrow is the short interface label displayed above the primary heading.
+	Eyebrow string
+	// Heading is the Contact page's one primary heading.
+	Heading string
+	// Introduction explains what information the structural form requests.
+	Introduction string
+	// AvailabilityNotice truthfully states that this stage neither sends nor
+	// saves the inquiry values entered by a visitor.
+	AvailabilityNotice string
+	// CSRFToken is the unpredictable request token emitted in the hidden form
+	// field and compared with the request's protected cookie on POST.
+	CSRFToken string
+	// Form contains normalized values for the form controls. On a validation
+	// response it lets visitors correct one field without retyping the others.
+	Form inquiryFormData
+	// Errors contains optional, field-specific validation messages.
+	Errors inquiryFormErrors
+	// HasErrors lets the template render one accessible summary only when at
+	// least one validation message exists.
+	HasErrors bool
+	// Preview contains the validated display-only inquiry, or nil before a valid
+	// POST. Its presence never represents delivery or persistence.
+	Preview *inquiryPreviewData
+	// DisciplineOptions is the trusted ordered set rendered by the radio group.
+	DisciplineOptions []inquiryDisciplineOptionData
+	// NameMaxLength supplies the browser's maxlength hint; Go remains the
+	// authoritative boundary for normalized Unicode text.
+	NameMaxLength int
+	// EmailMaxLength supplies the browser's maxlength hint before Go validates
+	// the normalized address syntax and length.
+	EmailMaxLength int
+	// MessageMaxLength supplies the browser's maxlength hint; Go remains the
+	// authoritative boundary for normalized Unicode text.
+	MessageMaxLength int
+}
+
+// inquiryFormData contains only the four visitor-editable values accepted by
+// the Stage 12 Contact form.
+//
+// These fields are request data, not a persistence model. html/template escapes
+// them contextually when a validation response restores them to the form.
+type inquiryFormData struct {
+	// Name is the visitor-provided name used in the inquiry preview.
+	Name string
+	// Email is the visitor-provided reply address validated with net/mail.
+	Email string
+	// Discipline is one exact machine value from the trusted option list.
+	Discipline string
+	// Message is the visitor's project or conversation context.
+	Message string
+}
+
+// inquiryFormErrors stores one human-readable validation message per form
+// field. Empty strings mean the corresponding values passed validation.
+type inquiryFormErrors struct {
+	// Name explains why the submitted name could not be accepted.
+	Name string
+	// Email explains why the submitted reply address could not be accepted.
+	Email string
+	// Discipline explains why no supported discipline was selected.
+	Discipline string
+	// Message explains why the inquiry message could not be accepted.
+	Message string
+}
+
+// inquiryPreviewData contains the normalized values shown after a valid POST.
+//
+// DisciplineLabel is resolved from the server-owned option list, rather than
+// trusting the submitted machine value as visible interface copy.
+type inquiryPreviewData struct {
+	// Name is the normalized name displayed in the non-persistent preview.
+	Name string
+	// Email is the normalized reply address displayed in the preview.
+	Email string
+	// DisciplineLabel is the trusted visible label for the selected discipline.
+	DisciplineLabel string
+	// Message is the normalized inquiry text displayed in the preview.
+	Message string
+}
+
+// inquiryDisciplineOptionData pairs one accepted POST value with its visible
+// choice-group label.
+type inquiryDisciplineOptionData struct {
+	// Value is the exact machine value accepted by server-side validation.
+	Value string
+	// Label is the human-readable discipline name rendered in the interface.
+	Label string
+}
+
 // pageData is the common top-level value passed to every page template.
 //
 // A pointer is used for HomeHero because only the homepage has hero data. A nil
@@ -284,6 +380,8 @@ type pageData struct {
 	ArchitectureProjectListing *architectureProjectListingData
 	// ArchitectureProjectDetail contains one Architecture detail view, or nil.
 	ArchitectureProjectDetail *architectureProjectDetailData
+	// Contact contains the Contact form or validated preview, or nil elsewhere.
+	Contact *contactPageData
 }
 
 // newApplication creates a ready-to-serve application and its shared template

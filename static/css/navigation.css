@@ -635,19 +635,106 @@ a.drawer-navigation__link:focus-visible,
 /*
  * On phones narrower than 36rem (576px), a full-width drawer avoids an
  * impractically thin visible strip of the page and maximizes room for long
- * discipline labels.
+ * discipline labels. Pixel-stable compact-header geometry below protects the
+ * three columns when a visitor enlarges the root font size: menu and search
+ * retain 44px targets while the centered wordmark adapts to remaining space.
  */
 @media (max-width: 36rem) {
+	/*
+	 * Keep every consumer's header clearance synchronized with the fixed compact
+	 * geometry, including when a visitor enlarges the document root text size.
+	 */
+	:root {
+		--header-height: 76px;
+	}
+
+	.site-header {
+		grid-template-columns: 44px minmax(0, 1fr) 44px;
+		column-gap: clamp(4px, 2vw, 8px);
+		min-height: var(--header-height);
+		padding-inline: clamp(8px, 3vw, 16px);
+	}
+
+	/*
+	 * Scope pixel dimensions to public-header controls. Both visible icon
+	 * targets remain at the 44px floor under default and enlarged root text.
+	 */
+	.site-header .icon-button {
+		width: 44px;
+		height: 44px;
+	}
+
+	/* Reproduce the existing default-size hamburger without rem-based growth. */
+	.site-header .menu-toggle__lines {
+		width: 30px;
+		gap: 6px;
+	}
+
+	/* Keep the magnifier near its original 26px visual size inside the target. */
+	.site-header .search-button svg {
+		width: 26px;
+		height: 26px;
+	}
+
+	/*
+	 * Pixel-bounded type and tracking prevent the single-word home link from
+	 * colliding with either icon while retaining its editorial spacing.
+	 */
+	.mobile-home-link {
+		max-width: 100%;
+		min-width: 0;
+		font-size: clamp(13px, 4vw, 15px);
+		letter-spacing: clamp(1px, 0.8vw, 2.5px);
+		line-height: 1.2;
+		white-space: nowrap;
+	}
+
+	/*
+	 * The drawer has its own compact header. Pixel-stable spacing and a 44px
+	 * close target prevent its wordmark from recreating the same overlap when
+	 * enlarged root text is active and the full-width panel opens.
+	 */
+	.site-drawer__header {
+		min-height: var(--header-height);
+		padding-inline: clamp(16px, 4vw, 24px);
+	}
+
+	.drawer-close {
+		width: 44px;
+		height: 44px;
+	}
+
+	/* Preserve the close glyph's existing default 28px visual dimensions. */
+	.drawer-close__icon {
+		width: 28px;
+		height: 28px;
+	}
+
 	.site-drawer__panel {
 		width: 100%;
 	}
 
 	.drawer-brand {
-		font-size: 1rem;
+		max-width: calc(100% - 60px);
+		min-width: 0;
+		font-size: clamp(15px, 4vw, 16px);
+		letter-spacing: clamp(1px, 0.8vw, 2px);
+		line-height: 1.2;
+		white-space: nowrap;
 	}
 
-	.search-button {
-		transform: scale(0.9);
+	/* A scale transform would visually reduce the 44px compact search target. */
+	.site-header .search-button {
+		transform: none;
+	}
+
+	/* Generic interior pages clear the same real compact-header height. */
+	.page {
+		padding-top:
+			calc(
+				var(--header-height) +
+				clamp(2rem, 5vw, 4rem)
+			);
 	}
 }
 

@@ -368,9 +368,9 @@ an exact route and "location" when the active link represents a parent section.
 
 				{{/*
 				This second navigation group is for studio-level destinations.
-				Only Home has a real route today. Future destinations use non-link
-				spans with aria-disabled instead of misleading href values, so they
-				cannot be activated before their routes and content exist.
+				Home and Contact have real server-rendered routes. Future destinations
+				use non-link spans with aria-disabled instead of misleading href values,
+				so they cannot be activated before their routes and content exist.
 				*/}}
 				<nav
 					class="drawer-navigation"
@@ -416,12 +416,22 @@ an exact route and "location" when the active link represents a parent section.
 						Journal
 					</span>
 
-					<span
-						class="drawer-navigation__link is-disabled"
-						aria-disabled="true"
+					{{/*
+					Contact follows the same route-aware treatment as Home. data-menu-link
+					lets the progressive-enhancement script clear drawer state before the
+					browser follows the ordinary server-rendered destination.
+					*/}}
+					<a
+						class="drawer-navigation__link
+						{{if eq $navigationPath "/contact"}}is-active{{end}}"
+						href="/contact"
+						{{if eq $navigationPath "/contact"}}
+							aria-current="{{$navigationCurrent}}"
+						{{end}}
+						data-menu-link
 					>
 						Contact
-					</span>
+					</a>
 				</nav>
 			</div>
 

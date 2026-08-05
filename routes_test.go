@@ -171,6 +171,14 @@ func TestPageRoutes(t *testing.T) {
 			activeLinks: 2,
 			activeToken: "location",
 		},
+		{
+			name:        "contact",
+			path:        "/contact",
+			currentPath: "/contact",
+			title:       "Contact",
+			activeLinks: 1,
+			activeToken: "page",
+		},
 	}
 
 	for _, test := range tests {
@@ -654,11 +662,13 @@ func TestUnknownRoute(t *testing.T) {
 
 // TestPageRoutesRejectUnsupportedMethods verifies that method-aware ServeMux
 // patterns return 405 Method Not Allowed for POST requests to read-only pages.
+// Contact is intentionally absent because its preview workflow accepts POST;
+// contact-specific method boundaries are covered in contact_test.go.
 func TestPageRoutesRejectUnsupportedMethods(t *testing.T) {
 	app := newTestApplication(t)
 	handler := app.routes()
 
-	// All current public pages share the same GET-only method policy.
+	// Every route in this table remains a read-only GET resource.
 	paths := []string{
 		"/",
 		"/products",

@@ -1,0 +1,433 @@
+{{/*
+The Contact page is a separate template-cache entry discovered by the existing
+templates/pages glob. Stage 12 introduces a server-rendered inquiry preview
+without claiming that visitor details are delivered, stored, or managed yet.
+*/}}
+
+{{/*
+Only the Contact route loads contact.css. base.html has already emitted the
+shared design foundation and navigation styles, so this route-specific file
+can own the editorial split, form controls, and opaque header treatment without
+leaking them into discipline, listing, or detail pages.
+*/}}
+{{define "pageStyles"}}
+<link
+	rel="stylesheet"
+	href="/static/css/contact.css"
+>
+{{end}}
+
+{{/*
+The main landmark is always present so the shared skip link retains one valid,
+unique destination if future handler code omits Contact data. The incomplete
+page composition is withheld when that optional view model is absent.
+*/}}
+{{define "content"}}
+<main
+	class="contact-page"
+	id="main-content"
+>
+	{{with .Contact}}
+	{{/*
+	Keep a local reference to the complete Contact view model. range changes dot
+	to one discipline option later, and this stable variable lets each radio
+	compare itself with the submitted form value without reaching through root
+	pageData.
+	*/}}
+	{{$contact := .}}
+
+	<div class="contact-page__layout">
+		{{/*
+		The dark introduction contains the page's single h1 and only truthful
+		interface guidance. No address, telephone number, email address, response
+		time, office location, or social destination is invented for this stage.
+		*/}}
+		<section
+			class="contact-page__intro"
+			aria-labelledby="contact-page-title"
+		>
+			<div class="contact-page__identity">
+				<p class="contact-page__eyebrow">
+					{{.Eyebrow}}
+				</p>
+
+				<h1
+					class="contact-page__title"
+					id="contact-page-title"
+				>
+					{{.Heading}}
+				</h1>
+
+				<p class="contact-page__introduction">
+					{{.Introduction}}
+				</p>
+			</div>
+
+			{{/*
+			This notice remains visible beside the form at every responsive state.
+			It explicitly explains that Preview inquiry is not a delivery action, so
+			visitors never mistake the current server-rendered exercise for contact
+			with the studio.
+			*/}}
+			<p
+				class="contact-page__availability"
+				id="contact-availability"
+			>
+				{{.AvailabilityNotice}}
+			</p>
+		</section>
+
+		{{/*
+		The warm panel contains one labelled inquiry section. Its native POST form
+		works without JavaScript, while server-side data can repopulate values,
+		associate validation errors, and render a non-persistent preview response.
+		*/}}
+		<section
+			class="contact-page__inquiry"
+			aria-labelledby="contact-form-title"
+		>
+			<header class="contact-page__inquiry-header">
+				<p class="contact-page__inquiry-eyebrow">
+					Inquiry preview
+				</p>
+
+				<h2
+					class="contact-page__inquiry-title"
+					id="contact-form-title"
+				>
+					Project information
+				</h2>
+
+				<p class="contact-page__required-note">
+					Every field is required.
+				</p>
+			</header>
+
+			{{/*
+			The form posts back to its own registered route. Its fragment is not sent
+			to the server; after the response loads, the browser moves to the mutually
+			exclusive error summary or valid preview carrying that id. The hidden half
+			of a double-submit token lets the handler compare this request with its
+			protected cookie. Browser-native required and email validation provides an
+			immediate first layer; the handler remains authoritative.
+			*/}}
+			<form
+				class="inquiry-form"
+				action="/contact#contact-form-response"
+				method="post"
+				aria-describedby="contact-availability"
+			>
+				<input
+					type="hidden"
+					name="csrf_token"
+					value="{{.CSRFToken}}"
+				>
+
+				{{/*
+				A response-level summary appears only when server validation finds an
+				error. Its shared response id receives the form-action fragment, while
+				tabindex=-1 makes it a focusable destination without adding it to the
+				normal Tab sequence. Native fragment links then move visitors to the exact
+				control that needs attention, including without JavaScript.
+				*/}}
+				{{if .HasErrors}}
+				<div
+					class="inquiry-form__error-summary"
+					id="contact-form-response"
+					role="alert"
+					aria-labelledby="contact-error-summary-title"
+					tabindex="-1"
+				>
+					<h3
+						class="inquiry-form__error-summary-title"
+						id="contact-error-summary-title"
+					>
+						Please correct the inquiry
+					</h3>
+
+					<ul class="inquiry-form__error-list">
+						{{with .Errors.Name}}
+						<li><a href="#contact-name">{{.}}</a></li>
+						{{end}}
+
+						{{with .Errors.Email}}
+						<li><a href="#contact-email">{{.}}</a></li>
+						{{end}}
+
+						{{with .Errors.Discipline}}
+						<li>
+							<a href="#contact-discipline-interior-design">
+								{{.}}
+							</a>
+						</li>
+						{{end}}
+
+						{{with .Errors.Message}}
+						<li><a href="#contact-message">{{.}}</a></li>
+						{{end}}
+					</ul>
+				</div>
+				{{end}}
+
+				<div class="inquiry-form__grid">
+					{{/*
+					An explicit label, autocomplete purpose, required state, maximum
+					length, and repopulated value make the name field understandable and
+					preserve safe input after an invalid server response.
+					*/}}
+					<div class="inquiry-form__field">
+						<label
+							class="inquiry-form__label"
+							for="contact-name"
+						>
+							Full name
+							<span class="inquiry-form__required">
+								(required)
+							</span>
+						</label>
+
+						<input
+							class="inquiry-form__control"
+							id="contact-name"
+							name="name"
+							type="text"
+							value="{{.Form.Name}}"
+							autocomplete="name"
+							maxlength="{{.NameMaxLength}}"
+							required
+							{{if .Errors.Name}}
+								aria-invalid="true"
+								aria-describedby="contact-name-error"
+							{{end}}
+						>
+
+						{{with .Errors.Name}}
+						<p
+							class="inquiry-form__error"
+							id="contact-name-error"
+						>
+							{{.}}
+						</p>
+						{{end}}
+					</div>
+
+					{{/*
+					type=email exposes appropriate native validation and mobile keyboard
+					behavior. The visible label remains the accessible name; no placeholder
+					is used as a fragile substitute.
+					*/}}
+					<div class="inquiry-form__field">
+						<label
+							class="inquiry-form__label"
+							for="contact-email"
+						>
+							Email address
+							<span class="inquiry-form__required">
+								(required)
+							</span>
+						</label>
+
+						<input
+							class="inquiry-form__control"
+							id="contact-email"
+							name="email"
+							type="email"
+							value="{{.Form.Email}}"
+							autocomplete="email"
+							maxlength="{{.EmailMaxLength}}"
+							required
+							{{if .Errors.Email}}
+								aria-invalid="true"
+								aria-describedby="contact-email-error"
+							{{end}}
+						>
+
+						{{with .Errors.Email}}
+						<p
+							class="inquiry-form__error"
+							id="contact-email-error"
+						>
+							{{.}}
+						</p>
+						{{end}}
+					</div>
+				</div>
+
+				{{/*
+				A fieldset and legend give the radio controls one native group name.
+				Every option comes from the handler's exact whitelist, and checked
+				state is restored by comparing its value with the submitted form.
+				*/}}
+				<fieldset
+					class="inquiry-form__fieldset"
+					id="contact-discipline"
+					{{if .Errors.Discipline}}
+						aria-describedby="contact-discipline-error"
+					{{end}}
+				>
+					<legend class="inquiry-form__legend">
+						Design discipline
+						<span class="inquiry-form__required">
+							(required)
+						</span>
+					</legend>
+
+					<div class="inquiry-form__choices">
+						{{range .DisciplineOptions}}
+						<label
+							class="inquiry-form__choice"
+							for="contact-discipline-{{.Value}}"
+						>
+							<input
+								class="inquiry-form__radio"
+								id="contact-discipline-{{.Value}}"
+								name="discipline"
+								type="radio"
+								value="{{.Value}}"
+								required
+								{{if eq $contact.Form.Discipline .Value}}
+									checked
+								{{end}}
+								{{if $contact.Errors.Discipline}}
+									aria-invalid="true"
+									aria-describedby="contact-discipline-error"
+								{{end}}
+							>
+
+							<span
+								class="inquiry-form__choice-label"
+							>
+								{{.Label}}
+							</span>
+						</label>
+						{{end}}
+					</div>
+
+					{{with .Errors.Discipline}}
+					<p
+						class="inquiry-form__error"
+						id="contact-discipline-error"
+					>
+						{{.}}
+					</p>
+					{{end}}
+				</fieldset>
+
+				{{/*
+				The project message uses a multiline control with a handler-owned
+				maximum. Vertical resizing remains available so visitors can inspect
+				their complete text without changing the document's horizontal width.
+				*/}}
+				<div class="inquiry-form__field inquiry-form__field--message">
+					<label
+						class="inquiry-form__label"
+						for="contact-message"
+					>
+						Project summary
+						<span class="inquiry-form__required">
+							(required)
+						</span>
+					</label>
+
+					<textarea
+						class="inquiry-form__control inquiry-form__textarea"
+						id="contact-message"
+						name="message"
+						rows="8"
+						maxlength="{{.MessageMaxLength}}"
+						required
+						{{if .Errors.Message}}
+							aria-invalid="true"
+							aria-describedby="contact-message-error"
+						{{end}}
+					>{{.Form.Message}}</textarea>
+
+					{{with .Errors.Message}}
+					<p
+						class="inquiry-form__error"
+						id="contact-message-error"
+					>
+						{{.}}
+					</p>
+					{{end}}
+				</div>
+
+				{{/*
+				The button truthfully requests only a preview. Its description points
+				back to the always-visible availability notice, making the lack of
+				delivery and storage explicit to sighted and non-sighted visitors.
+				*/}}
+				<div class="inquiry-form__actions">
+					<button
+						class="inquiry-form__submit"
+						type="submit"
+						aria-describedby="contact-availability"
+					>
+						Preview inquiry
+					</button>
+				</div>
+			</form>
+
+			{{/*
+			A preview exists only after a valid POST. The explicit inverse of
+			HasErrors guarantees that it can share the form-action response id with
+			the error summary without creating duplicate ids. tabindex=-1 makes the
+			fragment destination focusable without adding an extra Tab stop. The
+			section repeats the truthful non-delivery state and uses a description list
+			for submitted label/value relationships; html/template escapes every value.
+			*/}}
+			{{if not .HasErrors}}
+			{{with .Preview}}
+			<section
+				class="inquiry-preview"
+				id="contact-form-response"
+				aria-labelledby="contact-preview-title"
+				tabindex="-1"
+			>
+				<header class="inquiry-preview__header">
+					<p class="inquiry-preview__eyebrow">
+						Inquiry preview
+					</p>
+
+					<h2
+						class="inquiry-preview__title"
+						id="contact-preview-title"
+					>
+						Review your information
+					</h2>
+
+					<p class="inquiry-preview__notice">
+						This preview has not been delivered to the studio or saved.
+					</p>
+				</header>
+
+				<dl class="inquiry-preview__details">
+					<div class="inquiry-preview__detail">
+						<dt>Full name</dt>
+						<dd>{{.Name}}</dd>
+					</div>
+
+					<div class="inquiry-preview__detail">
+						<dt>Email address</dt>
+						<dd>{{.Email}}</dd>
+					</div>
+
+					<div class="inquiry-preview__detail">
+						<dt>Design discipline</dt>
+						<dd>{{.DisciplineLabel}}</dd>
+					</div>
+
+					<div class="inquiry-preview__detail">
+						<dt>Project summary</dt>
+						<dd class="inquiry-preview__message">{{.Message}}</dd>
+					</div>
+				</dl>
+			</section>
+			{{end}}
+			{{end}}
+		</section>
+	</div>
+	{{/* End the optional Contact data and restore pageData as dot. */}}
+	{{end}}
+</main>
+{{end}}

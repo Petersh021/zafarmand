@@ -1,0 +1,690 @@
+/* --------------------------------------------------
+   Stage 12: Contact and inquiry preview
+
+   This stylesheet is loaded only by contact.html. It creates an image-free
+   editorial correspondence page: a dark studio introduction sits beside a
+   warm native form and truthful server-rendered preview. No declaration relies
+   on final contact details, photography, JavaScript, or persistent storage.
+-------------------------------------------------- */
+
+/*
+ * The fixed shared header passes over both dark and warm page regions. A stable
+ * dark surface preserves the contrast of its light controls at every scroll
+ * position instead of relying on whichever column happens to sit beneath it.
+ */
+.site-header {
+	background: rgba(17, 16, 13, 0.94);
+	box-shadow: 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+/*
+ * Supporting browsers receive a restrained backdrop blur. The opaque rule
+ * above remains the complete fallback when either filter is unavailable.
+ */
+@supports (
+		(-webkit-backdrop-filter: blur(0.75rem)) or
+		(backdrop-filter: blur(0.75rem))
+	) {
+	.site-header {
+		background: rgba(17, 16, 13, 0.86);
+		-webkit-backdrop-filter: blur(0.75rem);
+		backdrop-filter: blur(0.75rem);
+	}
+}
+
+/*
+ * Route-local tokens keep this temporary contact palette from becoming a
+ * global design decision. min-width:0 guards the landmark against long visitor
+ * values, while the dark canvas fills space beyond the 120rem composition.
+ */
+.contact-page {
+	--contact-dark: #11120f;
+	--contact-light: #f3f0e9;
+	--contact-light-soft: rgba(243, 240, 233, 0.72);
+	--contact-light-rule: rgba(243, 240, 233, 0.3);
+	--contact-surface: #e8e3d9;
+	--contact-ink: #1a1814;
+	--contact-ink-soft: rgba(26, 24, 20, 0.68);
+	--contact-rule: rgba(26, 24, 20, 0.28);
+	--contact-control-rule: rgba(26, 24, 20, 0.58);
+	--contact-error: #802d25;
+	--contact-error-surface: rgba(128, 45, 37, 0.08);
+
+	min-width: 0;
+	min-height: 100vh;
+	min-height: 100svh;
+	background: var(--contact-dark);
+	color: var(--contact-light);
+}
+
+/*
+ * The wide correspondence sheet uses unequal, shrinkable columns. It clears
+ * the fixed header, stays within the site's established 120rem editorial
+ * measure, and grows naturally when form errors or enlarged text need space.
+ */
+.contact-page__layout {
+	display: grid;
+	grid-template-columns:
+		minmax(18rem, 0.72fr)
+		minmax(0, 1.28fr);
+	width: min(100%, 120rem);
+	min-width: 0;
+	min-height: inherit;
+	margin-inline: auto;
+	padding-top: var(--header-height);
+}
+
+/*
+ * The dark introduction separates identity and availability copy vertically
+ * on tall screens. Both remain normal-flow content, so zoom and localization
+ * can increase the column height without clipping text.
+ */
+.contact-page__intro {
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+	justify-content: space-between;
+	gap: clamp(4rem, 10vw, 10rem);
+	padding:
+		clamp(3rem, 7vw, 7rem)
+		var(--page-gutter)
+		clamp(3rem, 6vw, 6rem);
+	border-right: 1px solid var(--contact-light-rule);
+	background: var(--contact-dark);
+}
+
+/* The identity group receives an explicit shrink boundary for long headings. */
+.contact-page__identity {
+	min-width: 0;
+}
+
+/*
+ * Tracked uppercase text establishes the quiet interface level above the
+ * display heading without competing with it.
+ */
+.contact-page__eyebrow,
+.contact-page__inquiry-eyebrow,
+.inquiry-preview__eyebrow {
+	margin: 0 0 1rem;
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	letter-spacing: 0.2em;
+	line-height: 1.4;
+	text-transform: uppercase;
+}
+
+.contact-page__eyebrow {
+	color: var(--contact-light-soft);
+}
+
+/*
+ * A bounded serif h1 creates editorial scale while balanced wrapping and an
+ * emergency overflow rule protect future managed copy at narrow measures.
+ */
+.contact-page__title {
+	max-width: 9ch;
+	min-width: 0;
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: clamp(4rem, 7.3vw, 8.5rem);
+	font-weight: 400;
+	letter-spacing: -0.05em;
+	line-height: 0.86;
+	overflow-wrap: anywhere;
+	text-wrap: balance;
+}
+
+/* Supporting copy uses a readable measure and remains in normal document flow. */
+.contact-page__introduction {
+	max-width: 31rem;
+	margin: clamp(1.5rem, 3vw, 2.75rem) 0 0;
+	color: var(--contact-light-soft);
+	font-size: clamp(0.95rem, 0.9rem + 0.2vw, 1.1rem);
+	line-height: 1.75;
+	overflow-wrap: anywhere;
+}
+
+/*
+ * The availability statement is visually separated and always present. A
+ * strong rule and full text ensure preview-only behavior is not conveyed by
+ * color, placement, or the button label alone.
+ */
+.contact-page__availability {
+	max-width: 31rem;
+	margin: 0;
+	padding-top: 1.25rem;
+	border-top: 1px solid var(--contact-light-rule);
+	color: var(--contact-light);
+	font-size: clamp(0.9rem, 0.86rem + 0.15vw, 1rem);
+	line-height: 1.7;
+	overflow-wrap: anywhere;
+}
+
+/*
+ * The warm panel resembles a correspondence sheet while keeping all controls
+ * in one natural scrolling context. min-width:0 prevents visitor values and
+ * validation messages from widening the document.
+ */
+.contact-page__inquiry {
+	min-width: 0;
+	padding:
+		clamp(3rem, 7vw, 7rem)
+		var(--page-gutter)
+		clamp(4rem, 8vw, 8rem);
+	background: var(--contact-surface);
+	color: var(--contact-ink);
+}
+
+/* The form heading is constrained independently from the wider control area. */
+.contact-page__inquiry-header {
+	max-width: 44rem;
+	min-width: 0;
+}
+
+.contact-page__inquiry-eyebrow,
+.inquiry-preview__eyebrow {
+	color: var(--contact-ink-soft);
+}
+
+/* The h2 names the form region while remaining secondary to the expansive h1. */
+.contact-page__inquiry-title,
+.inquiry-preview__title {
+	min-width: 0;
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: clamp(2.35rem, 3.4vw, 4.5rem);
+	font-weight: 400;
+	letter-spacing: -0.035em;
+	line-height: 0.95;
+	overflow-wrap: anywhere;
+	text-wrap: balance;
+}
+
+/* Required-state guidance appears once before the first field. */
+.contact-page__required-note {
+	margin: 1.25rem 0 0;
+	color: var(--contact-ink-soft);
+	font-size: 0.9rem;
+	line-height: 1.6;
+}
+
+/*
+ * The form begins after a generous editorial gap. It has no fixed dimensions,
+ * allowing server errors and 200% text to expand the page naturally.
+ */
+.inquiry-form {
+	display: grid;
+	min-width: 0;
+	gap: clamp(2rem, 4vw, 3.25rem);
+	margin-top: clamp(2.5rem, 5vw, 5rem);
+}
+
+/*
+ * Form responses and field-level error links use native fragments. This offset
+ * leaves one readable gap below the fixed shared header, preventing the target
+ * summary, preview, control, fieldset, or radio from landing underneath it.
+ */
+#contact-form-response,
+#contact-name,
+#contact-email,
+#contact-discipline,
+.inquiry-form__radio,
+#contact-message {
+	scroll-margin-top: calc(var(--header-height) + 1rem);
+}
+
+/*
+ * Both mutually exclusive response targets use tabindex=-1. When fragment or
+ * scripted focus reaches either one, an explicit outline makes that movement
+ * visible without placing the region in the normal sequential Tab order.
+ */
+#contact-form-response:focus {
+	outline: 2px solid var(--contact-ink);
+	outline-offset: 0.25rem;
+}
+
+/*
+ * The response-level error summary uses both an explicit alert role and a
+ * visible bordered surface before any individual control.
+ */
+.inquiry-form__error-summary {
+	min-width: 0;
+	padding: clamp(1rem, 2.5vw, 1.5rem);
+	border: 2px solid var(--contact-error);
+	background: var(--contact-error-surface);
+	color: var(--contact-ink);
+}
+
+.inquiry-form__error-summary-title {
+	margin: 0 0 0.75rem;
+	font-family: var(--font-display);
+	font-size: clamp(1.35rem, 1.2rem + 0.45vw, 1.75rem);
+	font-weight: 400;
+	line-height: 1.2;
+}
+
+/* Native list structure keeps multiple validation failures easy to scan. */
+.inquiry-form__error-list {
+	display: grid;
+	gap: 0.25rem;
+	margin: 0;
+	padding-left: 1.25rem;
+}
+
+/* Summary links use a 44px target, underline, and visible focus outline. */
+.inquiry-form__error-list a {
+	display: inline-flex;
+	min-height: 2.75rem;
+	align-items: center;
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.2em;
+}
+
+.inquiry-form__error-list a:focus-visible {
+	outline: 2px solid var(--contact-ink);
+	outline-offset: 0.15rem;
+}
+
+/* Name and email share two shrinkable tracks on wide screens. */
+.inquiry-form__grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	min-width: 0;
+	gap: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+/* Every field keeps a reliable vertical relationship between label and input. */
+.inquiry-form__field {
+	display: grid;
+	min-width: 0;
+	align-content: start;
+	gap: 0.65rem;
+}
+
+/* Compact capitals identify labels; visible wording explains required state. */
+.inquiry-form__label,
+.inquiry-form__legend {
+	color: var(--contact-ink);
+	font-family: var(--font-interface);
+	font-size: 0.75rem;
+	font-weight: 700;
+	letter-spacing: 0.15em;
+	line-height: 1.45;
+	text-transform: uppercase;
+}
+
+.inquiry-form__required {
+	color: var(--contact-ink-soft);
+	font-weight: 400;
+	letter-spacing: 0.06em;
+	text-transform: lowercase;
+}
+
+/*
+ * Text controls use at least 1rem type to avoid automatic mobile zoom and a
+ * 44px minimum height for a comfortable pointer target.
+ */
+.inquiry-form__control {
+	width: 100%;
+	min-width: 0;
+	min-height: 2.75rem;
+	padding: 0.75rem 0.25rem;
+	border: 0;
+	border-bottom: 1px solid var(--contact-control-rule);
+	border-radius: 0;
+	background: transparent;
+	color: var(--contact-ink);
+	font: inherit;
+	font-family: var(--font-interface);
+	font-size: 1rem;
+	line-height: 1.5;
+}
+
+/* Hover and focus strengthen existing boundaries without changing layout. */
+.inquiry-form__control:hover {
+	border-bottom-color: var(--contact-ink);
+}
+
+.inquiry-form__control:focus {
+	outline: 2px solid var(--contact-ink);
+	outline-offset: 0.2rem;
+	border-bottom-color: var(--contact-ink);
+}
+
+/* Invalid controls combine a strong boundary with adjacent error text. */
+.inquiry-form__control[aria-invalid="true"] {
+	border-bottom: 2px solid var(--contact-error);
+}
+
+/* The multiline control remains vertically resizable but cannot widen the page. */
+.inquiry-form__textarea {
+	min-height: 11rem;
+	resize: vertical;
+}
+
+/* Remove fieldset defaults while preserving native grouping semantics. */
+.inquiry-form__fieldset {
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+.inquiry-form__legend {
+	margin-bottom: 0.75rem;
+	padding: 0;
+}
+
+/* Three flexible tracks present the exact discipline options at wide sizes. */
+.inquiry-form__choices {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	min-width: 0;
+	gap: 0.75rem;
+}
+
+/* Each choice forms a 44px bordered target around a visible native radio. */
+.inquiry-form__choice {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	min-width: 0;
+	min-height: 2.75rem;
+	align-items: center;
+	gap: 0.65rem;
+	padding: 0.7rem 0.8rem;
+	border: 1px solid var(--contact-control-rule);
+}
+
+.inquiry-form__radio {
+	width: 1.15rem;
+	height: 1.15rem;
+	margin: 0;
+	accent-color: var(--contact-ink);
+}
+
+/* The label wraps inside its track instead of expanding the choice grid. */
+.inquiry-form__choice-label {
+	min-width: 0;
+	font-size: 1rem;
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+}
+
+/* Hover and focus strengthen the full choice boundary immediately. */
+.inquiry-form__choice:hover,
+.inquiry-form__choice:focus-within {
+	outline: 2px solid var(--contact-ink);
+	outline-offset: 0.15rem;
+	border-color: var(--contact-ink);
+}
+
+/* Supporting browsers give an invalid radio group a persistent boundary. */
+.inquiry-form__fieldset:has(.inquiry-form__radio[aria-invalid="true"])
+	.inquiry-form__choices {
+	outline: 2px solid var(--contact-error);
+	outline-offset: 0.2rem;
+}
+
+/* Inline errors remain directly after controls and wrap long server messages. */
+.inquiry-form__error {
+	max-width: 44rem;
+	margin: 0.2rem 0 0;
+	color: var(--contact-error);
+	font-size: 0.9rem;
+	font-weight: 700;
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+}
+
+/* The message block receives the same full width as its surrounding form. */
+.inquiry-form__field--message {
+	width: 100%;
+}
+
+/* A top rule separates the action from visitor-provided information. */
+.inquiry-form__actions {
+	display: flex;
+	min-width: 0;
+	flex-wrap: wrap;
+	align-items: center;
+	padding-top: 1.25rem;
+	border-top: 1px solid var(--contact-rule);
+}
+
+/* The button exceeds 44px and promises only the truthful preview operation. */
+.inquiry-form__submit {
+	min-width: min(100%, 14rem);
+	min-height: 2.75rem;
+	padding: 0.85rem 1.25rem;
+	border: 1px solid var(--contact-ink);
+	border-radius: 0;
+	background: var(--contact-ink);
+	color: var(--contact-light);
+	font: inherit;
+	font-size: 0.75rem;
+	font-weight: 700;
+	letter-spacing: 0.16em;
+	line-height: 1.4;
+	text-transform: uppercase;
+	cursor: pointer;
+}
+
+/* Immediate inverse feedback changes no dimensions and introduces no motion. */
+.inquiry-form__submit:hover,
+.inquiry-form__submit:focus-visible {
+	outline: 2px solid var(--contact-ink);
+	outline-offset: 0.2rem;
+	background: transparent;
+	color: var(--contact-ink);
+}
+
+/*
+ * A valid server-rendered preview begins as a separately labelled region below
+ * the form. The double rule gives it document-like separation without implying
+ * that a message has been sent.
+ */
+.inquiry-preview {
+	min-width: 0;
+	margin-top: clamp(3.5rem, 7vw, 7rem);
+	padding-top: clamp(2.5rem, 5vw, 4.5rem);
+	border-top: 3px double var(--contact-control-rule);
+}
+
+.inquiry-preview__header {
+	max-width: 44rem;
+	min-width: 0;
+}
+
+.inquiry-preview__title {
+	max-width: 14ch;
+	font-size: clamp(2rem, 2.5vw, 3.25rem);
+}
+
+/* The non-delivery statement remains visible immediately below the preview h2. */
+.inquiry-preview__notice {
+	max-width: 40rem;
+	margin: 1.25rem 0 0;
+	padding-left: 1rem;
+	border-left: 3px solid var(--contact-error);
+	color: var(--contact-ink);
+	font-size: 0.95rem;
+	font-weight: 700;
+	line-height: 1.65;
+	overflow-wrap: anywhere;
+}
+
+/* The description list begins with one quiet rule and removes browser margins. */
+.inquiry-preview__details {
+	display: grid;
+	min-width: 0;
+	margin: clamp(2rem, 4vw, 3.5rem) 0 0;
+	border-top: 1px solid var(--contact-rule);
+}
+
+/*
+ * Known labels and visitor values use shrinkable columns. The final message can
+ * preserve line breaks without allowing an unbroken value to widen the page.
+ */
+.inquiry-preview__detail {
+	display: grid;
+	grid-template-columns:
+		minmax(8rem, 0.36fr)
+		minmax(0, 0.64fr);
+	gap: 1rem;
+	padding-block: 1rem;
+	border-bottom: 1px solid var(--contact-rule);
+}
+
+.inquiry-preview__detail dt,
+.inquiry-preview__detail dd {
+	min-width: 0;
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.inquiry-preview__detail dt {
+	color: var(--contact-ink-soft);
+	font-size: 0.75rem;
+	letter-spacing: 0.13em;
+	line-height: 1.45;
+	text-transform: uppercase;
+}
+
+.inquiry-preview__detail dd {
+	font-family: var(--font-display);
+	font-size: clamp(1rem, 0.95rem + 0.2vw, 1.15rem);
+	line-height: 1.5;
+}
+
+/* Preserve visitor-authored paragraphs while still wrapping long input safely. */
+.inquiry-preview__message {
+	white-space: pre-wrap;
+}
+
+/*
+ * At and below 64rem the page follows its semantic source order: the complete
+ * dark introduction precedes the warm form. Removing the desktop column floor
+ * before it becomes cramped protects tablets and high browser zoom.
+ */
+@media (max-width: 64rem) {
+	.contact-page__layout {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.contact-page__intro {
+		gap: clamp(3rem, 7vw, 6rem);
+		border-right: 0;
+		border-bottom: 1px solid var(--contact-light-rule);
+	}
+
+	.contact-page__title {
+		max-width: 12ch;
+	}
+}
+
+/*
+ * Compact layouts stack paired inputs before labels and validation copy become
+ * crowded. Radio choices also form one column, providing a generous target for
+ * the longest Architecture Design option.
+ */
+@media (max-width: 48rem) {
+	.inquiry-form__grid,
+	.inquiry-form__choices {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+/*
+ * Narrow phones use the established one-rem edge and a smaller display scale.
+ * Preview facts stack so neither their label nor value receives a rigid floor.
+ */
+@media (max-width: 36rem) {
+	.contact-page__intro,
+	.contact-page__inquiry {
+		padding-inline: 1rem;
+	}
+
+	.contact-page__title {
+		font-size: clamp(3.25rem, 18vw, 5rem);
+	}
+
+	.inquiry-form__submit {
+		width: 100%;
+	}
+
+	.inquiry-preview__detail {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0.45rem;
+	}
+}
+
+/*
+ * Short landscape screens reduce only outer spacing. The page remains one
+ * natural document scroll; no internal form scroller or fixed content height
+ * can hide controls when the on-screen keyboard or browser zoom reduces height.
+ */
+@media
+	(max-height: 32rem) and
+	(orientation: landscape) {
+	.contact-page__intro,
+	.contact-page__inquiry {
+		padding-top: 1.75rem;
+		padding-bottom: 2rem;
+	}
+
+	.contact-page__intro {
+		gap: 2.5rem;
+	}
+
+	.inquiry-form {
+		margin-top: 2rem;
+	}
+}
+
+/*
+ * Increased contrast removes atmospheric transparency and strengthens all
+ * meaningful rules. Error states still include visible text and never depend
+ * on the stronger red boundary alone.
+ */
+@media (prefers-contrast: more) {
+	.site-header {
+		background: #11100d;
+	}
+
+	.contact-page__intro {
+		border-color: var(--contact-light);
+	}
+
+	.contact-page__eyebrow,
+	.contact-page__introduction {
+		color: var(--contact-light);
+	}
+
+	.contact-page__availability {
+		border-color: var(--contact-light);
+	}
+
+	.contact-page__inquiry-eyebrow,
+	.contact-page__required-note,
+	.inquiry-form__required,
+	.inquiry-preview__eyebrow,
+	.inquiry-preview__detail dt {
+		color: var(--contact-ink);
+	}
+
+	.inquiry-form__control,
+	.inquiry-form__choice,
+	.inquiry-form__actions,
+	.inquiry-preview,
+	.inquiry-preview__details,
+	.inquiry-preview__detail {
+		border-color: var(--contact-ink);
+	}
+}
+
+/*
+ * Stage 12 adds no animation, transition, parallax, autoplay, or smooth
+ * scrolling. Native focus, hover, validation, and route changes therefore
+ * remain immediate under prefers-reduced-motion without a separate override.
+ */

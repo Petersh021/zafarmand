@@ -1,6 +1,11 @@
 package main
 
-import "net/http"
+import (
+	"errors"
+	"log"
+	"mime"
+	"net/http"
+)
 
 // homeHandler renders the public homepage for a request already matched to
 // GET / by the router.
@@ -294,6 +299,180 @@ func (app *application) architectureProjectDetailHandler(
 			CurrentPath:               currentPath,
 			NavigationPath:            "/architecture-design",
 			ArchitectureProjectDetail: &projectDetail,
+		},
+	)
+}
+
+// contactHandler renders the initial Contact form for GET /contact.
+//
+// Contact responses are never cached because a later validation response may
+// contain reflected personal values. The handler also establishes the random
+// double-submit token that the form sends back with its protected cookie.
+func (app *application) contactHandler(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	w.Header().Set(
+		"Cache-Control",
+		"no-store",
+	)
+
+	csrfToken, err := ensureInquiryCSRFToken(w, r)
+	if err != nil {
+		// Random-source failure is an internal condition. The response deliberately
+		// excludes implementation details and never renders a form without CSRF
+		// protection.
+		log.Printf(
+			"could not create inquiry CSRF token: %v",
+			err,
+		)
+		http.Error(
+			w,
+			"internal server error",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	app.renderContactPage(
+		w,
+		http.StatusOK,
+		newContactPageData(
+			csrfToken,
+			inquiryFormData{},
+			inquiryFormErrors{},
+			nil,
+		),
+	)
+}
+
+// inquiryPreviewHandler validates POST /contact and renders either correctable
+// field errors or a truthful, non-persistent preview.
+//
+// This Stage 12 endpoint does not save, send, enqueue, or log an inquiry. Its
+// narrow job is to establish secure request and validation behavior before a
+// later PostgreSQL-backed submission workflow is designed.
+func (app *application) inquiryPreviewHandler(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	// Start with the privacy-sensitive response policy so it also applies to
+	// early 4xx exits produced before template rendering.
+	w.Header().Set(
+		"Cache-Control",
+		"no-store",
+	)
+
+	// MaxBytesReader stops oversized bodies while ParseForm is reading them. It
+	// is installed before any body parsing so the limit is one reliable boundary.
+	r.Body = http.MaxBytesReader(
+		w,
+		r.Body,
+		inquiryRequestBodyLimit,
+	)
+
+	mediaType, _, err := mime.ParseMediaType(
+		r.Header.Get("Content-Type"),
+	)
+	if err != nil || mediaType != "application/x-www-form-urlencoded" {
+		http.Error(
+			w,
+			"unsupported media type",
+			http.StatusUnsupportedMediaType,
+		)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			http.Error(
+				w,
+				"request body too large",
+				http.StatusRequestEntityTooLarge,
+			)
+			return
+		}
+
+		// Malformed percent encoding and other URL-form parsing failures are
+		// client errors; no submitted values are reflected in this response.
+		http.Error(
+			w,
+			"bad request",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	// Reject ambiguous repeated security and form fields before selecting any
+	// values. Missing visitor fields continue to normal 422 validation, while a
+	// missing CSRF field is handled by the explicit 403 boundary below.
+	if inquiryFormHasDuplicateValues(r.PostForm) {
+		http.Error(
+			w,
+			"bad request",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	csrfToken, validCSRF := validateInquiryCSRFToken(
+		r,
+		r.PostForm.Get(inquiryCSRFFieldName),
+	)
+	if !validCSRF {
+		http.Error(
+			w,
+			"forbidden",
+			http.StatusForbidden,
+		)
+		return
+	}
+
+	form := normalizeInquiryForm(r.PostForm)
+	formErrors := validateInquiryForm(form)
+	if hasInquiryFormErrors(formErrors) {
+		app.renderContactPage(
+			w,
+			http.StatusUnprocessableEntity,
+			newContactPageData(
+				csrfToken,
+				form,
+				formErrors,
+				nil,
+			),
+		)
+		return
+	}
+
+	preview := newInquiryPreview(form)
+	app.renderContactPage(
+		w,
+		http.StatusOK,
+		newContactPageData(
+			csrfToken,
+			form,
+			formErrors,
+			&preview,
+		),
+	)
+}
+
+// renderContactPage supplies the route-level metadata shared by all Contact
+// states and delegates buffered HTML execution to the application's renderer.
+func (app *application) renderContactPage(
+	w http.ResponseWriter,
+	status int,
+	contact *contactPageData,
+) {
+	app.render(
+		w,
+		status,
+		"contact.html",
+		pageData{
+			Title:       "Contact",
+			CurrentPath: "/contact",
+			Contact:     contact,
 		},
 	)
 }
