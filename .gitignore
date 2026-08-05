@@ -1,0 +1,6 @@
+# Local environment files can contain database credentials and other secrets.
+# Keep every developer-specific variant out of Git while allowing a deliberately
+# credential-free example file if the project chooses to add one later.
+.env
+.env.*
+!.env.example

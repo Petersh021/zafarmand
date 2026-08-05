@@ -1,4 +1,5 @@
-// Package main assembles and runs the Zafarmand web application.
+// Package main assembles the Zafarmand web application and its explicit
+// PostgreSQL migration command.
 //
 // The executable is intentionally small: routing, request handling, and
 // template work live in separate files so each concern can be learned and
@@ -6,20 +7,60 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 )
 
 // main is the application's composition root and process entry point.
 //
-// It builds the shared application dependencies, registers the HTTP routes,
-// and then starts a blocking web server on port 8080. Startup and server
-// failures are fatal because the website cannot serve requests without either
-// a valid application or a listening server.
+// It validates process arguments before selecting one of two isolated paths:
+// the ordinary HTTP server or an operator-requested migration action. Fatal
+// logging stays at this outer boundary so lower-level functions can return
+// testable errors without deciding how the process exits.
 func main() {
-	app, err := newApplication()
+	command, err := parseProgramCommand(os.Args[1:])
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	// Migration commands receive an interrupt-aware context so Ctrl+C can cancel
+	// lock acquisition or SQL without starting the public HTTP server.
+	if command.Name == programCommandMigrate {
+		ctx, stop := signal.NotifyContext(
+			context.Background(),
+			os.Interrupt,
+		)
+		defer stop()
+
+		if err := executeMigrationCommand(
+			ctx,
+			command,
+			os.LookupEnv,
+			os.Stdout,
+		); err != nil {
+			log.Fatal(err)
+		}
+
+		return
+	}
+
+	if err := runServer(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// runServer preserves the existing database-independent public application
+// startup path.
+//
+// Stage 13 owns schema tooling only. Stage 14 will introduce the first runtime
+// repository and decide how a long-lived pool participates in server shutdown.
+func runServer() error {
+	app, err := newApplication()
+	if err != nil {
+		return err
 	}
 
 	// Keeping the address in one named constant makes the server configuration
@@ -33,7 +74,5 @@ func main() {
 
 	// ListenAndServe blocks while the process is running. app.routes() supplies
 	// the http.Handler that decides which code handles each incoming request.
-	if err := http.ListenAndServe(address, app.routes()); err != nil {
-		log.Fatal(err)
-	}
+	return http.ListenAndServe(address, app.routes())
 }
