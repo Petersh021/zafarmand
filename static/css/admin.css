@@ -1,0 +1,338 @@
+/* --------------------------------------------------
+   Stage 15: Secure administration foundation
+
+   The admin interface has its own restrained document shell and does not load
+   public navigation or route-specific presentation. These styles cover only
+   login, authenticated identity, the empty dashboard, and logout.
+-------------------------------------------------- */
+
+:root {
+	--admin-background: #15130f;
+	--admin-surface: #eee9de;
+	--admin-ink: #1b1915;
+	--admin-ink-soft: #625d53;
+	--admin-light: #f4efe5;
+	--admin-rule: rgba(27, 25, 21, 0.28);
+	--admin-light-rule: rgba(244, 239, 229, 0.24);
+	--admin-error: #8b2f24;
+	--admin-focus: #c98943;
+	--admin-gutter: clamp(1rem, 4vw, 4rem);
+	--admin-serif: Georgia, "Times New Roman", serif;
+	--admin-sans: Arial, Helvetica, sans-serif;
+}
+
+/* Border-box sizing prevents padded controls from widening the viewport. */
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	min-width: 20rem;
+	background: var(--admin-background);
+}
+
+body {
+	min-width: 20rem;
+	min-height: 100vh;
+	margin: 0;
+	background: var(--admin-background);
+	color: var(--admin-light);
+	font-family: var(--admin-sans);
+	line-height: 1.5;
+}
+
+button,
+input {
+	font: inherit;
+}
+
+a {
+	color: inherit;
+}
+
+/* The keyboard-only skip link becomes visible when it receives focus. */
+.admin-skip-link {
+	position: fixed;
+	top: 0.75rem;
+	left: var(--admin-gutter);
+	z-index: 10;
+	padding: 0.7rem 0.9rem;
+	background: var(--admin-surface);
+	color: var(--admin-ink);
+	transform: translateY(-180%);
+}
+
+.admin-skip-link:focus {
+	transform: translateY(0);
+}
+
+/* The compact header names the private area without copying public navigation. */
+.admin-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1.5rem;
+	min-height: 5rem;
+	padding: 1rem var(--admin-gutter);
+	border-bottom: 1px solid var(--admin-light-rule);
+}
+
+.admin-brand {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.7rem;
+	text-decoration: none;
+}
+
+.admin-brand__studio {
+	font-family: var(--admin-serif);
+	font-size: 1.2rem;
+}
+
+.admin-brand__area,
+.admin-eyebrow,
+.admin-header__identity,
+.admin-access-list dt {
+	font-size: 0.72rem;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.admin-brand__area {
+	color: rgba(244, 239, 229, 0.65);
+}
+
+.admin-header__identity {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 0.5rem;
+	min-width: 0;
+	margin: 0;
+	color: rgba(244, 239, 229, 0.72);
+	overflow-wrap: anywhere;
+}
+
+/* Login uses one centered editorial panel and remains usable without scripts. */
+.admin-login {
+	display: grid;
+	place-items: center;
+	min-height: calc(100vh - 5rem);
+	padding: clamp(2rem, 8vw, 7rem) var(--admin-gutter);
+}
+
+.admin-login__panel {
+	width: min(100%, 34rem);
+	padding: clamp(1.5rem, 5vw, 4rem);
+	background: var(--admin-surface);
+	color: var(--admin-ink);
+}
+
+.admin-eyebrow {
+	margin: 0 0 1rem;
+	color: var(--admin-ink-soft);
+}
+
+.admin-login h1,
+.admin-dashboard h1,
+.admin-dashboard h2 {
+	margin: 0;
+	font-family: var(--admin-serif);
+	font-weight: 400;
+	line-height: 1.04;
+}
+
+.admin-login h1 {
+	font-size: clamp(2.3rem, 7vw, 4.5rem);
+}
+
+.admin-login__header > p:last-child {
+	max-width: 34rem;
+	margin: 1.25rem 0 0;
+	color: var(--admin-ink-soft);
+}
+
+.admin-alert {
+	margin-top: 2rem;
+	padding: 1rem;
+	border: 2px solid var(--admin-error);
+	background: rgba(139, 47, 36, 0.08);
+}
+
+.admin-alert p {
+	margin: 0;
+}
+
+.admin-alert:focus {
+	outline: 3px solid var(--admin-focus);
+	outline-offset: 3px;
+}
+
+.admin-form {
+	display: grid;
+	gap: 1.35rem;
+	margin-top: 2.25rem;
+}
+
+.admin-form__field {
+	display: grid;
+	gap: 0.5rem;
+}
+
+.admin-form__field label {
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.admin-form__field input {
+	width: 100%;
+	min-height: 3rem;
+	padding: 0.7rem 0.8rem;
+	border: 1px solid var(--admin-rule);
+	border-radius: 0;
+	background: transparent;
+	color: var(--admin-ink);
+}
+
+.admin-form__field input:focus,
+.admin-button:focus-visible,
+.admin-text-button:focus-visible,
+.admin-brand:focus-visible {
+	outline: 3px solid var(--admin-focus);
+	outline-offset: 3px;
+}
+
+.admin-button {
+	min-height: 3rem;
+	margin-top: 0.5rem;
+	padding: 0.75rem 1.2rem;
+	border: 1px solid var(--admin-ink);
+	background: var(--admin-ink);
+	color: var(--admin-light);
+	cursor: pointer;
+}
+
+/* Dashboard content stays deliberately sparse until private tools are designed. */
+.admin-dashboard {
+	display: grid;
+	grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 0.75fr);
+	gap: clamp(2rem, 7vw, 8rem);
+	max-width: 90rem;
+	margin-inline: auto;
+	padding: clamp(3rem, 9vw, 9rem) var(--admin-gutter);
+}
+
+.admin-dashboard__intro,
+.admin-dashboard__status {
+	min-width: 0;
+}
+
+.admin-dashboard h1 {
+	max-width: 10ch;
+	font-size: clamp(3rem, 8vw, 8rem);
+}
+
+.admin-dashboard__lede {
+	max-width: 38rem;
+	margin: 2rem 0 0;
+	color: rgba(244, 239, 229, 0.72);
+	font-size: clamp(1rem, 1.4vw, 1.25rem);
+}
+
+.admin-dashboard__status {
+	align-self: end;
+	padding: clamp(1.5rem, 4vw, 2.5rem);
+	background: var(--admin-surface);
+	color: var(--admin-ink);
+}
+
+.admin-dashboard h2 {
+	font-size: clamp(1.8rem, 3vw, 2.8rem);
+}
+
+.admin-access-list {
+	display: grid;
+	margin: 2rem 0 0;
+	border-top: 1px solid var(--admin-rule);
+}
+
+.admin-access-list div {
+	display: grid;
+	grid-template-columns: minmax(7rem, 0.4fr) minmax(0, 0.6fr);
+	gap: 1rem;
+	padding-block: 1rem;
+	border-bottom: 1px solid var(--admin-rule);
+}
+
+.admin-access-list dt,
+.admin-access-list dd {
+	min-width: 0;
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.admin-access-list dt {
+	color: var(--admin-ink-soft);
+}
+
+.admin-logout {
+	grid-column: 1 / -1;
+	border-top: 1px solid var(--admin-light-rule);
+	padding-top: 1.5rem;
+}
+
+.admin-text-button {
+	min-height: 2.75rem;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--admin-light);
+	text-decoration: underline;
+	text-underline-offset: 0.3em;
+	cursor: pointer;
+}
+
+/* Tablet and phone layouts follow semantic source order without overflow. */
+@media (max-width: 52rem) {
+	.admin-dashboard {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.admin-dashboard__status {
+		align-self: auto;
+	}
+}
+
+@media (max-width: 36rem) {
+	.admin-header {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.admin-header__identity {
+		justify-content: flex-start;
+	}
+
+	.admin-access-list div {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0.4rem;
+	}
+}
+
+/* Forced-color users retain control and region boundaries without color alone. */
+@media (forced-colors: active) {
+	.admin-login__panel,
+	.admin-dashboard__status,
+	.admin-form__field input,
+	.admin-button,
+	.admin-alert {
+		border: 2px solid CanvasText;
+	}
+}
+
+/* Stage 15 introduces no animation or transition requiring motion overrides. */

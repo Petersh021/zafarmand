@@ -1,8 +1,9 @@
-# Stage 13-14 database development on Windows
+# Stage 13-15 database development on Windows
 
 Stage 13 establishes an explicit PostgreSQL migration workflow. Stage 14 uses
 that foundation for the first database-backed public feature: Contact inquiry
-persistence.
+persistence. Stage 15 adds administrator identities and revocable sessions;
+the separate [admin access guide](admin-access.md) explains that security slice.
 
 The boundary is intentional:
 
@@ -14,6 +15,8 @@ The boundary is intentional:
   uses Post/Redirect/Get.
 - A per-form key makes retries idempotent; the same submission cannot create a
   second row.
+- The private login stores one-way password verifiers and only digests of the
+  browser's session and CSRF secrets.
 - The success page claims only that the inquiry was saved for studio review. It
   does not claim email delivery or guarantee a response time.
 
@@ -92,12 +95,15 @@ Use separate PostgreSQL roles and connection strings even though both commands
 read the same variable name. A migration session needs a schema-owner role that
 can create and alter the migration ledger, tables, constraints, and sequences.
 After migrations finish, replace `DATABASE_URL` in the server's environment
-with a least-privilege runtime role. Stage 14 runtime access needs only the
-database/schema connection privileges plus `INSERT` and the narrow replay
-`SELECT` on `public.inquiries`, and sequence access needed to generate its ID;
-it must not own the schema or receive migration privileges. Keep role creation
-and credentials outside this repository and follow the deployment provider's
-role-management documentation.
+with a least-privilege runtime role. The current server needs database/schema
+connection privileges; `INSERT` and the narrow replay `SELECT` on
+`public.inquiries`; `SELECT` on `public.admin_users`; and `SELECT`, `INSERT`, and
+`UPDATE` on `public.admin_sessions`. Identity sequences need the access required
+to generate IDs. The separate administrator bootstrap process additionally
+needs `INSERT` on `public.admin_users`, but neither runtime should own the schema
+or receive migration privileges. Keep role creation and credentials outside
+this repository and follow the deployment provider's role-management
+documentation.
 
 Never:
 
@@ -127,7 +133,7 @@ produce no match because `.env.example` is explicitly allowed.
 
 ## Understanding the Go connection lifecycle
 
-Stages 13-14 use `database/sql` with pgx as the PostgreSQL driver. A `*sql.DB` is
+Stages 13-15 use `database/sql` with pgx as the PostgreSQL driver. A `*sql.DB` is
 a concurrency-safe database handle and connection pool, not one permanently
 open socket.
 
@@ -155,10 +161,11 @@ migration code, and closes it once. Individual migration functions do not own
 or close the pool. Opening a new pool for each statement would hide ownership,
 waste connections, and teach the wrong request lifecycle.
 
-In Stage 14, the long-running application—not an HTTP handler—owns the shared
-pool. A narrow inquiry repository borrows it and accepts request contexts. The
-server opens and pings the pool before listening, stops accepting requests on
-Ctrl+C, waits for active handlers, and then closes the pool.
+In Stages 14-15, the long-running application—not an HTTP handler—owns the
+shared pool. Narrow inquiry and administrator repositories borrow it and accept
+request contexts. The server opens and pings the pool before listening, stops
+accepting requests on Ctrl+C, waits for active handlers, and then closes the
+pool.
 
 See the official Go documentation for [`sql.DB`
 connection management](https://go.dev/doc/database/manage-connections) and the
@@ -212,8 +219,8 @@ Migration history is compiled into the Go executable from `migrations/`. Every
 new schema version must follow one strict contract:
 
 1. Add an exact pair such as
-   `000003_descriptive_name.up.sql` and
-   `000003_descriptive_name.down.sql`.
+   `000004_descriptive_name.up.sql` and
+   `000004_descriptive_name.down.sql`.
 2. Use six digits, the next contiguous positive version, and a globally unique
    lowercase name made from words separated by single underscores.
 3. Put the forward change in `up` and the narrow exact reverse in `down`. Avoid
@@ -291,7 +298,12 @@ go run . migrate up
 go run . migrate status
 psql -X --set ON_ERROR_STOP=on --command '\dt'
 psql -X --set ON_ERROR_STOP=on --command '\d inquiries'
+psql -X --set ON_ERROR_STOP=on --command '\d admin_users'
+psql -X --set ON_ERROR_STOP=on --command '\d admin_sessions'
 ```
+
+Inspect table definitions only. Do not select or copy password hashes, session
+digests, or CSRF digests into terminals, screenshots, tickets, or documentation.
 
 Stage 14 connects the public Contact route to the inquiry repository. Start the
 server in the same PowerShell process so it can read `DATABASE_URL`:
@@ -352,6 +364,10 @@ can run the same acceptance cycle without persisting or printing a password:
 .\stage14_postgres_check.ps1
 ```
 
+The helper keeps its historical Stage 14 filename and disposable database name,
+but its `Postgres` test selection runs the complete current v1-to-v3 suite,
+including Stage 15 admin schema and repository checks.
+
 The helper uses a visible secure password prompt, refuses to reuse a database,
 creates only `zafarmand_stage14_codex_test`, runs the opt-in integration tests
 and migration CLI status/up checks, and then drops only the database it created.
@@ -360,8 +376,8 @@ A failed cleanup is reported explicitly rather than broadening the deletion
 target.
 
 Create a dedicated empty database whose name ends in `_test`. It must not
-contain `public.inquiries`, `public.schema_migrations`,
-`public.stage13_atomicity_probe`, or
+contain `public.inquiries`, `public.admin_users`, `public.admin_sessions`,
+`public.schema_migrations`, `public.stage13_atomicity_probe`, or
 `public.stage13_intentionally_missing_table`. Then opt in with two test-only
 variables:
 
@@ -372,11 +388,12 @@ go test -count=1 -run 'Postgres' ./...
 ```
 
 The test never falls back to `DATABASE_URL`, verifies both the configured and
-server-reported database names, and checks all four reserved relations before
-mutation. It cleans up only `public.inquiries`, `public.schema_migrations`, and
-its exact atomicity-probe table; the intentionally missing relation is checked
-but never dropped. Still use a database created solely for this test; the
-confirmation is a safety gate, not a backup.
+server-reported database names, and checks all six reserved relations before
+mutation. It cleans up only `public.admin_sessions`, `public.admin_users`,
+`public.inquiries`, `public.schema_migrations`, and its exact atomicity-probe
+table; the intentionally missing relation is checked but never dropped. Still
+use a database created solely for this test; the confirmation is a safety gate,
+not a backup.
 
 Remove the test credentials afterward:
 
@@ -421,6 +438,7 @@ migration file exists, verify its effective attribute with its real path:
 ```powershell
 git check-attr eol -- migrations/000001_create_inquiries.up.sql
 git check-attr eol -- migrations/000002_add_inquiry_submission_key.up.sql
+git check-attr eol -- migrations/000003_create_admin_access.up.sql
 ```
 
 The reported value should be `lf`. Use the actual migration filename if it

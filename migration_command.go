@@ -7,13 +7,15 @@ import (
 	"io"
 )
 
-// Program and migration command constants define the complete accepted CLI
-// grammar in one auditable location.
+// Program, migration, and administrator command constants define the complete
+// accepted CLI grammar in one auditable location.
 const (
 	// programCommandServe identifies the existing public HTTP-server mode.
 	programCommandServe = "serve"
 	// programCommandMigrate identifies the explicit PostgreSQL schema mode.
 	programCommandMigrate = "migrate"
+	// programCommandAdmin identifies one explicit administrator maintenance mode.
+	programCommandAdmin = "admin"
 	// migrationActionUp applies every validated pending migration.
 	migrationActionUp = "up"
 	// migrationActionStatus reports applied and pending catalog entries.
@@ -24,7 +26,7 @@ const (
 	// reach the migration runner.
 	migrationDownConfirmation = "--confirm"
 	// programUsage is returned for every unsupported command shape.
-	programUsage = "usage: go run . [migrate [up|status|down --confirm]]"
+	programUsage = "usage: go run . [migrate [up|status|down --confirm] | admin create-user --email <email> --role <owner|editor>]"
 )
 
 // Migration command errors identify confirmation and dependency boundaries
@@ -43,10 +45,12 @@ var (
 
 // programCommand is the validated instruction selected from process arguments.
 type programCommand struct {
-	// Name is either the normal public server or the explicit migration mode.
+	// Name selects the server, migration, or administrator maintenance mode.
 	Name string
 	// MigrationAction is populated only when Name is programCommandMigrate.
 	MigrationAction string
+	// AdminCreateUser is populated only for the strict admin create-user mode.
+	AdminCreateUser adminCreateUserCommand
 }
 
 // parseProgramCommand converts process arguments into one strict, documented
@@ -54,10 +58,29 @@ type programCommand struct {
 //
 // No arguments preserves the existing `go run .` server behavior. `migrate`
 // alone is a convenience alias for `migrate up`; rollback always requires both
-// its action and the literal confirmation flag.
+// its action and the literal confirmation flag. The separate admin branch
+// delegates its password-free flag grammar to parseAdminCreateUserCommand.
 func parseProgramCommand(args []string) (programCommand, error) {
 	if len(args) == 0 {
 		return programCommand{Name: programCommandServe}, nil
+	}
+	if args[0] == programCommandAdmin {
+		if len(args) < 2 || args[1] != "create-user" {
+			return programCommand{}, fmt.Errorf(
+				"unknown admin command; %s",
+				programUsage,
+			)
+		}
+
+		createUser, err := parseAdminCreateUserCommand(args[2:])
+		if err != nil {
+			return programCommand{}, err
+		}
+
+		return programCommand{
+			Name:            programCommandAdmin,
+			AdminCreateUser: createUser,
+		}, nil
 	}
 	if args[0] != programCommandMigrate {
 		return programCommand{}, fmt.Errorf(

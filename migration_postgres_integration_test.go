@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -28,6 +29,9 @@ const (
 	// migrationIntegrationCleanupTimeout bounds best-effort schema cleanup even
 	// when the test's own context has already been cancelled.
 	migrationIntegrationCleanupTimeout = 15 * time.Second
+	// migrationIntegrationPasswordHash is deliberately an inert test verifier,
+	// not a usable password or production credential.
+	migrationIntegrationPasswordHash = "integration-hash-not-a-credential"
 )
 
 // TestMigrationRunnerPostgresCycle exercises behavior that mocks cannot prove:
@@ -81,20 +85,35 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	}
 
 	// A fresh database exposes the complete embedded history in order without
-	// claiming that either Stage 13 or Stage 14 has already been applied.
-	assertMigrationIntegrationStatus(t, runner, false, false)
+	// claiming that Stages 13, 14, or 15 have already been applied.
+	assertMigrationIntegrationStatus(t, runner, false, false, false)
 
 	applied, err := runner.Up(t.Context())
 	if err != nil {
 		t.Fatalf("apply embedded migrations: %v", err)
 	}
-	if len(applied) != 2 ||
+	if len(applied) != 3 ||
 		applied[0].Version != 1 ||
-		applied[1].Version != 2 {
-		t.Fatalf("applied migrations: got %#v, want versions 1 and 2", applied)
+		applied[1].Version != 2 ||
+		applied[2].Version != 3 {
+		t.Fatalf("applied migrations: got %#v, want versions 1, 2, and 3", applied)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
+	assertMigrationIntegrationTableExists(t, database, "admin_users", true)
+	assertMigrationIntegrationTableExists(t, database, "admin_sessions", true)
+	assertMigrationIntegrationIndexExists(
+		t,
+		database,
+		"admin_sessions_user_id_idx",
+		true,
+	)
+	assertMigrationIntegrationIndexExists(
+		t,
+		database,
+		"admin_sessions_expires_at_idx",
+		true,
+	)
 	assertMigrationIntegrationColumnExists(
 		t,
 		database,
@@ -130,18 +149,84 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		"Second Stage Visitor",
 		"second@example.test",
 	)
+	adminUserID := insertMigrationIntegrationAdminAccess(
+		t,
+		database,
+		"owner@example.test",
+		"owner",
+		0x33,
+		0x44,
+	)
+	assertMigrationIntegrationAdminAccess(
+		t,
+		database,
+		adminUserID,
+		"owner@example.test",
+		"owner",
+		0x33,
+		0x44,
+	)
 
 	// Down intentionally rolls back only the newest applied migration. Version
-	// 000001 and its inquiry rows must remain while only the Stage 14 key column
-	// and ledger entry disappear.
+	// 000003 owns both admin tables, so they disappear in dependency order while
+	// the inquiry schema and both visitor records remain completely unchanged.
 	rolledBack, err := runner.Down(t.Context())
+	if err != nil {
+		t.Fatalf("roll back Stage 15 migration: %v", err)
+	}
+	if rolledBack == nil || rolledBack.Version != 3 {
+		t.Fatalf("rolled-back migration: got %#v, want version 3", rolledBack)
+	}
+	assertMigrationIntegrationStatus(t, runner, true, true, false)
+	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
+	assertMigrationIntegrationTableExists(t, database, "admin_sessions", false)
+	assertMigrationIntegrationTableExists(t, database, "admin_users", false)
+	assertMigrationIntegrationIndexExists(
+		t,
+		database,
+		"admin_sessions_user_id_idx",
+		false,
+	)
+	assertMigrationIntegrationIndexExists(
+		t,
+		database,
+		"admin_sessions_expires_at_idx",
+		false,
+	)
+	assertMigrationIntegrationColumnExists(
+		t,
+		database,
+		"inquiries",
+		"submission_key",
+		true,
+	)
+	assertMigrationIntegrationInquiryContact(
+		t,
+		database,
+		firstInquiryID,
+		"Stage Fourteen Visitor",
+		"visitor@example.test",
+	)
+	assertMigrationIntegrationInquiryContact(
+		t,
+		database,
+		secondInquiryID,
+		"Second Stage Visitor",
+		"second@example.test",
+	)
+	assertMigrationIntegrationInquiryKey(t, database, firstInquiryID, 0x11)
+	assertMigrationIntegrationInquiryKey(t, database, secondInquiryID, 0x22)
+
+	// A second one-step rollback reaches version 000002. It removes only the
+	// idempotency key while version 000001 and both inquiry rows remain.
+	rolledBack, err = runner.Down(t.Context())
 	if err != nil {
 		t.Fatalf("roll back Stage 14 migration: %v", err)
 	}
 	if rolledBack == nil || rolledBack.Version != 2 {
 		t.Fatalf("rolled-back migration: got %#v, want version 2", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, false)
+	assertMigrationIntegrationStatus(t, runner, true, false, false)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
 	assertMigrationIntegrationColumnExists(
 		t,
@@ -165,18 +250,36 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		"second@example.test",
 	)
 
-	// Reapplying with version 000001 still present plans only version 000002. Its
-	// legacy-row backfill must restore one non-null, 32-byte, distinct key per
-	// preserved inquiry without changing either visitor's name or email.
+	// Reapplying with version 000001 still present plans versions 000002 and
+	// 000003 in order. The key backfill preserves inquiry contact data, while the
+	// admin tables and their indexes return empty after their deliberate drop.
 	applied, err = runner.Up(t.Context())
 	if err != nil {
-		t.Fatalf("reapply Stage 14 migration: %v", err)
+		t.Fatalf("reapply Stage 14 and Stage 15 migrations: %v", err)
 	}
-	if len(applied) != 1 || applied[0].Version != 2 {
-		t.Fatalf("reapplied migrations: got %#v, want version 2", applied)
+	if len(applied) != 2 ||
+		applied[0].Version != 2 ||
+		applied[1].Version != 3 {
+		t.Fatalf("reapplied migrations: got %#v, want versions 2 and 3", applied)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true)
 	assertMigrationIntegrationBackfilledKeys(t, database, 2)
+	assertMigrationIntegrationTableExists(t, database, "admin_users", true)
+	assertMigrationIntegrationTableExists(t, database, "admin_sessions", true)
+	assertMigrationIntegrationIndexExists(
+		t,
+		database,
+		"admin_sessions_user_id_idx",
+		true,
+	)
+	assertMigrationIntegrationIndexExists(
+		t,
+		database,
+		"admin_sessions_expires_at_idx",
+		true,
+	)
+	assertMigrationIntegrationTableRowCount(t, database, "admin_users", 0)
+	assertMigrationIntegrationTableRowCount(t, database, "admin_sessions", 0)
 	assertMigrationIntegrationInquiryContact(
 		t,
 		database,
@@ -192,13 +295,51 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		"second@example.test",
 	)
 
-	// A synthetic version 000003 fails after executing DDL. PostgreSQL must roll
-	// back that DDL while retaining both successfully applied embedded versions.
-	assertMigrationIntegrationAtomicFailure(t, database, catalog)
-	assertMigrationIntegrationStatus(t, runner, true, true)
+	// Recreated tables retain the same foreign-key contract. Removing the user
+	// revokes every owned session through the narrowly scoped delete cascade.
+	reappliedAdminUserID := insertMigrationIntegrationAdminAccess(
+		t,
+		database,
+		"editor@example.test",
+		"editor",
+		0x55,
+		0x66,
+	)
+	assertMigrationIntegrationAdminAccess(
+		t,
+		database,
+		reappliedAdminUserID,
+		"editor@example.test",
+		"editor",
+		0x55,
+		0x66,
+	)
+	deleteMigrationIntegrationAdminUser(
+		t,
+		database,
+		reappliedAdminUserID,
+	)
+	assertMigrationIntegrationTableRowCount(t, database, "admin_sessions", 0)
 
-	// Two explicit rollback calls prove the runner reverses the catalog one
-	// migration at a time: first the Stage 14 key, then the Stage 13 table.
+	// A synthetic version 000004 fails after executing DDL. PostgreSQL must roll
+	// back that DDL while retaining all three applied embedded versions.
+	assertMigrationIntegrationAtomicFailure(t, database, catalog)
+	assertMigrationIntegrationStatus(t, runner, true, true, true)
+
+	// Three explicit rollback calls prove the runner reverses the catalog one
+	// migration at a time: admin access, the inquiry key, then the inquiry table.
+	rolledBack, err = runner.Down(t.Context())
+	if err != nil {
+		t.Fatalf("roll back Stage 15 migration before full rollback: %v", err)
+	}
+	if rolledBack == nil || rolledBack.Version != 3 {
+		t.Fatalf("rolled-back migration: got %#v, want version 3", rolledBack)
+	}
+	assertMigrationIntegrationStatus(t, runner, true, true, false)
+	assertMigrationIntegrationTableExists(t, database, "admin_sessions", false)
+	assertMigrationIntegrationTableExists(t, database, "admin_users", false)
+	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
+
 	rolledBack, err = runner.Down(t.Context())
 	if err != nil {
 		t.Fatalf("roll back Stage 14 migration before full rollback: %v", err)
@@ -206,7 +347,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 2 {
 		t.Fatalf("rolled-back migration: got %#v, want version 2", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, false)
+	assertMigrationIntegrationStatus(t, runner, true, false, false)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
 
 	rolledBack, err = runner.Down(t.Context())
@@ -217,7 +358,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		t.Fatalf("rolled-back migration: got %#v, want version 1", rolledBack)
 	}
 	assertMigrationIntegrationTableExists(t, database, "inquiries", false)
-	assertMigrationIntegrationStatus(t, runner, false, false)
+	assertMigrationIntegrationStatus(t, runner, false, false, false)
 
 	if _, err := runner.Down(t.Context()); !errors.Is(err, errNoAppliedMigrations) {
 		t.Fatalf("empty rollback: got %v, want no applied migrations", err)
@@ -229,12 +370,13 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reapply embedded migrations after full rollback: %v", err)
 	}
-	if len(applied) != 2 ||
+	if len(applied) != 3 ||
 		applied[0].Version != 1 ||
-		applied[1].Version != 2 {
-		t.Fatalf("reapplied migrations: got %#v, want versions 1 and 2", applied)
+		applied[1].Version != 2 ||
+		applied[2].Version != 3 {
+		t.Fatalf("reapplied migrations: got %#v, want versions 1, 2, and 3", applied)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true)
 }
 
 // loadMigrationIntegrationConfig requires two explicit environment values and
@@ -288,6 +430,8 @@ func requireMigrationIntegrationSchemaEmpty(
 
 	var currentDatabase string
 	var inquiriesExist bool
+	var adminUsersExist bool
+	var adminSessionsExist bool
 	var ledgerExists bool
 	var atomicityProbeExists bool
 	var missingProbeExists bool
@@ -296,12 +440,16 @@ func requireMigrationIntegrationSchemaEmpty(
 		`SELECT
     current_database(),
     to_regclass('public.inquiries') IS NOT NULL,
+    to_regclass('public.admin_users') IS NOT NULL,
+    to_regclass('public.admin_sessions') IS NOT NULL,
     to_regclass('public.schema_migrations') IS NOT NULL,
     to_regclass('public.stage13_atomicity_probe') IS NOT NULL,
     to_regclass('public.stage13_intentionally_missing_table') IS NOT NULL`,
 	).Scan(
 		&currentDatabase,
 		&inquiriesExist,
+		&adminUsersExist,
+		&adminSessionsExist,
 		&ledgerExists,
 		&atomicityProbeExists,
 		&missingProbeExists,
@@ -312,18 +460,21 @@ func requireMigrationIntegrationSchemaEmpty(
 		t.Fatal("connected migration integration database name must end in _test")
 	}
 	if inquiriesExist ||
+		adminUsersExist ||
+		adminSessionsExist ||
 		ledgerExists ||
 		atomicityProbeExists ||
 		missingProbeExists {
 		t.Fatal(
 			"migration integration database contains a relation reserved " +
-				"by the Stage 13 test",
+				"by the migration integration test",
 		)
 	}
 }
 
-// cleanupMigrationIntegrationSchema removes only the three exact tables owned
-// or probed by this test from the already-confirmed disposable database.
+// cleanupMigrationIntegrationSchema removes only the exact tables owned or
+// probed by this test from the already-confirmed disposable database. Sessions
+// precede users so cleanup respects the same foreign-key order as migration 3.
 func cleanupMigrationIntegrationSchema(t *testing.T, database *sql.DB) {
 	t.Helper()
 
@@ -344,6 +495,8 @@ func cleanupMigrationIntegrationSchema(t *testing.T, database *sql.DB) {
 
 	for _, statement := range []string{
 		"DROP TABLE IF EXISTS public.stage13_atomicity_probe",
+		"DROP TABLE IF EXISTS public.admin_sessions",
+		"DROP TABLE IF EXISTS public.admin_users",
 		"DROP TABLE IF EXISTS public.inquiries",
 		"DROP TABLE IF EXISTS public.schema_migrations",
 	} {
@@ -468,6 +621,238 @@ func assertMigrationIntegrationColumnExists(
 	}
 }
 
+// assertMigrationIntegrationIndexExists verifies one exact Stage 15 index in
+// PostgreSQL's public schema. The name remains a query argument rather than
+// becoming dynamically assembled SQL.
+func assertMigrationIntegrationIndexExists(
+	t *testing.T,
+	database *sql.DB,
+	indexName string,
+	expected bool,
+) {
+	t.Helper()
+
+	var exists bool
+	if err := database.QueryRowContext(
+		t.Context(),
+		`SELECT EXISTS (
+    SELECT 1
+    FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND indexname = $1
+)`,
+		indexName,
+	).Scan(&exists); err != nil {
+		t.Fatalf("inspect migration integration index %q", indexName)
+	}
+	if exists != expected {
+		t.Errorf(
+			"index %q existence: got %t, want %t",
+			indexName,
+			exists,
+			expected,
+		)
+	}
+}
+
+// assertMigrationIntegrationTableRowCount reads only one of the two exact
+// Stage 15 relations used at call sites. The closed switch avoids interpolating
+// even a test-provided identifier into SQL.
+func assertMigrationIntegrationTableRowCount(
+	t *testing.T,
+	database *sql.DB,
+	tableName string,
+	expected int,
+) {
+	t.Helper()
+
+	var query string
+	switch tableName {
+	case "admin_users":
+		query = "SELECT COUNT(*) FROM public.admin_users"
+	case "admin_sessions":
+		query = "SELECT COUNT(*) FROM public.admin_sessions"
+	default:
+		t.Fatalf("unsupported migration integration row-count table %q", tableName)
+	}
+
+	var count int
+	if err := database.QueryRowContext(t.Context(), query).Scan(&count); err != nil {
+		t.Fatalf("count migration integration table %q", tableName)
+	}
+	if count != expected {
+		t.Errorf("table %q rows: got %d, want %d", tableName, count, expected)
+	}
+}
+
+// insertMigrationIntegrationAdminAccess creates one normalized administrator
+// and one hash-only session. Repeated fixture bytes are readable in diagnostics
+// while still proving PostgreSQL's exact bytea mapping and length constraints.
+func insertMigrationIntegrationAdminAccess(
+	t *testing.T,
+	database *sql.DB,
+	email string,
+	role string,
+	tokenByte byte,
+	csrfByte byte,
+) int64 {
+	t.Helper()
+
+	var userID int64
+	if err := database.QueryRowContext(
+		t.Context(),
+		`INSERT INTO public.admin_users (email, password_hash, role)
+VALUES ($1, $2, $3)
+RETURNING id`,
+		email,
+		migrationIntegrationPasswordHash,
+		role,
+	).Scan(&userID); err != nil {
+		t.Fatal("insert migration integration administrator")
+	}
+
+	tokenHash := make([]byte, 32)
+	csrfTokenHash := make([]byte, 32)
+	for index := range tokenHash {
+		tokenHash[index] = tokenByte
+		csrfTokenHash[index] = csrfByte
+	}
+	if _, err := database.ExecContext(
+		t.Context(),
+		`INSERT INTO public.admin_sessions (
+    token_hash,
+    user_id,
+    csrf_token_hash,
+    expires_at
+) VALUES ($1, $2, $3, CURRENT_TIMESTAMP + INTERVAL '1 hour')`,
+		tokenHash,
+		userID,
+		csrfTokenHash,
+	); err != nil {
+		t.Fatal("insert migration integration admin session")
+	}
+
+	return userID
+}
+
+// assertMigrationIntegrationAdminAccess proves normalized user values, secure
+// defaults, exact token digests, and ordered session timestamps survived the
+// real PostgreSQL boundary. The fixture password hash is never logged.
+func assertMigrationIntegrationAdminAccess(
+	t *testing.T,
+	database *sql.DB,
+	userID int64,
+	expectedEmail string,
+	expectedRole string,
+	tokenByte byte,
+	csrfByte byte,
+) {
+	t.Helper()
+
+	var email string
+	var passwordHash string
+	var role string
+	var active bool
+	var createdAt time.Time
+	var updatedAt time.Time
+	if err := database.QueryRowContext(
+		t.Context(),
+		`SELECT email, password_hash, role, active, created_at, updated_at
+FROM public.admin_users
+WHERE id = $1`,
+		userID,
+	).Scan(
+		&email,
+		&passwordHash,
+		&role,
+		&active,
+		&createdAt,
+		&updatedAt,
+	); err != nil {
+		t.Fatal("read migration integration administrator")
+	}
+	if email != expectedEmail ||
+		passwordHash != migrationIntegrationPasswordHash ||
+		role != expectedRole ||
+		!active ||
+		!updatedAt.Equal(createdAt) {
+		t.Error("stored migration integration administrator violates expected values or defaults")
+	}
+
+	expectedTokenHash := make([]byte, 32)
+	expectedCSRFTokenHash := make([]byte, 32)
+	for index := range expectedTokenHash {
+		expectedTokenHash[index] = tokenByte
+		expectedCSRFTokenHash[index] = csrfByte
+	}
+
+	var tokenHash []byte
+	var csrfTokenHash []byte
+	var sessionUserID int64
+	var sessionCreatedAt time.Time
+	var expiresAt time.Time
+	var revokedAt sql.NullTime
+	if err := database.QueryRowContext(
+		t.Context(),
+		`SELECT
+    token_hash,
+    csrf_token_hash,
+    user_id,
+    created_at,
+    expires_at,
+    revoked_at
+FROM public.admin_sessions
+WHERE user_id = $1`,
+		userID,
+	).Scan(
+		&tokenHash,
+		&csrfTokenHash,
+		&sessionUserID,
+		&sessionCreatedAt,
+		&expiresAt,
+		&revokedAt,
+	); err != nil {
+		t.Fatal("read migration integration admin session")
+	}
+	if !bytes.Equal(tokenHash, expectedTokenHash) ||
+		!bytes.Equal(csrfTokenHash, expectedCSRFTokenHash) ||
+		sessionUserID != userID ||
+		!expiresAt.After(sessionCreatedAt) ||
+		revokedAt.Valid {
+		t.Error("stored migration integration admin session violates expected values or defaults")
+	}
+}
+
+// deleteMigrationIntegrationAdminUser removes one exact fixture identity and
+// verifies PostgreSQL matched it. The caller separately proves the dependent
+// session disappeared through ON DELETE CASCADE.
+func deleteMigrationIntegrationAdminUser(
+	t *testing.T,
+	database *sql.DB,
+	userID int64,
+) {
+	t.Helper()
+
+	result, err := database.ExecContext(
+		t.Context(),
+		"DELETE FROM public.admin_users WHERE id = $1",
+		userID,
+	)
+	if err != nil {
+		t.Fatal("delete migration integration administrator")
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		t.Fatal("read deleted migration integration administrator count")
+	}
+	if rowsAffected != 1 {
+		t.Fatalf(
+			"deleted migration integration administrators: got %d, want 1",
+			rowsAffected,
+		)
+	}
+}
+
 // insertMigrationIntegrationInquiry creates one deterministic Stage 14 row and
 // returns its database identity for data-preservation assertions. Repeating one
 // byte fills the required 32-byte key without embedding visitor data into it.
@@ -536,6 +921,37 @@ WHERE id = $1`,
 	}
 }
 
+// assertMigrationIntegrationInquiryKey proves Stage 15 rollback left an exact
+// pre-existing inquiry key unchanged. Repeating one known fixture byte avoids
+// logging or embedding a visitor-derived value.
+func assertMigrationIntegrationInquiryKey(
+	t *testing.T,
+	database *sql.DB,
+	inquiryID int64,
+	keyByte byte,
+) {
+	t.Helper()
+
+	expectedKey := make([]byte, 32)
+	for index := range expectedKey {
+		expectedKey[index] = keyByte
+	}
+
+	var actualKey []byte
+	if err := database.QueryRowContext(
+		t.Context(),
+		`SELECT submission_key
+FROM public.inquiries
+WHERE id = $1`,
+		inquiryID,
+	).Scan(&actualKey); err != nil {
+		t.Fatal("read migration integration inquiry key")
+	}
+	if !bytes.Equal(actualKey, expectedKey) {
+		t.Error("Stage 15 rollback changed a stored inquiry submission key")
+	}
+}
+
 // assertMigrationIntegrationBackfilledKeys verifies that every preserved row
 // received a required-width key and that no two rows received the same value.
 // Distinctness complements the database UNIQUE constraint with evidence that
@@ -587,10 +1003,10 @@ func assertMigrationIntegrationAtomicFailure(
 	t.Helper()
 
 	failingMigration := migrationDefinition{
-		// Versions 000001 and 000002 are the real embedded history. The probe
+		// Versions 000001 through 000003 are the real embedded history. The probe
 		// therefore uses the next contiguous version instead of colliding with the
-		// Stage 14 definition during catalog validation.
-		Version: 3,
+		// Stage 15 definition during catalog validation.
+		Version: 4,
 		Name:    "prove_atomicity",
 		UpSQL: `CREATE TABLE public.stage13_atomicity_probe (id bigint);
 SELECT * FROM public.stage13_intentionally_missing_table;`,
@@ -632,7 +1048,7 @@ SELECT * FROM public.stage13_intentionally_missing_table;`,
 	).Scan(&ledgerRows); err != nil {
 		t.Fatal("count migration integration ledger rows")
 	}
-	if ledgerRows != 2 {
-		t.Errorf("ledger rows after failed migration: got %d, want 2", ledgerRows)
+	if ledgerRows != 3 {
+		t.Errorf("ledger rows after failed migration: got %d, want 3", ledgerRows)
 	}
 }

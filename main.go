@@ -1,5 +1,5 @@
 // Package main assembles the Zafarmand web application and its explicit
-// PostgreSQL migration command.
+// PostgreSQL migration and administrator-bootstrap commands.
 //
 // The executable is intentionally small: routing, request handling, and
 // template work live in separate files so each concern can be learned and
@@ -35,18 +35,19 @@ const (
 
 // main is the application's composition root and process entry point.
 //
-// It validates process arguments before selecting one of two isolated paths:
-// the ordinary HTTP server or an operator-requested migration action. Fatal
-// logging stays at this outer boundary so lower-level functions can return
-// testable errors without deciding how the process exits.
+// It validates process arguments before selecting one of three isolated paths:
+// the ordinary HTTP server, an operator-requested migration action, or the
+// environment-protected administrator bootstrap. Fatal logging stays at this
+// outer boundary so lower-level functions can return testable errors without
+// deciding how the process exits.
 func main() {
 	command, err := parseProgramCommand(os.Args[1:])
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Both operating modes receive one interrupt-aware process context. Migration
-	// SQL can cancel promptly, while the server uses the same signal to stop
+	// Every operating mode receives one interrupt-aware process context. Database
+	// commands can cancel promptly, while the server uses the same signal to stop
 	// accepting requests and close its shared database pool in order.
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
@@ -66,21 +67,34 @@ func main() {
 
 		return
 	}
+	if command.Name == programCommandAdmin {
+		if err := executeAdminCreateUserCommand(
+			ctx,
+			command.AdminCreateUser,
+			os.LookupEnv,
+			os.Stdout,
+		); err != nil {
+			log.Fatal(err)
+		}
+
+		return
+	}
 
 	if err := runServer(ctx, os.LookupEnv); err != nil {
 		log.Fatal(err)
 	}
 }
 
-// runServer composes the long-lived PostgreSQL pool, Contact repository,
-// templates, routes, and interrupt-aware HTTP server.
+// runServer composes the long-lived PostgreSQL pool, public Contact repository,
+// private administrator repository, password manager, templates, routes, and
+// interrupt-aware HTTP server.
 //
 // Opening and pinging PostgreSQL before ListenAndServe prevents the site from
 // starting when its configured persistence dependency is unreachable. Schema
 // versions remain an explicit migration responsibility; an outdated schema is
-// reported through the Contact handler's safe storage-failure state until the
-// operator applies migrations. This function owns the pool and closes it only
-// after the server stops using the repository.
+// reported through safe Contact or administrator service-failure responses
+// until the operator applies migrations. This function owns the pool and closes
+// it only after the server stops using either repository.
 func runServer(
 	ctx context.Context,
 	lookup environmentLookup,
@@ -105,8 +119,16 @@ func runServer(
 	if err != nil {
 		return err
 	}
+	admins, err := newPostgresAdminRepository(database)
+	if err != nil {
+		return err
+	}
 
-	app, err := newApplication(inquiries)
+	app, err := newApplication(
+		inquiries,
+		admins,
+		newAdminPasswordManager(),
+	)
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,58 @@
+{{/*
+Stage 15 renders only an authenticated shell. Inquiry data, status controls,
+products, projects, uploads, and role-specific actions remain absent until
+their own vertical stages define authorization and interface requirements.
+*/}}
+{{define "admin-content"}}
+<main class="admin-dashboard" id="admin-main-content">
+	<section
+		class="admin-dashboard__intro"
+		aria-labelledby="admin-dashboard-title"
+	>
+		<p class="admin-eyebrow">Authenticated workspace</p>
+
+		<h1 id="admin-dashboard-title">Dashboard foundation</h1>
+
+		<p class="admin-dashboard__lede">
+			The private administration boundary is active. Management tools will be added one focused workflow at a time.
+		</p>
+	</section>
+
+	<section
+		class="admin-dashboard__status"
+		aria-labelledby="admin-access-title"
+	>
+		<h2 id="admin-access-title">Current access</h2>
+
+		<dl class="admin-access-list">
+			<div>
+				<dt>Signed in as</dt>
+				<dd>{{.Identity.Email}}</dd>
+			</div>
+
+			<div>
+				<dt>Role</dt>
+				<dd>{{.Identity.RoleLabel}}</dd>
+			</div>
+
+			<div>
+				<dt>Available tools</dt>
+				<dd>Authentication foundation only</dd>
+			</div>
+		</dl>
+	</section>
+
+	{{/* Logout mutates server-side session state and therefore remains POST-only. */}}
+	<form class="admin-logout" action="/admin/logout" method="post">
+		<input
+			type="hidden"
+			name="csrf_token"
+			value="{{.SessionCSRFToken}}"
+		>
+
+		<button class="admin-text-button" type="submit">
+			Sign out
+		</button>
+	</form>
+</main>
+{{end}}

@@ -2,12 +2,15 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
 	"path/filepath"
+	"time"
 )
 
 // application holds dependencies shared by all HTTP handlers.
@@ -15,8 +18,8 @@ import (
 // Keeping these values on an application instance avoids mutable global state
 // and makes it straightforward for tests to create an isolated application.
 type application struct {
-	// templates maps a page filename, such as "home.html", to the parsed
-	// template set containing that page, the shared base layout, and partials.
+	// templates maps public filenames such as "home.html" and namespaced private
+	// keys such as "admin/login.html" to their isolated parsed template sets.
 	templates map[string]*template.Template
 	// products is the ordered temporary source shared by listing and detail handlers.
 	//
@@ -40,6 +43,23 @@ type application struct {
 	// submission handler. Production supplies PostgreSQL, while tests can inject
 	// a recording implementation without opening a database connection.
 	inquiries inquiryRepository
+	// admins owns the narrow PostgreSQL operations used by administrator
+	// creation, login, session lookup, and revocation. HTTP handlers never issue
+	// authentication SQL directly.
+	admins adminRepository
+	// adminPasswords owns the versioned password hashing and verification format.
+	// Depending on its interface keeps an inexpensive deterministic manager
+	// injectable in tests while production always selects the full work factor.
+	adminPasswords adminPasswordManager
+	// adminDummyPasswordHash is verified for unknown accounts so login requests
+	// do not skip the intentionally expensive password work based on existence.
+	adminDummyPasswordHash string
+	// adminEntropy supplies independently random login, session, and CSRF tokens.
+	// Production uses crypto/rand.Reader; the field is replaceable only in tests.
+	adminEntropy io.Reader
+	// now centralizes absolute session and cookie times and permits deterministic
+	// expiry tests without changing the system clock.
+	now func() time.Time
 	// inquirySuccess signs and consumes the short-lived receipt carried across
 	// the Post/Redirect/Get boundary. It contains no visitor data and never
 	// exposes its process-local key.
@@ -406,9 +426,17 @@ type pageData struct {
 // reusable from both main and tests.
 func newApplication(
 	inquiries inquiryRepository,
+	admins adminRepository,
+	passwords adminPasswordManager,
 ) (*application, error) {
 	if inquiries == nil {
 		return nil, errInquiryRepositoryRequired
+	}
+	if admins == nil {
+		return nil, errAdminRepositoryRequired
+	}
+	if passwords == nil {
+		return nil, errAdminPasswordManagerRequired
 	}
 
 	templateCache, err := newTemplateCache()
@@ -428,20 +456,46 @@ func newApplication(
 		)
 	}
 
+	// Unknown addresses use a real encoded verifier so their login path performs
+	// the same password derivation as a stored account. The fixed plaintext is
+	// never an account credential, and the password manager still salts its hash.
+	adminDummyPasswordHash, err := passwords.Hash(
+		adminDummyPassword,
+	)
+	if err != nil || !isValidAdminPasswordHash(adminDummyPasswordHash) {
+		// Do not wrap an injected implementation's text: a future dependency
+		// could accidentally include its plaintext input in that error.
+		return nil, errAdminDummyPasswordHashFailed
+	}
+	dummyPasswordMatches, err := passwords.Verify(
+		adminDummyPassword,
+		adminDummyPasswordHash,
+	)
+	if err != nil || !dummyPasswordMatches {
+		// Verifying once at startup prevents an inconsistent injected or future
+		// implementation from creating a fast malformed-hash path for missing users.
+		return nil, errAdminDummyPasswordHashFailed
+	}
+
 	app := &application{
-		templates:            templateCache,
-		products:             temporaryProducts(),
-		interiorProjects:     temporaryInteriorProjects(),
-		architectureProjects: temporaryArchitectureProjects(),
-		inquiries:            inquiries,
-		inquirySuccess:       inquirySuccess,
+		templates:              templateCache,
+		products:               temporaryProducts(),
+		interiorProjects:       temporaryInteriorProjects(),
+		architectureProjects:   temporaryArchitectureProjects(),
+		inquiries:              inquiries,
+		inquirySuccess:         inquirySuccess,
+		admins:                 admins,
+		adminPasswords:         passwords,
+		adminDummyPasswordHash: adminDummyPasswordHash,
+		adminEntropy:           rand.Reader,
+		now:                    time.Now,
 	}
 
 	return app, nil
 }
 
-// newTemplateCache parses every page template together with the shared base
-// layout and shared partials, then indexes the resulting sets by page filename.
+// newTemplateCache parses every public page with the shared public layout and
+// partials, then parses each private page with the isolated admin layout.
 //
 // Parsing pages into separate sets prevents identically named blocks such as
 // "content" from overwriting one another. The returned error wraps filesystem
@@ -546,6 +600,48 @@ func newTemplateCache() (
 		cache[pageName] = templateSet
 	}
 
+	// Admin pages use a separate document shell and directory so private tools
+	// cannot inherit the public navigation, scripts, or same-named content blocks.
+	adminPages, err := filepath.Glob(
+		"./templates/admin/pages/*.html",
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"find admin page templates: %w",
+			err,
+		)
+	}
+	if len(adminPages) == 0 {
+		return nil, fmt.Errorf(
+			"no admin page templates found",
+		)
+	}
+
+	for _, page := range adminPages {
+		pageName := filepath.Base(page)
+		templateSet, err := template.ParseFiles(
+			"./templates/admin/base.html",
+			page,
+		)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"parse admin template %s: %w",
+				pageName,
+				err,
+			)
+		}
+		if templateSet.Lookup("admin-content") == nil {
+			return nil, fmt.Errorf(
+				"admin page template %s requires admin-content",
+				pageName,
+			)
+		}
+
+		// The namespace prevents a future public page with the same basename from
+		// silently replacing an authenticated template in the shared cache map.
+		cache["admin/"+pageName] = templateSet
+	}
+
 	return cache, nil
 }
 
@@ -561,6 +657,48 @@ func (app *application) render(
 	status int,
 	pageName string,
 	data pageData,
+) {
+	app.renderTemplate(
+		w,
+		status,
+		pageName,
+		"base",
+		data,
+	)
+}
+
+// renderAdmin executes one cached private page through the isolated
+// "admin-base" layout.
+//
+// Keeping a typed wrapper prevents public handlers from accidentally selecting
+// the admin shell and prevents admin handlers from passing public pageData,
+// while the shared buffered renderer retains identical error behavior.
+func (app *application) renderAdmin(
+	w http.ResponseWriter,
+	status int,
+	pageName string,
+	data adminPageData,
+) {
+	app.renderTemplate(
+		w,
+		status,
+		"admin/"+pageName,
+		"admin-base",
+		data,
+	)
+}
+
+// renderTemplate performs the common buffered execution and HTTP write for a
+// public or admin template set.
+//
+// data remains any only at this lowest shared boundary; render and renderAdmin
+// preserve the two concrete view-model contracts for all handler call sites.
+func (app *application) renderTemplate(
+	w http.ResponseWriter,
+	status int,
+	pageName string,
+	rootTemplateName string,
+	data any,
 ) {
 	templateSet, exists := app.templates[pageName]
 	if !exists {
@@ -582,11 +720,11 @@ func (app *application) render(
 
 	var buffer bytes.Buffer
 
-	// ExecuteTemplate starts at the named base layout; the selected page's
-	// definitions fill the layout's content and optional style blocks.
+	// ExecuteTemplate starts at the selected public or private base layout; the
+	// page's definitions fill that shell without crossing cache namespaces.
 	err := templateSet.ExecuteTemplate(
 		&buffer,
-		"base",
+		rootTemplateName,
 		data,
 	)
 	if err != nil {

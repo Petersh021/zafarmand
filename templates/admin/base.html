@@ -1,0 +1,61 @@
+{{/*
+The "admin-base" template is deliberately separate from the public site shell.
+Authenticated tools must not inherit the public drawer, discipline navigation,
+page-transition hooks, or marketing metadata. newTemplateCache parses this file
+with exactly one template from templates/admin/pages, and renderAdmin executes
+the named layout after authentication handlers have prepared adminPageData.
+
+These learning comments are Go-template comments, so html/template removes them
+from the response sent to the browser.
+*/}}
+{{define "admin-base"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+
+	<meta
+		name="viewport"
+		content="width=device-width, initial-scale=1"
+	>
+
+	{{/* Admin pages are operational interfaces and must not be indexed. */}}
+	<meta name="robots" content="noindex, nofollow, noarchive">
+
+	<title>{{.Title}} | Zafarmand Admin</title>
+
+	{{/* One isolated stylesheet keeps admin rules out of the public website. */}}
+	<link rel="stylesheet" href="/static/css/admin.css">
+</head>
+
+<body class="admin-body">
+	<a class="admin-skip-link" href="#admin-main-content">
+		Skip to admin content
+	</a>
+
+	<header class="admin-header">
+		<a class="admin-brand" href="/admin">
+			<span class="admin-brand__studio">Zafarmand</span>
+			<span class="admin-brand__area">Administration</span>
+		</a>
+
+		{{/* Identity appears only after the authentication middleware succeeds. */}}
+		{{with .Identity}}
+		<p class="admin-header__identity">
+			<span>{{.Email}}</span>
+			<span aria-hidden="true">/</span>
+			<span>{{.RoleLabel}}</span>
+		</p>
+		{{end}}
+	</header>
+
+	{{/*
+	Admin page templates replace this block with exactly one main landmark. The
+	fallback retains the skip-link target if a future page omits its definition.
+	*/}}
+	{{block "admin-content" .}}
+	<main id="admin-main-content"></main>
+	{{end}}
+</body>
+</html>
+{{end}}

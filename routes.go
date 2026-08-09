@@ -68,5 +68,28 @@ func (app *application) routes() http.Handler {
 		app.inquirySubmissionHandler,
 	)
 
-	return mux
+	// Admin login remains available without an authenticated session but uses
+	// separate method-aware handlers so credentials can never travel in a URL.
+	// The private dashboard and logout mutation both pass through requireAdmin,
+	// which resolves one active database session before their handlers run.
+	mux.HandleFunc(
+		"GET /admin/login",
+		app.adminLoginPageHandler,
+	)
+	mux.HandleFunc(
+		"POST /admin/login",
+		app.adminLoginHandler,
+	)
+	mux.Handle(
+		"GET /admin",
+		app.requireAdmin(http.HandlerFunc(app.adminDashboardHandler)),
+	)
+	mux.Handle(
+		"POST /admin/logout",
+		app.requireAdmin(http.HandlerFunc(app.adminLogoutHandler)),
+	)
+
+	// Applying headers outside ServeMux also protects its generated admin 404 and
+	// 405 responses while leaving the established public response policy intact.
+	return adminSecurityHeaders(mux)
 }

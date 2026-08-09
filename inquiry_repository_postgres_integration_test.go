@@ -237,11 +237,12 @@ func applyInquiryIntegrationMigrations(t *testing.T, database *sql.DB) {
 	if err != nil {
 		t.Fatalf("load inquiry integration migration catalog: %v", err)
 	}
-	if len(catalog) != 2 ||
+	if len(catalog) != 3 ||
 		catalog[0].Version != 1 ||
-		catalog[1].Version != 2 {
+		catalog[1].Version != 2 ||
+		catalog[2].Version != 3 {
 		t.Fatalf(
-			"migration catalog: got %#v, want versions 1 and 2",
+			"migration catalog: got %#v, want versions 1, 2, and 3",
 			catalog,
 		)
 	}

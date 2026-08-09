@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	// Register pgx's database/sql compatibility driver under the "pgx" name.
-	// PostgreSQL is shared by migration commands and the Stage 14 Contact writer.
+	// PostgreSQL is shared by migrations, Contact writes, and admin authentication.
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 

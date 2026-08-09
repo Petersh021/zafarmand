@@ -1,0 +1,79 @@
+{{/*
+The login page receives no session identity and never displays a password,
+database error, or account-existence result. Its hidden value completes the
+anonymous double-submit CSRF boundary established by the GET handler.
+*/}}
+{{define "admin-content"}}
+<main class="admin-login" id="admin-main-content">
+	<section
+		class="admin-login__panel"
+		aria-labelledby="admin-login-title"
+	>
+		<header class="admin-login__header">
+			<p class="admin-eyebrow">Restricted access</p>
+
+			<h1 id="admin-login-title">Studio administration</h1>
+
+			<p>
+				Sign in with an active Zafarmand administrator account.
+			</p>
+		</header>
+
+		{{/*
+		The same generic message covers unknown email addresses, inactive users,
+		and incorrect passwords. This prevents the interface from confirming which
+		administrator identities exist.
+		*/}}
+		{{if .AuthenticationFailed}}
+		<div
+			class="admin-alert"
+			id="admin-login-response"
+			role="alert"
+			tabindex="-1"
+		>
+			<p>Email or password is incorrect.</p>
+		</div>
+		{{end}}
+
+		<form class="admin-form" action="/admin/login" method="post">
+			<input
+				type="hidden"
+				name="csrf_token"
+				value="{{.LoginCSRFToken}}"
+			>
+
+			<div class="admin-form__field">
+				<label for="admin-email">Email address</label>
+
+				<input
+					id="admin-email"
+					name="email"
+					type="email"
+					value="{{.Email}}"
+					autocomplete="username"
+					inputmode="email"
+					maxlength="254"
+					required
+				>
+			</div>
+
+			<div class="admin-form__field">
+				<label for="admin-password">Password</label>
+
+				<input
+					id="admin-password"
+					name="password"
+					type="password"
+					autocomplete="current-password"
+					maxlength="128"
+					required
+				>
+			</div>
+
+			<button class="admin-button" type="submit">
+				Sign in
+			</button>
+		</form>
+	</section>
+</main>
+{{end}}

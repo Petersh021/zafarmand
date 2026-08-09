@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-// TestParseProgramCommand verifies every supported server and migration command
-// shape, including the destructive rollback confirmation boundary.
+// TestParseProgramCommand verifies every supported server, migration, and
+// administrator-bootstrap shape, including the rollback confirmation boundary.
 func TestParseProgramCommand(t *testing.T) {
 	tests := []struct {
 		// name labels one command-line shape.
@@ -63,6 +63,42 @@ func TestParseProgramCommand(t *testing.T) {
 			},
 		},
 		{
+			name: "create owner administrator",
+			args: []string{
+				"admin",
+				"create-user",
+				"--email",
+				" Owner@Example.COM ",
+				"--role",
+				"owner",
+			},
+			expected: programCommand{
+				Name: programCommandAdmin,
+				AdminCreateUser: adminCreateUserCommand{
+					Email: "owner@example.com",
+					Role:  adminRoleOwner,
+				},
+			},
+		},
+		{
+			name: "create editor administrator with reversed flags",
+			args: []string{
+				"admin",
+				"create-user",
+				"--role",
+				"editor",
+				"--email",
+				"editor@example.com",
+			},
+			expected: programCommand{
+				Name: programCommandAdmin,
+				AdminCreateUser: adminCreateUserCommand{
+					Email: "editor@example.com",
+					Role:  adminRoleEditor,
+				},
+			},
+		},
+		{
 			name:              "unknown top-level command",
 			args:              []string{"database"},
 			expectedErrorText: "unknown command",
@@ -71,6 +107,11 @@ func TestParseProgramCommand(t *testing.T) {
 			name:              "unknown migration action",
 			args:              []string{"migrate", "reset"},
 			expectedErrorText: "unknown migration action",
+		},
+		{
+			name:              "unknown admin action",
+			args:              []string{"admin", "delete-user"},
+			expectedErrorText: "unknown admin command",
 		},
 		{
 			name:              "extra up argument",

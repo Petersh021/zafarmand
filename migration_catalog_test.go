@@ -453,15 +453,15 @@ func TestLoadMigrationCatalogRejectsNonRegularEntries(t *testing.T) {
 }
 
 // TestEmbeddedMigrationCatalog verifies the production catalog contains the
-// inquiry table followed by its idempotency key, with exact ordered identities
-// and independently reversible schema boundaries.
+// inquiry table, its idempotency key, and the admin-access boundary with exact
+// ordered identities and independently reversible schema changes.
 func TestEmbeddedMigrationCatalog(t *testing.T) {
 	catalog, err := loadEmbeddedMigrationCatalog()
 	if err != nil {
 		t.Fatalf("load embedded migration catalog: %v", err)
 	}
-	if len(catalog) != 2 {
-		t.Fatalf("embedded catalog length: got %d, want 2", len(catalog))
+	if len(catalog) != 3 {
+		t.Fatalf("embedded catalog length: got %d, want 3", len(catalog))
 	}
 
 	initialDefinition := catalog[0]
@@ -595,6 +595,111 @@ DROP TABLE public.inquiries;
 	} {
 		if strings.Contains(upperKeyDownSQL, forbiddenSQL) {
 			t.Errorf("idempotency down SQL contains forbidden %q", forbiddenSQL)
+		}
+	}
+
+	adminDefinition := catalog[2]
+	if adminDefinition.Version != 3 ||
+		adminDefinition.Name != "create_admin_access" {
+		t.Errorf(
+			"embedded migration identity: got %06d_%s",
+			adminDefinition.Version,
+			adminDefinition.Name,
+		)
+	}
+
+	// These fragments lock version 000003 to normalized, unique administrators
+	// and hash-only, expiring, revocable sessions. Named constraints give future
+	// repository and integration tests stable schema diagnostics.
+	expectedAdminUpSQL := []string{
+		"CREATE TABLE public.admin_users",
+		"id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY",
+		"email text NOT NULL",
+		"password_hash text NOT NULL",
+		"role text NOT NULL",
+		"CONSTRAINT admin_users_email_normalized",
+		"CHECK (email = lower(btrim(email)))",
+		"CONSTRAINT admin_users_email_length",
+		"CHECK (char_length(email) BETWEEN 3 AND 254)",
+		"CONSTRAINT admin_users_email_unique",
+		"UNIQUE (email)",
+		"CONSTRAINT admin_users_password_hash_trimmed",
+		"CHECK (password_hash = btrim(password_hash))",
+		"CONSTRAINT admin_users_password_hash_length",
+		"CHECK (char_length(password_hash) BETWEEN 1 AND 255)",
+		"CONSTRAINT admin_users_role_supported",
+		"CHECK (role IN ('owner', 'editor'))",
+		"active boolean NOT NULL DEFAULT true",
+		"created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP",
+		"updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP",
+		"CONSTRAINT admin_users_timestamp_order",
+		"CHECK (updated_at >= created_at)",
+		"CREATE TABLE public.admin_sessions",
+		"token_hash bytea PRIMARY KEY",
+		"user_id bigint NOT NULL",
+		"csrf_token_hash bytea NOT NULL",
+		"expires_at timestamptz NOT NULL",
+		"revoked_at timestamptz",
+		"CONSTRAINT admin_sessions_user_id_foreign",
+		"REFERENCES public.admin_users (id)",
+		"ON DELETE CASCADE",
+		"CONSTRAINT admin_sessions_token_hash_length",
+		"CHECK (octet_length(token_hash) = 32)",
+		"CONSTRAINT admin_sessions_csrf_token_hash_length",
+		"CHECK (octet_length(csrf_token_hash) = 32)",
+		"CONSTRAINT admin_sessions_expiry_order",
+		"CHECK (expires_at > created_at)",
+		"CONSTRAINT admin_sessions_revocation_order",
+		"CHECK (revoked_at IS NULL OR revoked_at >= created_at)",
+		"CREATE INDEX admin_sessions_user_id_idx",
+		"ON public.admin_sessions (user_id)",
+		"CREATE INDEX admin_sessions_expires_at_idx",
+		"ON public.admin_sessions (expires_at)",
+	}
+	for _, expectedSQL := range expectedAdminUpSQL {
+		if !strings.Contains(adminDefinition.UpSQL, expectedSQL) {
+			t.Errorf("admin-access up SQL does not contain %q", expectedSQL)
+		}
+	}
+
+	// The only permitted cascade is the narrowly scoped user-to-session foreign
+	// key. Raw browser secrets and extension dependencies do not belong here.
+	upperAdminUpSQL := strings.ToUpper(adminDefinition.UpSQL)
+	if count := strings.Count(upperAdminUpSQL, "ON DELETE CASCADE"); count != 1 {
+		t.Errorf("admin-access ON DELETE CASCADE count: got %d, want 1", count)
+	}
+	for _, forbiddenSQL := range []string{
+		"CREATE EXTENSION",
+		"TOKEN TEXT",
+		"CSRF_TOKEN TEXT",
+	} {
+		if strings.Contains(upperAdminUpSQL, forbiddenSQL) {
+			t.Errorf("admin-access up SQL contains forbidden %q", forbiddenSQL)
+		}
+	}
+
+	// The down migration drops the dependent sessions table before users and
+	// omits forgiving modifiers so unexpected later dependencies fail visibly.
+	orderedAdminDownSQL := []string{
+		"DROP TABLE public.admin_sessions;",
+		"DROP TABLE public.admin_users;",
+	}
+	previousPosition = -1
+	for _, expectedSQL := range orderedAdminDownSQL {
+		position := strings.Index(adminDefinition.DownSQL, expectedSQL)
+		if position < 0 {
+			t.Errorf("admin-access down SQL does not contain %q", expectedSQL)
+			continue
+		}
+		if position <= previousPosition {
+			t.Errorf("admin-access down SQL has %q out of order", expectedSQL)
+		}
+		previousPosition = position
+	}
+	upperAdminDownSQL := strings.ToUpper(adminDefinition.DownSQL)
+	for _, forbiddenSQL := range []string{"CASCADE", "IF EXISTS", "INQUIRIES"} {
+		if strings.Contains(upperAdminDownSQL, forbiddenSQL) {
+			t.Errorf("admin-access down SQL contains forbidden %q", forbiddenSQL)
 		}
 	}
 }

@@ -6,7 +6,7 @@ module github.com/petersh021/zafarmand
 go 1.24.3
 
 // pgx supplies PostgreSQL parsing, connections, and the database/sql adapter
-// while preserving the standard-library pool API used by the migration code.
+// used by migrations, Contact persistence, and administrator authentication.
 require github.com/jackc/pgx/v5 v5.8.0
 
 // These modules are pgx's transitive implementation dependencies. Go records

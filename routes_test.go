@@ -101,7 +101,13 @@ func newTestApplicationWithInquiryRepository(
 ) *application {
 	t.Helper()
 
-	app, err := newApplication(repository)
+	adminRepository := newRecordingAdminRepository()
+	passwords := newTestAdminPasswordManager(t)
+	app, err := newApplication(
+		repository,
+		adminRepository,
+		passwords,
+	)
 	if err != nil {
 		t.Fatalf("create test application: %v", err)
 	}
@@ -113,7 +119,11 @@ func newTestApplicationWithInquiryRepository(
 // composition boundary: a server cannot start with a Contact form that has no
 // persistence dependency.
 func TestNewApplicationRequiresInquiryRepository(t *testing.T) {
-	app, err := newApplication(nil)
+	app, err := newApplication(
+		nil,
+		newRecordingAdminRepository(),
+		newTestAdminPasswordManager(t),
+	)
 	if !errors.Is(err, errInquiryRepositoryRequired) {
 		t.Fatalf(
 			"nil repository error: got %v, want required sentinel",
