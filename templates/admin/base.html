@@ -39,13 +39,62 @@ from the response sent to the browser.
 			<span class="admin-brand__area">Administration</span>
 		</a>
 
-		{{/* Identity appears only after the authentication middleware succeeds. */}}
+		{{/*
+		The complete workspace navigation and session controls appear only after
+		the authentication middleware supplies an identity. Keeping the whole
+		region inside this branch leaves the anonymous login header uncluttered and
+		prevents it from rendering an empty logout form or protected-route links.
+		*/}}
 		{{with .Identity}}
-		<p class="admin-header__identity">
-			<span>{{.Email}}</span>
-			<span aria-hidden="true">/</span>
-			<span>{{.RoleLabel}}</span>
-		</p>
+		<div class="admin-header__workspace">
+			<nav class="admin-nav" aria-label="Administration">
+				<ul class="admin-nav__list">
+					<li>
+						<a
+							class="admin-nav__link{{if eq $.NavigationPath "/admin"}} admin-nav__link--active{{end}}"
+							href="/admin"
+							{{if eq $.NavigationPath "/admin"}}aria-current="page"{{end}}
+						>
+							Overview
+						</a>
+					</li>
+
+					<li>
+						<a
+							class="admin-nav__link{{if eq $.NavigationPath "/admin/inquiries"}} admin-nav__link--active{{end}}"
+							href="/admin/inquiries"
+							{{if eq $.NavigationPath "/admin/inquiries"}}aria-current="page"{{end}}
+						>
+							Inquiries
+						</a>
+					</li>
+				</ul>
+			</nav>
+
+			<div class="admin-header__session">
+				<p class="admin-header__identity">
+					<span>{{.Email}}</span>
+					<span aria-hidden="true">/</span>
+					<span>{{.RoleLabel}}</span>
+				</p>
+
+				{{/*
+				Logout changes server-side session state, so every authenticated page
+				shares this POST form and the session-bound CSRF token prepared by Go.
+				*/}}
+				<form class="admin-header__logout" action="/admin/logout" method="post">
+					<input
+						type="hidden"
+						name="csrf_token"
+						value="{{$.SessionCSRFToken}}"
+					>
+
+					<button class="admin-text-button" type="submit">
+						Sign out
+					</button>
+				</form>
+			</div>
+		</div>
 		{{end}}
 	</header>
 

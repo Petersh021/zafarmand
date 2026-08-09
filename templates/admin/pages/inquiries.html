@@ -1,0 +1,95 @@
+{{/*
+The inquiry inbox exposes only the summary fields an administrator needs to
+choose a record. Email addresses, full messages, and opaque submission keys do
+not belong in this overview, which reduces unnecessary display of visitor data.
+
+Go supplies already formatted labels, safe status-class suffixes, canonical
+detail paths, and optional keyset-pagination paths. html/template still escapes
+every ordinary string at its HTML, attribute, or URL context.
+*/}}
+{{define "admin-content"}}
+<main class="admin-inquiries" id="admin-main-content">
+	<header class="admin-page-header">
+		<a class="admin-back-link" href="/admin">
+			<span aria-hidden="true">&larr;</span>
+			Overview
+		</a>
+
+		<p class="admin-eyebrow">Contact workspace</p>
+
+		<h1>Inquiry inbox</h1>
+
+		<p class="admin-page-header__lede">
+			Read messages submitted through the public Contact form. This stage does not change their review status.
+		</p>
+	</header>
+
+	{{/*
+	An allocated list with no items produces an honest empty state. The branch
+	does not invent sample inquiries or expose fields that the handler omitted.
+	*/}}
+	{{if .InquiryList.Items}}
+	<ol class="admin-inquiry-list" role="list">
+		{{range .InquiryList.Items}}
+		<li class="admin-inquiry-list__item">
+			<article class="admin-inquiry-card">
+				<div class="admin-inquiry-card__heading">
+					<p class="admin-inquiry-reference">Inquiry {{.Reference}}</p>
+
+					<p class="admin-inquiry-status admin-inquiry-status--{{.StatusClass}}">
+						{{.StatusLabel}}
+					</p>
+				</div>
+
+				<h2>
+					<a href="{{.Path}}">{{.Name}}</a>
+				</h2>
+
+				<div class="admin-inquiry-card__meta">
+					<p>{{.DisciplineLabel}}</p>
+
+					<time datetime="{{.CreatedAtISO}}">
+						{{.CreatedAtLabel}}
+					</time>
+				</div>
+			</article>
+		</li>
+		{{end}}
+	</ol>
+
+	{{/*
+	The server emits a next path only when its limit-plus-one query proves that
+	older records exist. IsPaginated separately identifies a request already
+	positioned behind the newest page, so it can always return directly to the
+	latest inquiries. Normal links keep both directions functional without JS.
+	*/}}
+	{{if or .InquiryList.IsPaginated .InquiryList.NextPath}}
+	<nav class="admin-pagination" aria-label="Inquiry pages">
+		{{if .InquiryList.IsPaginated}}
+		<a class="admin-secondary-link" href="/admin/inquiries">
+			Return to latest
+		</a>
+		{{end}}
+
+		{{if .InquiryList.NextPath}}
+		<a class="admin-primary-link" href="{{.InquiryList.NextPath}}">
+			View older inquiries
+		</a>
+		{{end}}
+	</nav>
+	{{end}}
+	{{else}}
+	<section class="admin-empty-state" aria-labelledby="admin-empty-title">
+		<h2 id="admin-empty-title">No inquiries to display</h2>
+
+		<p>{{.InquiryList.EmptyMessage}}</p>
+
+		{{if .InquiryList.IsPaginated}}
+		<a class="admin-secondary-link" href="/admin/inquiries">
+			Return to latest
+		</a>
+		{{end}}
+	</section>
+	{{end}}
+</main>
+{{end}}

@@ -1,7 +1,8 @@
 {{/*
-Stage 15 renders only an authenticated shell. Inquiry data, status controls,
-products, projects, uploads, and role-specific actions remain absent until
-their own vertical stages define authorization and interface requirements.
+The overview intentionally presents only navigation into the first read-only
+admin workflow. It does not request or imply inquiry counts, because summary
+queries and operational metrics belong to a later stage with explicit data and
+performance requirements.
 */}}
 {{define "admin-content"}}
 <main class="admin-dashboard" id="admin-main-content">
@@ -11,11 +12,15 @@ their own vertical stages define authorization and interface requirements.
 	>
 		<p class="admin-eyebrow">Authenticated workspace</p>
 
-		<h1 id="admin-dashboard-title">Dashboard foundation</h1>
+		<h1 id="admin-dashboard-title">Administration overview</h1>
 
 		<p class="admin-dashboard__lede">
-			The private administration boundary is active. Management tools will be added one focused workflow at a time.
+			Review messages received through the public Contact form in the private, read-only inquiry workspace.
 		</p>
+
+		<a class="admin-primary-link" href="/admin/inquiries">
+			Open inquiry inbox
+		</a>
 	</section>
 
 	<section
@@ -37,22 +42,9 @@ their own vertical stages define authorization and interface requirements.
 
 			<div>
 				<dt>Available tools</dt>
-				<dd>Authentication foundation only</dd>
+				<dd>Read-only inquiry review</dd>
 			</div>
 		</dl>
 	</section>
-
-	{{/* Logout mutates server-side session state and therefore remains POST-only. */}}
-	<form class="admin-logout" action="/admin/logout" method="post">
-		<input
-			type="hidden"
-			name="csrf_token"
-			value="{{.SessionCSRFToken}}"
-		>
-
-		<button class="admin-text-button" type="submit">
-			Sign out
-		</button>
-	</form>
 </main>
 {{end}}

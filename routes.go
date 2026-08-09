@@ -89,6 +89,30 @@ func (app *application) routes() http.Handler {
 		app.requireAdmin(http.HandlerFunc(app.adminLogoutHandler)),
 	)
 
+	// Inquiry content contains visitor personal data, so every list and detail
+	// request passes through authentication and an explicit role allowlist. Both
+	// current roles may read; future roles receive no access automatically.
+	inquiryReaderRoles := requireAdminRoles(
+		adminRoleOwner,
+		adminRoleEditor,
+	)
+	mux.Handle(
+		"GET /admin/inquiries",
+		app.requireAdmin(
+			inquiryReaderRoles(
+				http.HandlerFunc(app.adminInquiryListHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"GET /admin/inquiries/{id}",
+		app.requireAdmin(
+			inquiryReaderRoles(
+				http.HandlerFunc(app.adminInquiryDetailHandler),
+			),
+		),
+	)
+
 	// Applying headers outside ServeMux also protects its generated admin 404 and
 	// 405 responses while leaving the established public response policy intact.
 	return adminSecurityHeaders(mux)

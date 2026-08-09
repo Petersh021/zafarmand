@@ -40,10 +40,35 @@ func newAdminHTTPTestApplication(
 ) *application {
 	t.Helper()
 
+	return newAdminHTTPTestApplicationWithInquiryReader(
+		t,
+		repository,
+		passwords,
+		newRecordingAdminInquiryReader(),
+	)
+}
+
+// newAdminHTTPTestApplicationWithInquiryReader builds the real private route
+// graph while allowing Stage 16 tests to observe the separate, read-only
+// inquiry dependency. Earlier authentication tests keep using the simpler
+// helper above because they do not need to arrange visitor records.
+func newAdminHTTPTestApplicationWithInquiryReader(
+	t *testing.T,
+	repository adminRepository,
+	passwords adminPasswordManager,
+	adminInquiries adminInquiryReader,
+) *application {
+	t.Helper()
+
 	inquiries := &recordingInquiryRepository{
 		result: inquiryCreateResultCreated,
 	}
-	app, err := newApplication(inquiries, repository, passwords)
+	app, err := newApplication(
+		inquiries,
+		repository,
+		adminInquiries,
+		passwords,
+	)
 	if err != nil {
 		t.Fatalf("create admin HTTP test application: %v", err)
 	}
@@ -861,10 +886,12 @@ func TestAdminLoginSuccess(t *testing.T) {
 // adminHTTPAuthenticatedFixture contains one complete in-memory account,
 // session, cookie pair, and application for protected-route tests.
 type adminHTTPAuthenticatedFixture struct {
-	// app is the real Stage 15 handler graph under test.
+	// app is the real private handler graph under test.
 	app *application
 	// repository retains session creation and revocation evidence.
 	repository *recordingAdminRepository
+	// adminInquiries records protected Stage 16 list and detail reads.
+	adminInquiries *recordingAdminInquiryReader
 	// user is the normalized authenticated identity.
 	user adminUser
 	// sessionToken is the raw browser bearer value, never stored by repository.
@@ -887,6 +914,23 @@ func newAdminHTTPAuthenticatedFixture(
 ) adminHTTPAuthenticatedFixture {
 	t.Helper()
 
+	return newAdminHTTPAuthenticatedFixtureWithInquiryReader(
+		t,
+		role,
+		newRecordingAdminInquiryReader(),
+	)
+}
+
+// newAdminHTTPAuthenticatedFixtureWithInquiryReader creates the same valid
+// session while exposing a caller-owned inquiry reader for Stage 16 request,
+// privacy, pagination, and failure assertions.
+func newAdminHTTPAuthenticatedFixtureWithInquiryReader(
+	t *testing.T,
+	role adminRole,
+	adminInquiries *recordingAdminInquiryReader,
+) adminHTTPAuthenticatedFixture {
+	t.Helper()
+
 	repository := newRecordingAdminRepository()
 	passwords := newTestAdminPasswordManager(t)
 	user := repository.addUser(
@@ -896,7 +940,12 @@ func newAdminHTTPAuthenticatedFixture(
 		adminHTTPTestPassword,
 		role,
 	)
-	app := newAdminHTTPTestApplication(t, repository, passwords)
+	app := newAdminHTTPTestApplicationWithInquiryReader(
+		t,
+		repository,
+		passwords,
+		adminInquiries,
+	)
 	now := time.Now().UTC()
 	repository.now = func() time.Time { return now }
 	app.now = func() time.Time { return now }
@@ -917,14 +966,15 @@ func newAdminHTTPAuthenticatedFixture(
 	}
 
 	return adminHTTPAuthenticatedFixture{
-		app:          app,
-		repository:   repository,
-		user:         user,
-		sessionToken: sessionToken,
-		csrfToken:    csrfToken,
-		sessionHash:  sessionHash,
-		csrfHash:     csrfHash,
-		expiresAt:    expiresAt,
+		app:            app,
+		repository:     repository,
+		adminInquiries: adminInquiries,
+		user:           user,
+		sessionToken:   sessionToken,
+		csrfToken:      csrfToken,
+		sessionHash:    sessionHash,
+		csrfHash:       csrfHash,
+		expiresAt:      expiresAt,
 	}
 }
 
@@ -1126,9 +1176,11 @@ func TestAdminDashboardRendersAuthenticatedIdentity(t *testing.T) {
 			assertAdminHTTPSecurityHeaders(t, response.Header)
 			body := recorder.Body.String()
 			for _, expected := range []string{
-				"Dashboard foundation",
+				"Administration overview",
 				adminHTTPTestEmail,
 				test.label,
+				`href="/admin/inquiries"`,
+				"Open inquiry inbox",
 				`action="/admin/logout"`,
 				`/static/css/admin.css`,
 				`name="robots" content="noindex, nofollow, noarchive"`,
@@ -1454,8 +1506,9 @@ func TestAdminTokenHelpers(t *testing.T) {
 	}
 }
 
-// TestNewApplicationRequiresAdminDependencies protects both authentication
-// dependencies at construction so no route can start in a bypassable state.
+// TestNewApplicationRequiresAdminDependencies protects authentication and
+// private inquiry dependencies at construction so no protected route can start
+// in a bypassable or partially wired state.
 func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 	inquiries := &recordingInquiryRepository{
 		result: inquiryCreateResultCreated,
@@ -1465,6 +1518,7 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 		app, err := newApplication(
 			inquiries,
 			nil,
+			newRecordingAdminInquiryReader(),
 			newTestAdminPasswordManager(t),
 		)
 		requireErrorIs(t, err, errAdminRepositoryRequired)
@@ -1473,10 +1527,24 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 		}
 	})
 
+	t.Run("nil admin inquiry reader", func(t *testing.T) {
+		app, err := newApplication(
+			inquiries,
+			newRecordingAdminRepository(),
+			nil,
+			newTestAdminPasswordManager(t),
+		)
+		requireErrorIs(t, err, errAdminInquiryReaderRequired)
+		if app != nil {
+			t.Error("nil admin inquiry reader returned a usable application")
+		}
+	})
+
 	t.Run("nil password manager", func(t *testing.T) {
 		app, err := newApplication(
 			inquiries,
 			newRecordingAdminRepository(),
+			newRecordingAdminInquiryReader(),
 			nil,
 		)
 		requireErrorIs(t, err, errAdminPasswordManagerRequired)

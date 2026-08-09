@@ -85,16 +85,16 @@ func main() {
 	}
 }
 
-// runServer composes the long-lived PostgreSQL pool, public Contact repository,
-// private administrator repository, password manager, templates, routes, and
-// interrupt-aware HTTP server.
+// runServer composes the long-lived PostgreSQL pool, public Contact writer,
+// private inquiry reader, administrator authentication repository, password
+// manager, templates, routes, and interrupt-aware HTTP server.
 //
 // Opening and pinging PostgreSQL before ListenAndServe prevents the site from
 // starting when its configured persistence dependency is unreachable. Schema
 // versions remain an explicit migration responsibility; an outdated schema is
 // reported through safe Contact or administrator service-failure responses
 // until the operator applies migrations. This function owns the pool and closes
-// it only after the server stops using either repository.
+// it only after the server stops using every repository.
 func runServer(
 	ctx context.Context,
 	lookup environmentLookup,
@@ -123,10 +123,15 @@ func runServer(
 	if err != nil {
 		return err
 	}
+	adminInquiries, err := newPostgresAdminInquiryReader(database)
+	if err != nil {
+		return err
+	}
 
 	app, err := newApplication(
 		inquiries,
 		admins,
+		adminInquiries,
 		newAdminPasswordManager(),
 	)
 	if err != nil {

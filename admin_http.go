@@ -36,8 +36,8 @@ const (
 	// adminSessionLifetime is an absolute lifetime; requests never slide it
 	// forward, so every browser session eventually requires a fresh login.
 	adminSessionLifetime = 8 * time.Hour
-	// adminRepositoryTimeout prevents an unavailable database from holding an
-	// authentication request indefinitely.
+	// adminRepositoryTimeout prevents an unavailable database from holding a
+	// private authentication or inquiry request indefinitely.
 	adminRepositoryTimeout = 5 * time.Second
 	// adminDummyPassword is not an account credential. It exists only to produce
 	// one startup-validated verifier for account-neutral missing-user logins.
@@ -64,9 +64,9 @@ var (
 	)
 )
 
-// adminPageData is the typed presentation contract shared by the two private
-// templates. Login-only and authenticated-only fields remain optional so a
-// template receives no repository record or password hash.
+// adminPageData is the typed presentation contract shared by every private
+// template. Route-specific pointers remain optional so templates receive no
+// repository record, password hash, or unrelated personal data.
 type adminPageData struct {
 	// Title supplies the page-specific part of the private document title.
 	Title string
@@ -76,14 +76,20 @@ type adminPageData struct {
 	Email string
 	// AuthenticationFailed selects the single account-neutral error message.
 	AuthenticationFailed bool
+	// NavigationPath selects one trusted active item in the shared admin nav.
+	NavigationPath string
 	// Identity contains the minimal authenticated display fields, or nil on login.
 	Identity *adminIdentityPageData
 	// SessionCSRFToken is rendered only into the authenticated logout form.
 	SessionCSRFToken string
+	// InquiryList contains only the read-only inbox presentation contract.
+	InquiryList *adminInquiryListPageData
+	// InquiryDetail contains one protected inquiry presentation contract.
+	InquiryDetail *adminInquiryDetailPageData
 }
 
 // adminIdentityPageData keeps persistence and authorization records out of the
-// template while retaining the two values needed by the Stage 15 shell.
+// template while retaining the two values needed by the shared private shell.
 type adminIdentityPageData struct {
 	// Email is the normalized address of the authenticated administrator.
 	Email string
@@ -376,9 +382,41 @@ func (app *application) requireAdmin(next http.Handler) http.Handler {
 	})
 }
 
-// adminDashboardHandler renders the deliberately empty authenticated shell.
-// Future management features must add their own repository and authorization
-// contracts rather than receiving hidden access through this handler.
+// requireAdminRoles adds an explicit authorization decision after session
+// authentication. Its allowlist is built once when routes are composed; an
+// empty or invalid set therefore denies every request rather than falling back
+// to whichever roles happen to exist in the database.
+func requireAdminRoles(
+	roles ...adminRole,
+) func(http.Handler) http.Handler {
+	allowed := make(map[adminRole]struct{}, len(roles))
+	for _, role := range roles {
+		if role.valid() {
+			allowed[role] = struct{}{}
+		}
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requestIdentity, ok := authenticatedAdminFromContext(r.Context())
+			if !ok {
+				http.Error(w, "forbidden", http.StatusForbidden)
+
+				return
+			}
+			if _, permitted := allowed[requestIdentity.Identity.Role]; !permitted {
+				http.Error(w, "forbidden", http.StatusForbidden)
+
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// adminDashboardHandler renders the authenticated overview. It advertises the
+// Stage 16 inquiry reader without querying personal data merely to show a count.
 func (app *application) adminDashboardHandler(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -390,19 +428,37 @@ func (app *application) adminDashboardHandler(
 		return
 	}
 
+	data := newAuthenticatedAdminPageData(
+		"Dashboard",
+		"/admin",
+		requestIdentity,
+	)
+
 	app.renderAdmin(
 		w,
 		http.StatusOK,
 		"dashboard.html",
-		adminPageData{
-			Title: "Dashboard",
-			Identity: &adminIdentityPageData{
-				Email:     requestIdentity.Identity.Email,
-				RoleLabel: adminRoleLabel(requestIdentity.Identity.Role),
-			},
-			SessionCSRFToken: requestIdentity.CSRFToken,
-		},
+		data,
 	)
+}
+
+// newAuthenticatedAdminPageData constructs the shared identity, navigation,
+// and logout contract after requireAdmin has validated both browser secrets.
+// Route handlers add only their own optional page payload afterward.
+func newAuthenticatedAdminPageData(
+	title string,
+	navigationPath string,
+	requestIdentity authenticatedAdminRequest,
+) adminPageData {
+	return adminPageData{
+		Title:          title,
+		NavigationPath: navigationPath,
+		Identity: &adminIdentityPageData{
+			Email:     requestIdentity.Identity.Email,
+			RoleLabel: adminRoleLabel(requestIdentity.Identity.Role),
+		},
+		SessionCSRFToken: requestIdentity.CSRFToken,
+	}
 }
 
 // adminLogoutHandler accepts only the session-bound hidden token, revokes the

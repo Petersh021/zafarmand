@@ -1,9 +1,10 @@
 /* --------------------------------------------------
-   Stage 15: Secure administration foundation
+   Stages 15–16: Secure administration and inquiry review
 
    The admin interface has its own restrained document shell and does not load
-   public navigation or route-specific presentation. These styles cover only
-   login, authenticated identity, the empty dashboard, and logout.
+   public navigation or route-specific presentation. Stage 16 extends the
+   authenticated shell with a responsive read-only inquiry inbox and detail
+   view while retaining the original login presentation.
 -------------------------------------------------- */
 
 :root {
@@ -16,6 +17,10 @@
 	--admin-light-rule: rgba(244, 239, 229, 0.24);
 	--admin-error: #8b2f24;
 	--admin-focus: #c98943;
+	--admin-focus-on-light: #713b00;
+	--admin-status-new: #7b4e16;
+	--admin-status-reviewed: #315b49;
+	--admin-status-archived: #625d53;
 	--admin-gutter: clamp(1rem, 4vw, 4rem);
 	--admin-serif: Georgia, "Times New Roman", serif;
 	--admin-sans: Arial, Helvetica, sans-serif;
@@ -37,6 +42,7 @@ body {
 	min-width: 20rem;
 	min-height: 100vh;
 	margin: 0;
+	overflow-x: clip;
 	background: var(--admin-background);
 	color: var(--admin-light);
 	font-family: var(--admin-sans);
@@ -68,12 +74,12 @@ a {
 	transform: translateY(0);
 }
 
-/* The compact header names the private area without copying public navigation. */
+/* The authenticated header combines identity, primary navigation, and logout. */
 .admin-header {
-	display: flex;
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
 	align-items: center;
-	justify-content: space-between;
-	gap: 1.5rem;
+	gap: clamp(1.25rem, 4vw, 4rem);
 	min-height: 5rem;
 	padding: 1rem var(--admin-gutter);
 	border-bottom: 1px solid var(--admin-light-rule);
@@ -83,6 +89,8 @@ a {
 	display: inline-flex;
 	align-items: baseline;
 	gap: 0.7rem;
+	min-height: 2.75rem;
+	padding-block: 0.65rem;
 	text-decoration: none;
 }
 
@@ -105,6 +113,51 @@ a {
 	color: rgba(244, 239, 229, 0.65);
 }
 
+/* Workspace elements may wrap without forcing the document wider than it is. */
+.admin-header__workspace,
+.admin-header__session,
+.admin-nav__list {
+	display: flex;
+	align-items: center;
+}
+
+.admin-header__workspace {
+	justify-content: flex-end;
+	gap: clamp(1rem, 3vw, 3rem);
+	min-width: 0;
+}
+
+.admin-nav__list {
+	gap: 0.35rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.admin-nav__link {
+	display: inline-flex;
+	align-items: center;
+	min-height: 2.75rem;
+	padding: 0.65rem 0.8rem;
+	border-bottom: 2px solid transparent;
+	font-size: 0.75rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-decoration: none;
+	text-transform: uppercase;
+}
+
+/* The underline and aria-current attribute identify the active workspace. */
+.admin-nav__link--active {
+	border-bottom-color: currentColor;
+}
+
+.admin-header__session {
+	justify-content: flex-end;
+	gap: 1rem;
+	min-width: 0;
+}
+
 .admin-header__identity {
 	display: flex;
 	flex-wrap: wrap;
@@ -114,6 +167,10 @@ a {
 	margin: 0;
 	color: rgba(244, 239, 229, 0.72);
 	overflow-wrap: anywhere;
+}
+
+.admin-header__logout {
+	flex: 0 0 auto;
 }
 
 /* Login uses one centered editorial panel and remains usable without scripts. */
@@ -202,9 +259,21 @@ a {
 .admin-form__field input:focus,
 .admin-button:focus-visible,
 .admin-text-button:focus-visible,
-.admin-brand:focus-visible {
+.admin-brand:focus-visible,
+.admin-nav__link:focus-visible,
+.admin-primary-link:focus-visible,
+.admin-secondary-link:focus-visible,
+.admin-back-link:focus-visible,
+.admin-inquiry-card h2 a:focus-visible {
 	outline: 3px solid var(--admin-focus);
 	outline-offset: 3px;
+}
+
+/* A darker focus color keeps the same three-pixel outline clear on cream. */
+.admin-login .admin-form__field input:focus,
+.admin-login .admin-button:focus-visible,
+.admin-login .admin-alert:focus {
+	outline-color: var(--admin-focus-on-light);
 }
 
 .admin-button {
@@ -217,7 +286,7 @@ a {
 	cursor: pointer;
 }
 
-/* Dashboard content stays deliberately sparse until private tools are designed. */
+/* The overview stays sparse and points to focused private workflows. */
 .admin-dashboard {
 	display: grid;
 	grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 0.75fr);
@@ -242,6 +311,35 @@ a {
 	margin: 2rem 0 0;
 	color: rgba(244, 239, 229, 0.72);
 	font-size: clamp(1rem, 1.4vw, 1.25rem);
+}
+
+/* Bordered editorial links provide a clear, comfortably sized primary action. */
+.admin-primary-link {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 2.75rem;
+	margin-top: 2rem;
+	padding: 0.7rem 1rem;
+	border: 1px solid currentColor;
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-decoration: none;
+	text-transform: uppercase;
+}
+
+/* Secondary pagination links retain the same target size without a filled box. */
+.admin-secondary-link {
+	display: inline-flex;
+	align-items: center;
+	min-height: 2.75rem;
+	padding: 0.55rem 0;
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-underline-offset: 0.3em;
+	text-transform: uppercase;
 }
 
 .admin-dashboard__status {
@@ -280,15 +378,9 @@ a {
 	color: var(--admin-ink-soft);
 }
 
-.admin-logout {
-	grid-column: 1 / -1;
-	border-top: 1px solid var(--admin-light-rule);
-	padding-top: 1.5rem;
-}
-
 .admin-text-button {
 	min-height: 2.75rem;
-	padding: 0;
+	padding: 0.55rem 0.25rem;
 	border: 0;
 	background: transparent;
 	color: var(--admin-light);
@@ -297,8 +389,272 @@ a {
 	cursor: pointer;
 }
 
+/* Inquiry routes share a bounded content column and generous reading space. */
+.admin-inquiries,
+.admin-inquiry-detail {
+	width: 100%;
+	max-width: 90rem;
+	margin-inline: auto;
+	padding: clamp(2.5rem, 7vw, 7rem) var(--admin-gutter);
+}
+
+.admin-page-header {
+	max-width: 52rem;
+}
+
+.admin-page-header h1,
+.admin-inquiry-record h1,
+.admin-inquiry-record h2,
+.admin-empty-state h2 {
+	margin: 0;
+	font-family: var(--admin-serif);
+	font-weight: 400;
+	line-height: 1.05;
+	overflow-wrap: anywhere;
+}
+
+.admin-page-header h1,
+.admin-inquiry-record h1 {
+	font-size: clamp(2.6rem, 7vw, 6.5rem);
+}
+
+.admin-page-header__lede {
+	max-width: 43rem;
+	margin: 1.5rem 0 0;
+	color: rgba(244, 239, 229, 0.72);
+	font-size: clamp(1rem, 1.5vw, 1.2rem);
+}
+
+/* Back links keep the hierarchy understandable without browser scripting. */
+.admin-back-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.55rem;
+	min-height: 2.75rem;
+	margin-bottom: clamp(2rem, 5vw, 4rem);
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-underline-offset: 0.3em;
+	text-transform: uppercase;
+}
+
+/* The ordered inbox remains meaningful to assistive technology after styling. */
+.admin-inquiry-list {
+	margin: clamp(2.5rem, 6vw, 5rem) 0 0;
+	padding: 0;
+	border-top: 1px solid var(--admin-light-rule);
+	list-style: none;
+}
+
+.admin-inquiry-list__item {
+	border-bottom: 1px solid var(--admin-light-rule);
+}
+
+.admin-inquiry-card {
+	min-width: 0;
+	padding: clamp(1.5rem, 4vw, 2.5rem) 0;
+}
+
+.admin-inquiry-card__heading,
+.admin-inquiry-card__meta,
+.admin-inquiry-record__header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.admin-inquiry-reference,
+.admin-inquiry-card__meta,
+.admin-inquiry-facts dt {
+	font-size: 0.75rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.admin-inquiry-reference,
+.admin-inquiry-card__meta p,
+.admin-inquiry-card__meta time {
+	margin: 0;
+}
+
+.admin-inquiry-reference,
+.admin-inquiry-card__meta {
+	color: rgba(244, 239, 229, 0.68);
+}
+
+.admin-inquiry-card h2 {
+	margin: 1rem 0;
+	font-family: var(--admin-serif);
+	font-size: clamp(1.8rem, 4vw, 3.4rem);
+	font-weight: 400;
+	line-height: 1.08;
+	overflow-wrap: anywhere;
+}
+
+.admin-inquiry-card h2 a {
+	display: inline-flex;
+	align-items: center;
+	min-height: 2.75rem;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.15em;
+}
+
+.admin-inquiry-card__meta {
+	flex-wrap: wrap;
+}
+
+/* Status remains textual; color adds emphasis but never carries meaning alone. */
+.admin-inquiry-status {
+	flex: 0 0 auto;
+	margin: 0;
+	padding: 0.35rem 0.55rem;
+	border: 1px solid currentColor;
+	font-size: 0.68rem;
+	font-weight: 700;
+	letter-spacing: 0.1em;
+	line-height: 1.3;
+	text-transform: uppercase;
+}
+
+.admin-inquiry-status--new {
+	color: #e5b875;
+}
+
+.admin-inquiry-status--reviewed {
+	color: #9bc8af;
+}
+
+.admin-inquiry-status--archived {
+	color: rgba(244, 239, 229, 0.68);
+}
+
+.admin-pagination {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 1rem;
+	flex-wrap: wrap;
+	padding-top: 1.5rem;
+}
+
+.admin-pagination .admin-secondary-link:first-child:not(:last-child) {
+	margin-right: auto;
+}
+
+.admin-pagination .admin-primary-link {
+	margin-top: 0;
+}
+
+.admin-empty-state {
+	margin-top: clamp(2.5rem, 6vw, 5rem);
+	padding: clamp(1.5rem, 5vw, 3rem);
+	border: 1px solid var(--admin-light-rule);
+}
+
+.admin-empty-state h2 {
+	font-size: clamp(2rem, 5vw, 3.5rem);
+}
+
+.admin-empty-state p {
+	margin: 1rem 0 0;
+	color: rgba(244, 239, 229, 0.72);
+}
+
+.admin-empty-state .admin-secondary-link {
+	margin-top: 1rem;
+}
+
+/* Detail content uses a light reading surface for long contact information. */
+.admin-inquiry-record {
+	min-width: 0;
+	padding: clamp(1.5rem, 5vw, 4.5rem);
+	background: var(--admin-surface);
+	color: var(--admin-ink);
+}
+
+.admin-inquiry-record__header > div {
+	min-width: 0;
+}
+
+.admin-inquiry-record .admin-inquiry-status--new {
+	color: var(--admin-status-new);
+}
+
+.admin-inquiry-record .admin-inquiry-status--reviewed {
+	color: var(--admin-status-reviewed);
+}
+
+.admin-inquiry-record .admin-inquiry-status--archived {
+	color: var(--admin-status-archived);
+}
+
+.admin-inquiry-facts {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	margin: clamp(2rem, 5vw, 4rem) 0 0;
+	border-top: 1px solid var(--admin-rule);
+	border-bottom: 1px solid var(--admin-rule);
+}
+
+.admin-inquiry-facts div {
+	min-width: 0;
+	padding: 1.25rem;
+	border-right: 1px solid var(--admin-rule);
+}
+
+.admin-inquiry-facts div:first-child {
+	padding-left: 0;
+}
+
+.admin-inquiry-facts div:last-child {
+	padding-right: 0;
+	border-right: 0;
+}
+
+.admin-inquiry-facts dt {
+	color: var(--admin-ink-soft);
+}
+
+.admin-inquiry-facts dd {
+	min-width: 0;
+	margin: 0.55rem 0 0;
+	overflow-wrap: anywhere;
+	word-break: break-word;
+}
+
+.admin-inquiry-message-section {
+	margin-top: clamp(2.5rem, 6vw, 5rem);
+}
+
+.admin-inquiry-message-section h2 {
+	font-size: clamp(1.8rem, 4vw, 3rem);
+}
+
+.admin-inquiry-message {
+	max-width: 70ch;
+	margin: 1.5rem 0 0;
+	font-family: var(--admin-serif);
+	font-size: clamp(1.1rem, 2vw, 1.4rem);
+	line-height: 1.65;
+	overflow-wrap: anywhere;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
 /* Tablet and phone layouts follow semantic source order without overflow. */
 @media (max-width: 52rem) {
+	.admin-header {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0.5rem;
+	}
+
+	.admin-header__workspace {
+		justify-content: space-between;
+	}
+
 	.admin-dashboard {
 		grid-template-columns: minmax(0, 1fr);
 	}
@@ -309,18 +665,58 @@ a {
 }
 
 @media (max-width: 36rem) {
-	.admin-header {
+	.admin-brand__area {
+		display: none;
+	}
+
+	.admin-header__workspace,
+	.admin-header__session {
 		align-items: flex-start;
 		flex-direction: column;
+	}
+
+	.admin-header__workspace {
+		gap: 0.5rem;
+	}
+
+	.admin-header__session {
+		width: 100%;
+		gap: 0;
 	}
 
 	.admin-header__identity {
 		justify-content: flex-start;
 	}
 
+	.admin-nav__list {
+		flex-wrap: wrap;
+	}
+
 	.admin-access-list div {
 		grid-template-columns: minmax(0, 1fr);
 		gap: 0.4rem;
+	}
+
+	.admin-inquiry-card__heading,
+	.admin-inquiry-record__header {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.admin-inquiry-facts {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.admin-inquiry-facts div,
+	.admin-inquiry-facts div:first-child,
+	.admin-inquiry-facts div:last-child {
+		padding: 1rem 0;
+		border-right: 0;
+		border-bottom: 1px solid var(--admin-rule);
+	}
+
+	.admin-inquiry-facts div:last-child {
+		border-bottom: 0;
 	}
 }
 
@@ -328,11 +724,19 @@ a {
 @media (forced-colors: active) {
 	.admin-login__panel,
 	.admin-dashboard__status,
+	.admin-inquiry-record,
+	.admin-empty-state,
 	.admin-form__field input,
 	.admin-button,
-	.admin-alert {
+	.admin-alert,
+	.admin-inquiry-status,
+	.admin-primary-link {
 		border: 2px solid CanvasText;
+	}
+
+	.admin-nav__link--active {
+		border-bottom-color: LinkText;
 	}
 }
 
-/* Stage 15 introduces no animation or transition requiring motion overrides. */
+/* These admin stages introduce no animation requiring a reduced-motion rule. */

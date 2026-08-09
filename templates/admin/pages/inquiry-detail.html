@@ -1,0 +1,55 @@
+{{/*
+The detail page is deliberately read-only. Each visitor-supplied value remains
+ordinary template text so html/template escapes it; no field is promoted to
+template.HTML. The message preserves intentional line breaks through CSS rather
+than injecting markup into the stored value.
+*/}}
+{{define "admin-content"}}
+<main class="admin-inquiry-detail" id="admin-main-content">
+	<a class="admin-back-link" href="/admin/inquiries">
+		<span aria-hidden="true">&larr;</span>
+		Inquiry inbox
+	</a>
+
+	<article class="admin-inquiry-record" aria-labelledby="admin-inquiry-title">
+		<header class="admin-inquiry-record__header">
+			<div>
+				<p class="admin-eyebrow">Inquiry {{.InquiryDetail.Reference}}</p>
+
+				<h1 id="admin-inquiry-title">{{.InquiryDetail.Name}}</h1>
+			</div>
+
+			<p class="admin-inquiry-status admin-inquiry-status--{{.InquiryDetail.StatusClass}}">
+				{{.InquiryDetail.StatusLabel}}
+			</p>
+		</header>
+
+		<dl class="admin-inquiry-facts">
+			<div>
+				<dt>Email address</dt>
+				<dd>{{.InquiryDetail.Email}}</dd>
+			</div>
+
+			<div>
+				<dt>Discipline</dt>
+				<dd>{{.InquiryDetail.DisciplineLabel}}</dd>
+			</div>
+
+			<div>
+				<dt>Received</dt>
+				<dd>
+					<time datetime="{{.InquiryDetail.CreatedAtISO}}">
+						{{.InquiryDetail.CreatedAtLabel}}
+					</time>
+				</dd>
+			</div>
+		</dl>
+
+		<section class="admin-inquiry-message-section" aria-labelledby="admin-message-title">
+			<h2 id="admin-message-title">Project message</h2>
+
+			<p class="admin-inquiry-message">{{.InquiryDetail.Message}}</p>
+		</section>
+	</article>
+</main>
+{{end}}
