@@ -80,54 +80,161 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		t.Fatalf("close first locked migration session: %v", err)
 	}
 
-	assertMigrationIntegrationStatus(t, runner, false)
+	// A fresh database exposes the complete embedded history in order without
+	// claiming that either Stage 13 or Stage 14 has already been applied.
+	assertMigrationIntegrationStatus(t, runner, false, false)
 
 	applied, err := runner.Up(t.Context())
 	if err != nil {
-		t.Fatalf("apply embedded migration: %v", err)
+		t.Fatalf("apply embedded migrations: %v", err)
 	}
-	if len(applied) != 1 || applied[0].Version != 1 {
-		t.Fatalf("applied migrations: got %#v, want version 1", applied)
+	if len(applied) != 2 ||
+		applied[0].Version != 1 ||
+		applied[1].Version != 2 {
+		t.Fatalf("applied migrations: got %#v, want versions 1 and 2", applied)
 	}
-	assertMigrationIntegrationStatus(t, runner, true)
+	assertMigrationIntegrationStatus(t, runner, true, true)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
+	assertMigrationIntegrationColumnExists(
+		t,
+		database,
+		"inquiries",
+		"submission_key",
+		true,
+	)
 
-	// Repeating up must not execute or report an already-applied migration.
+	// Repeating up must not execute or report either already-applied migration.
 	applied, err = runner.Up(t.Context())
 	if err != nil {
-		t.Fatalf("repeat embedded migration: %v", err)
+		t.Fatalf("repeat embedded migrations: %v", err)
 	}
 	if len(applied) != 0 {
 		t.Fatalf("repeated up applied %d migration(s), want zero", len(applied))
 	}
 
-	assertMigrationIntegrationAtomicFailure(t, database, catalog)
-	assertMigrationIntegrationStatus(t, runner, true)
+	// Two rows created under version 000002 become representative legacy rows
+	// when that migration is rolled back. Distinct fixed-width keys satisfy the
+	// current schema while the contact values give the rollback a visible data-
+	// preservation contract to prove.
+	firstInquiryID := insertMigrationIntegrationInquiry(
+		t,
+		database,
+		0x11,
+		"Stage Fourteen Visitor",
+		"visitor@example.test",
+	)
+	secondInquiryID := insertMigrationIntegrationInquiry(
+		t,
+		database,
+		0x22,
+		"Second Stage Visitor",
+		"second@example.test",
+	)
 
+	// Down intentionally rolls back only the newest applied migration. Version
+	// 000001 and its inquiry rows must remain while only the Stage 14 key column
+	// and ledger entry disappear.
 	rolledBack, err := runner.Down(t.Context())
 	if err != nil {
-		t.Fatalf("roll back embedded migration: %v", err)
+		t.Fatalf("roll back Stage 14 migration: %v", err)
+	}
+	if rolledBack == nil || rolledBack.Version != 2 {
+		t.Fatalf("rolled-back migration: got %#v, want version 2", rolledBack)
+	}
+	assertMigrationIntegrationStatus(t, runner, true, false)
+	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
+	assertMigrationIntegrationColumnExists(
+		t,
+		database,
+		"inquiries",
+		"submission_key",
+		false,
+	)
+	assertMigrationIntegrationInquiryContact(
+		t,
+		database,
+		firstInquiryID,
+		"Stage Fourteen Visitor",
+		"visitor@example.test",
+	)
+	assertMigrationIntegrationInquiryContact(
+		t,
+		database,
+		secondInquiryID,
+		"Second Stage Visitor",
+		"second@example.test",
+	)
+
+	// Reapplying with version 000001 still present plans only version 000002. Its
+	// legacy-row backfill must restore one non-null, 32-byte, distinct key per
+	// preserved inquiry without changing either visitor's name or email.
+	applied, err = runner.Up(t.Context())
+	if err != nil {
+		t.Fatalf("reapply Stage 14 migration: %v", err)
+	}
+	if len(applied) != 1 || applied[0].Version != 2 {
+		t.Fatalf("reapplied migrations: got %#v, want version 2", applied)
+	}
+	assertMigrationIntegrationStatus(t, runner, true, true)
+	assertMigrationIntegrationBackfilledKeys(t, database, 2)
+	assertMigrationIntegrationInquiryContact(
+		t,
+		database,
+		firstInquiryID,
+		"Stage Fourteen Visitor",
+		"visitor@example.test",
+	)
+	assertMigrationIntegrationInquiryContact(
+		t,
+		database,
+		secondInquiryID,
+		"Second Stage Visitor",
+		"second@example.test",
+	)
+
+	// A synthetic version 000003 fails after executing DDL. PostgreSQL must roll
+	// back that DDL while retaining both successfully applied embedded versions.
+	assertMigrationIntegrationAtomicFailure(t, database, catalog)
+	assertMigrationIntegrationStatus(t, runner, true, true)
+
+	// Two explicit rollback calls prove the runner reverses the catalog one
+	// migration at a time: first the Stage 14 key, then the Stage 13 table.
+	rolledBack, err = runner.Down(t.Context())
+	if err != nil {
+		t.Fatalf("roll back Stage 14 migration before full rollback: %v", err)
+	}
+	if rolledBack == nil || rolledBack.Version != 2 {
+		t.Fatalf("rolled-back migration: got %#v, want version 2", rolledBack)
+	}
+	assertMigrationIntegrationStatus(t, runner, true, false)
+	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
+
+	rolledBack, err = runner.Down(t.Context())
+	if err != nil {
+		t.Fatalf("roll back Stage 13 migration: %v", err)
 	}
 	if rolledBack == nil || rolledBack.Version != 1 {
 		t.Fatalf("rolled-back migration: got %#v, want version 1", rolledBack)
 	}
 	assertMigrationIntegrationTableExists(t, database, "inquiries", false)
-	assertMigrationIntegrationStatus(t, runner, false)
+	assertMigrationIntegrationStatus(t, runner, false, false)
 
 	if _, err := runner.Down(t.Context()); !errors.Is(err, errNoAppliedMigrations) {
 		t.Fatalf("empty rollback: got %v, want no applied migrations", err)
 	}
 
-	// Reapply after rollback so the complete status/up/status/down/status/up
-	// operator cycle finishes on the current schema before test cleanup.
+	// Reapply after the full rollback so the destructive operator cycle finishes
+	// on the complete current schema before the test-owned cleanup executes.
 	applied, err = runner.Up(t.Context())
 	if err != nil {
-		t.Fatalf("reapply embedded migration: %v", err)
+		t.Fatalf("reapply embedded migrations after full rollback: %v", err)
 	}
-	if len(applied) != 1 || applied[0].Version != 1 {
-		t.Fatalf("reapplied migrations: got %#v, want version 1", applied)
+	if len(applied) != 2 ||
+		applied[0].Version != 1 ||
+		applied[1].Version != 2 {
+		t.Fatalf("reapplied migrations: got %#v, want versions 1 and 2", applied)
 	}
-	assertMigrationIntegrationStatus(t, runner, true)
+	assertMigrationIntegrationStatus(t, runner, true, true)
 }
 
 // loadMigrationIntegrationConfig requires two explicit environment values and
@@ -250,12 +357,16 @@ func cleanupMigrationIntegrationSchema(t *testing.T, database *sql.DB) {
 	}
 }
 
-// assertMigrationIntegrationStatus checks the single embedded migration's
-// expected ledger state after the runner has validated the complete history.
+// assertMigrationIntegrationStatus checks every embedded migration's ordered
+// ledger state after the runner has validated the complete history.
+//
+// The Boolean arguments map positionally to contiguous versions beginning at
+// version 000001. Keeping the expected state explicit at each call site makes
+// the one-migration-at-a-time Down behavior visible in the integration cycle.
 func assertMigrationIntegrationStatus(
 	t *testing.T,
 	runner *migrationRunner,
-	applied bool,
+	expectedApplied ...bool,
 ) {
 	t.Helper()
 
@@ -263,14 +374,27 @@ func assertMigrationIntegrationStatus(
 	if err != nil {
 		t.Fatalf("read migration status: %v", err)
 	}
-	if len(statuses) != 1 ||
-		statuses[0].Migration.Version != 1 ||
-		statuses[0].Applied != applied {
+	if len(statuses) != len(expectedApplied) {
 		t.Fatalf(
-			"migration status: got %#v, want version 1 applied=%t",
+			"migration status count: got %d (%#v), want %d",
+			len(statuses),
 			statuses,
-			applied,
+			len(expectedApplied),
 		)
+	}
+
+	for index, applied := range expectedApplied {
+		expectedVersion := int64(index + 1)
+		if statuses[index].Migration.Version != expectedVersion ||
+			statuses[index].Applied != applied {
+			t.Fatalf(
+				"migration status %d: got %#v, want version %d applied=%t",
+				index,
+				statuses[index],
+				expectedVersion,
+				applied,
+			)
+		}
 	}
 }
 
@@ -302,6 +426,157 @@ func assertMigrationIntegrationTableExists(
 	}
 }
 
+// assertMigrationIntegrationColumnExists compares one owned public-table
+// column with PostgreSQL's information schema. Table and column names remain
+// query parameters so the helper never builds SQL from identifiers.
+func assertMigrationIntegrationColumnExists(
+	t *testing.T,
+	database *sql.DB,
+	tableName string,
+	columnName string,
+	expected bool,
+) {
+	t.Helper()
+
+	var exists bool
+	if err := database.QueryRowContext(
+		t.Context(),
+		`SELECT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = $1
+      AND column_name = $2
+)`,
+		tableName,
+		columnName,
+	).Scan(&exists); err != nil {
+		t.Fatalf(
+			"inspect migration integration column %q.%q",
+			tableName,
+			columnName,
+		)
+	}
+	if exists != expected {
+		t.Errorf(
+			"column %q.%q existence: got %t, want %t",
+			tableName,
+			columnName,
+			exists,
+			expected,
+		)
+	}
+}
+
+// insertMigrationIntegrationInquiry creates one deterministic Stage 14 row and
+// returns its database identity for data-preservation assertions. Repeating one
+// byte fills the required 32-byte key without embedding visitor data into it.
+func insertMigrationIntegrationInquiry(
+	t *testing.T,
+	database *sql.DB,
+	keyByte byte,
+	name string,
+	email string,
+) int64 {
+	t.Helper()
+
+	submissionKey := make([]byte, 32)
+	for index := range submissionKey {
+		submissionKey[index] = keyByte
+	}
+
+	var inquiryID int64
+	if err := database.QueryRowContext(
+		t.Context(),
+		`INSERT INTO public.inquiries (
+    submission_key,
+    name,
+    email,
+    discipline,
+    message
+) VALUES ($1, $2, $3, $4, $5)
+RETURNING id`,
+		submissionKey,
+		name,
+		email,
+		"products",
+		"Migration integration test inquiry.",
+	).Scan(&inquiryID); err != nil {
+		t.Fatal("insert migration integration inquiry")
+	}
+
+	return inquiryID
+}
+
+// assertMigrationIntegrationInquiryContact proves a migration preserved the
+// exact stored name and email for one inquiry. Failure text deliberately omits
+// the values because integration diagnostics should not normalize logging PII.
+func assertMigrationIntegrationInquiryContact(
+	t *testing.T,
+	database *sql.DB,
+	inquiryID int64,
+	expectedName string,
+	expectedEmail string,
+) {
+	t.Helper()
+
+	var name string
+	var email string
+	if err := database.QueryRowContext(
+		t.Context(),
+		`SELECT name, email
+FROM public.inquiries
+WHERE id = $1`,
+		inquiryID,
+	).Scan(&name, &email); err != nil {
+		t.Fatal("read migration integration inquiry contact")
+	}
+	if name != expectedName || email != expectedEmail {
+		t.Error("migration changed the stored inquiry name or email")
+	}
+}
+
+// assertMigrationIntegrationBackfilledKeys verifies that every preserved row
+// received a required-width key and that no two rows received the same value.
+// Distinctness complements the database UNIQUE constraint with evidence that
+// the legacy-row UPDATE populated multiple rows successfully in PostgreSQL.
+func assertMigrationIntegrationBackfilledKeys(
+	t *testing.T,
+	database *sql.DB,
+	expectedRows int,
+) {
+	t.Helper()
+
+	var rowCount int
+	var validLengthCount int
+	var distinctKeyCount int
+	if err := database.QueryRowContext(
+		t.Context(),
+		`SELECT
+    COUNT(*),
+    COUNT(*) FILTER (WHERE octet_length(submission_key) = 32),
+    COUNT(DISTINCT submission_key)
+FROM public.inquiries`,
+	).Scan(
+		&rowCount,
+		&validLengthCount,
+		&distinctKeyCount,
+	); err != nil {
+		t.Fatal("inspect backfilled migration integration keys")
+	}
+	if rowCount != expectedRows ||
+		validLengthCount != expectedRows ||
+		distinctKeyCount != expectedRows {
+		t.Errorf(
+			"backfilled keys: rows=%d valid-length=%d distinct=%d, want %d each",
+			rowCount,
+			validLengthCount,
+			distinctKeyCount,
+			expectedRows,
+		)
+	}
+}
+
 // assertMigrationIntegrationAtomicFailure proves that a later statement error
 // rolls back an earlier DDL statement and does not create a ledger row.
 func assertMigrationIntegrationAtomicFailure(
@@ -312,7 +587,10 @@ func assertMigrationIntegrationAtomicFailure(
 	t.Helper()
 
 	failingMigration := migrationDefinition{
-		Version: 2,
+		// Versions 000001 and 000002 are the real embedded history. The probe
+		// therefore uses the next contiguous version instead of colliding with the
+		// Stage 14 definition during catalog validation.
+		Version: 3,
 		Name:    "prove_atomicity",
 		UpSQL: `CREATE TABLE public.stage13_atomicity_probe (id bigint);
 SELECT * FROM public.stage13_intentionally_missing_table;`,
@@ -354,7 +632,7 @@ SELECT * FROM public.stage13_intentionally_missing_table;`,
 	).Scan(&ledgerRows); err != nil {
 		t.Fatal("count migration integration ledger rows")
 	}
-	if ledgerRows != 1 {
-		t.Errorf("ledger rows after failed migration: got %d, want 1", ledgerRows)
+	if ledgerRows != 2 {
+		t.Errorf("ledger rows after failed migration: got %d, want 2", ledgerRows)
 	}
 }

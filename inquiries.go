@@ -21,17 +21,42 @@ const (
 	// inquiryEmailMaxLength provides a practical upper boundary before the
 	// normalized address is checked by net/mail.
 	inquiryEmailMaxLength = 254
-	// inquiryMessageMaxLength keeps the structural preview concise and bounds
+	// inquiryMessageMaxLength keeps the inquiry concise and bounds
 	// the amount of personal text reflected into a validation response.
 	inquiryMessageMaxLength = 3000
 	// inquiryCSRFTokenByteLength gives every token 256 bits of randomness.
 	inquiryCSRFTokenByteLength = 32
+	// inquirySubmissionTokenByteLength gives every per-form idempotency key 256
+	// bits of randomness, independently from the reusable CSRF token.
+	inquirySubmissionTokenByteLength = 32
 	// inquiryCSRFCookieName is deliberately scoped to the Contact route and does
 	// not represent an authenticated user session.
 	inquiryCSRFCookieName = "zafarmand_inquiry_csrf"
 	// inquiryCSRFFieldName is the hidden POST field paired with the protected
 	// cookie by the double-submit comparison.
 	inquiryCSRFFieldName = "csrf_token"
+	// inquirySubmissionFieldName names the hidden per-form value that becomes the
+	// database submission_key only after strict decoding and form validation.
+	inquirySubmissionFieldName = "submission_token"
+)
+
+// inquirySubmissionState identifies the mutually exclusive response rendered
+// with the Contact form.
+//
+// The zero value is the ordinary initial or validation state. Named non-zero
+// values make it impossible for one call to request contradictory outcomes.
+type inquirySubmissionState uint8
+
+const (
+	// inquirySubmissionStateForm renders no repository outcome message.
+	inquirySubmissionStateForm inquirySubmissionState = iota
+	// inquirySubmissionStateSucceeded renders the one-time persisted confirmation.
+	inquirySubmissionStateSucceeded
+	// inquirySubmissionStateFailed renders a safe, retryable persistence failure.
+	inquirySubmissionStateFailed
+	// inquirySubmissionStateConflict renders a safe permanent-key collision and
+	// supplies a new token for a genuinely new submission attempt.
+	inquirySubmissionStateConflict
 )
 
 // inquiryDisciplineOptions returns a new ordered option slice for each Contact
@@ -86,6 +111,7 @@ func normalizeInquiryForm(postForm url.Values) inquiryFormData {
 func inquiryFormHasDuplicateValues(postForm url.Values) bool {
 	fieldNames := [...]string{
 		inquiryCSRFFieldName,
+		inquirySubmissionFieldName,
 		"name",
 		"email",
 		"discipline",
@@ -112,6 +138,10 @@ func validateInquiryForm(form inquiryFormData) inquiryFormErrors {
 
 	if !utf8.ValidString(form.Name) {
 		formErrors.Name = "Name contains invalid text encoding."
+	} else if strings.ContainsRune(form.Name, '\x00') {
+		// PostgreSQL text values cannot contain U+0000. Reject it as visitor input
+		// instead of allowing a predictable database error to become a false 503.
+		formErrors.Name = "Name contains an unsupported character."
 	} else if form.Name == "" {
 		formErrors.Name = "Enter your name."
 	} else if utf8.RuneCountInString(
@@ -122,6 +152,10 @@ func validateInquiryForm(form inquiryFormData) inquiryFormErrors {
 
 	if !utf8.ValidString(form.Email) {
 		formErrors.Email = "Email contains invalid text encoding."
+	} else if strings.ContainsRune(form.Email, '\x00') {
+		// Keep the address boundary explicit even though net/mail also rejects NUL;
+		// validation must stay aligned with PostgreSQL before repository access.
+		formErrors.Email = "Email contains an unsupported character."
 	} else if form.Email == "" {
 		formErrors.Email = "Enter your email address."
 	} else if utf8.RuneCountInString(
@@ -138,6 +172,10 @@ func validateInquiryForm(form inquiryFormData) inquiryFormErrors {
 
 	if !utf8.ValidString(form.Message) {
 		formErrors.Message = "Message contains invalid text encoding."
+	} else if strings.ContainsRune(form.Message, '\x00') {
+		// PostgreSQL rejects NUL in text columns, so the form reports an actionable
+		// field error without attempting a persistence call.
+		formErrors.Message = "Message contains an unsupported character."
 	} else if form.Message == "" {
 		formErrors.Message = "Enter an inquiry message."
 	} else if utf8.RuneCountInString(
@@ -161,7 +199,7 @@ func isExactInquiryEmail(value string) bool {
 }
 
 // inquiryDisciplineLabel resolves one submitted machine value to server-owned
-// visible copy. Unknown values never become labels in the preview.
+// visible copy. Unknown values never become trusted interface text.
 func inquiryDisciplineLabel(value string) (string, bool) {
 	for _, option := range inquiryDisciplineOptions() {
 		if option.Value == value {
@@ -182,42 +220,40 @@ func hasInquiryFormErrors(formErrors inquiryFormErrors) bool {
 		formErrors.Message != ""
 }
 
-// newInquiryPreview maps a validated form to the narrow display-only shape used
-// by the confirmation preview.
-//
-// The returned value contains no delivery status, identifier, timestamp, or
-// persistence metadata because Stage 12 performs none of those actions.
-func newInquiryPreview(form inquiryFormData) inquiryPreviewData {
-	disciplineLabel, _ := inquiryDisciplineLabel(form.Discipline)
-
-	return inquiryPreviewData{
-		Name:            form.Name,
-		Email:           form.Email,
-		DisciplineLabel: disciplineLabel,
-		Message:         form.Message,
-	}
-}
-
 // newContactPageData builds the complete view model shared by the initial form,
-// validation response, and valid non-persistent preview states.
+// validation response, persistence failure, key conflict, and redirected
+// success states.
 func newContactPageData(
 	csrfToken string,
+	submissionToken string,
 	form inquiryFormData,
 	formErrors inquiryFormErrors,
-	preview *inquiryPreviewData,
+	submissionState inquirySubmissionState,
 ) *contactPageData {
+	hasErrors := hasInquiryFormErrors(formErrors)
+	// Field validation takes precedence over a repository outcome. This invariant
+	// prevents a malformed future caller from rendering two mutually exclusive
+	// regions with the same contact-form-response fragment ID.
+	showSubmissionOutcome := !hasErrors
+
 	return &contactPageData{
 		Eyebrow:      "Contact",
-		Heading:      "Prepare your inquiry",
-		Introduction: "Choose a discipline and prepare the context for a future conversation with Zafarmand.",
-		AvailabilityNotice: "The server processes this information only " +
-			"to create the preview response. It is not delivered to the " +
-			"studio or saved.",
-		CSRFToken:         csrfToken,
-		Form:              form,
-		Errors:            formErrors,
-		HasErrors:         hasInquiryFormErrors(formErrors),
-		Preview:           preview,
+		Heading:      "Begin a conversation",
+		Introduction: "Choose a discipline and share the context Zafarmand should review.",
+		AvailabilityNotice: "Submitting this form stores your inquiry for " +
+			"studio review. It does not guarantee email delivery or a response " +
+			"time.",
+		CSRFToken:       csrfToken,
+		SubmissionToken: submissionToken,
+		Form:            form,
+		Errors:          formErrors,
+		HasErrors:       hasErrors,
+		SubmissionSucceeded: submissionState ==
+			inquirySubmissionStateSucceeded && showSubmissionOutcome,
+		SubmissionFailed: submissionState ==
+			inquirySubmissionStateFailed && showSubmissionOutcome,
+		SubmissionConflict: submissionState ==
+			inquirySubmissionStateConflict && showSubmissionOutcome,
 		DisciplineOptions: inquiryDisciplineOptions(),
 		NameMaxLength:     inquiryNameMaxLength,
 		EmailMaxLength:    inquiryEmailMaxLength,
@@ -300,11 +336,51 @@ func newInquiryCSRFToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(randomBytes), nil
 }
 
+// newInquirySubmissionToken creates the independent key for one rendered form.
+//
+// The Contact handler issues a new key for every fresh form render. Validation
+// and database-failure responses preserve that key so a safe retry cannot
+// create a duplicate row.
+func newInquirySubmissionToken() (string, error) {
+	randomBytes := make(
+		[]byte,
+		inquirySubmissionTokenByteLength,
+	)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return "", err
+	}
+
+	return base64.RawURLEncoding.EncodeToString(randomBytes), nil
+}
+
 // decodeInquiryCSRFToken verifies both base64url encoding and the exact token
 // size before a value participates in a security comparison.
 func decodeInquiryCSRFToken(value string) ([]byte, bool) {
-	decoded, err := base64.RawURLEncoding.DecodeString(value)
+	encoding := base64.RawURLEncoding.Strict()
+	decoded, err := encoding.DecodeString(value)
 	if err != nil || len(decoded) != inquiryCSRFTokenByteLength {
+		return nil, false
+	}
+	if encoding.EncodeToString(decoded) != value {
+		return nil, false
+	}
+
+	return decoded, true
+}
+
+// decodeInquirySubmissionToken accepts only an unpadded base64url value that
+// represents the exact 32 bytes required by the database constraint.
+//
+// Returning decoded bytes keeps the repository input aligned with PostgreSQL's
+// bytea column and prevents an alternate textual encoding from representing the
+// same idempotency key.
+func decodeInquirySubmissionToken(value string) ([]byte, bool) {
+	encoding := base64.RawURLEncoding.Strict()
+	decoded, err := encoding.DecodeString(value)
+	if err != nil || len(decoded) != inquirySubmissionTokenByteLength {
+		return nil, false
+	}
+	if encoding.EncodeToString(decoded) != value {
 		return nil, false
 	}
 

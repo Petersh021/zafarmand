@@ -452,36 +452,38 @@ func TestLoadMigrationCatalogRejectsNonRegularEntries(t *testing.T) {
 	}
 }
 
-// TestEmbeddedMigrationCatalog verifies the production catalog contains only
-// the initial inquiry table and its exact reverse statement.
+// TestEmbeddedMigrationCatalog verifies the production catalog contains the
+// inquiry table followed by its idempotency key, with exact ordered identities
+// and independently reversible schema boundaries.
 func TestEmbeddedMigrationCatalog(t *testing.T) {
 	catalog, err := loadEmbeddedMigrationCatalog()
 	if err != nil {
 		t.Fatalf("load embedded migration catalog: %v", err)
 	}
-	if len(catalog) != 1 {
-		t.Fatalf("embedded catalog length: got %d, want 1", len(catalog))
+	if len(catalog) != 2 {
+		t.Fatalf("embedded catalog length: got %d, want 2", len(catalog))
 	}
 
-	definition := catalog[0]
-	if definition.Version != 1 || definition.Name != "create_inquiries" {
+	initialDefinition := catalog[0]
+	if initialDefinition.Version != 1 ||
+		initialDefinition.Name != "create_inquiries" {
 		t.Errorf(
 			"embedded migration identity: got %06d_%s",
-			definition.Version,
-			definition.Name,
+			initialDefinition.Version,
+			initialDefinition.Name,
 		)
 	}
 	expectedDownSQL := `-- Reverse only the exact table introduced by version 000001. Its strict form
 -- makes unexpected schema drift fail visibly instead of removing dependencies.
 DROP TABLE public.inquiries;
 `
-	if definition.DownSQL != expectedDownSQL {
+	if initialDefinition.DownSQL != expectedDownSQL {
 		t.Errorf(
 			"embedded down SQL: got %q, want exact DROP statement",
-			definition.DownSQL,
+			initialDefinition.DownSQL,
 		)
 	}
-	upperDownSQL := strings.ToUpper(definition.DownSQL)
+	upperDownSQL := strings.ToUpper(initialDefinition.DownSQL)
 	if strings.Contains(upperDownSQL, "CASCADE") ||
 		strings.Contains(upperDownSQL, "IF EXISTS") {
 		t.Error("embedded down SQL contains a forbidden DROP modifier")
@@ -508,8 +510,91 @@ DROP TABLE public.inquiries;
 	}
 
 	for _, expectedSQL := range expectedUpSQL {
-		if !strings.Contains(definition.UpSQL, expectedSQL) {
+		if !strings.Contains(initialDefinition.UpSQL, expectedSQL) {
 			t.Errorf("embedded up SQL does not contain %q", expectedSQL)
+		}
+	}
+
+	keyDefinition := catalog[1]
+	if keyDefinition.Version != 2 ||
+		keyDefinition.Name != "add_inquiry_submission_key" {
+		t.Errorf(
+			"embedded migration identity: got %06d_%s",
+			keyDefinition.Version,
+			keyDefinition.Name,
+		)
+	}
+
+	// These ordered fragments prove version 000002 first creates a nullable
+	// compatibility boundary, then backfills legacy rows, and only afterward
+	// enforces the fixed-width, required, and unique storage contract.
+	orderedUpSQL := []string{
+		"ADD COLUMN submission_key bytea;",
+		"UPDATE public.inquiries",
+		"decode(",
+		"md5(",
+		"WHERE submission_key IS NULL;",
+		"CONSTRAINT inquiries_submission_key_length",
+		"CHECK (octet_length(submission_key) = 32)",
+		"ALTER COLUMN submission_key SET NOT NULL;",
+		"CONSTRAINT inquiries_submission_key_unique",
+		"UNIQUE (submission_key);",
+	}
+	previousPosition := -1
+	for _, expectedSQL := range orderedUpSQL {
+		position := strings.Index(keyDefinition.UpSQL, expectedSQL)
+		if position < 0 {
+			t.Errorf("idempotency up SQL does not contain %q", expectedSQL)
+			continue
+		}
+		if position <= previousPosition {
+			t.Errorf("idempotency up SQL has %q out of order", expectedSQL)
+		}
+		previousPosition = position
+	}
+
+	// Exactly two decoded MD5 digests yield 32 bytes while keeping the initial
+	// backfill independent from optional PostgreSQL extensions.
+	if count := strings.Count(keyDefinition.UpSQL, "decode("); count != 2 {
+		t.Errorf("idempotency digest decode count: got %d, want 2", count)
+	}
+	upperUpSQL := strings.ToUpper(keyDefinition.UpSQL)
+	for _, forbiddenSQL := range []string{
+		"CREATE EXTENSION",
+		"GEN_RANDOM_BYTES",
+	} {
+		if strings.Contains(upperUpSQL, forbiddenSQL) {
+			t.Errorf("idempotency up SQL requires forbidden %q", forbiddenSQL)
+		}
+	}
+
+	// The reverse migration removes both named constraints before their column
+	// and deliberately leaves the inquiry table itself untouched.
+	orderedDownSQL := []string{
+		"DROP CONSTRAINT inquiries_submission_key_unique",
+		"DROP CONSTRAINT inquiries_submission_key_length",
+		"DROP COLUMN submission_key;",
+	}
+	previousPosition = -1
+	for _, expectedSQL := range orderedDownSQL {
+		position := strings.Index(keyDefinition.DownSQL, expectedSQL)
+		if position < 0 {
+			t.Errorf("idempotency down SQL does not contain %q", expectedSQL)
+			continue
+		}
+		if position <= previousPosition {
+			t.Errorf("idempotency down SQL has %q out of order", expectedSQL)
+		}
+		previousPosition = position
+	}
+	upperKeyDownSQL := strings.ToUpper(keyDefinition.DownSQL)
+	for _, forbiddenSQL := range []string{
+		"DROP TABLE",
+		"CASCADE",
+		"IF EXISTS",
+	} {
+		if strings.Contains(upperKeyDownSQL, forbiddenSQL) {
+			t.Errorf("idempotency down SQL contains forbidden %q", forbiddenSQL)
 		}
 	}
 }

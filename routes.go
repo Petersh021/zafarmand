@@ -57,15 +57,15 @@ func (app *application) routes() http.Handler {
 	)
 
 	// Contact uses separate method-aware handlers at one canonical URL. GET
-	// presents the protected form, while POST validates a display-only preview;
-	// neither route sends or persists visitor data during Stage 12.
+	// presents the protected form and consumes a one-time success receipt, while
+	// POST validates and persists through the injected inquiry repository.
 	mux.HandleFunc(
 		"GET /contact",
 		app.contactHandler,
 	)
 	mux.HandleFunc(
 		"POST /contact",
-		app.inquiryPreviewHandler,
+		app.inquirySubmissionHandler,
 	)
 
 	return mux

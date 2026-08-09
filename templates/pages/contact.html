@@ -1,13 +1,13 @@
 {{/*
 The Contact page is a separate template-cache entry discovered by the existing
-templates/pages glob. Stage 12 introduces a server-rendered inquiry preview
-without claiming that visitor details are delivered, stored, or managed yet.
+templates/pages glob. Stage 14 keeps the secure Stage 12 form boundary and adds
+truthful PostgreSQL persistence through Post/Redirect/Get.
 */}}
 
 {{/*
 Only the Contact route loads contact.css. base.html has already emitted the
 shared design foundation and navigation styles, so this route-specific file
-can own the editorial split, form controls, and opaque header treatment without
+can own the editorial split, form controls, and response treatment without
 leaking them into discipline, listing, or detail pages.
 */}}
 {{define "pageStyles"}}
@@ -38,7 +38,7 @@ page composition is withheld when that optional view model is absent.
 
 	<div class="contact-page__layout">
 		{{/*
-		The dark introduction contains the page's single h1 and only truthful
+		The dark introduction contains the page's single h1 and truthful
 		interface guidance. No address, telephone number, email address, response
 		time, office location, or social destination is invented for this stage.
 		*/}}
@@ -64,10 +64,9 @@ page composition is withheld when that optional view model is absent.
 			</div>
 
 			{{/*
-			This notice remains visible beside the form at every responsive state.
-			It explicitly explains that Preview inquiry is not a delivery action, so
-			visitors never mistake the current server-rendered exercise for contact
-			with the studio.
+			This notice remains visible beside the form at every responsive state. It
+			describes durable storage without inventing email delivery, availability,
+			or response-time promises.
 			*/}}
 			<p
 				class="contact-page__availability"
@@ -80,7 +79,7 @@ page composition is withheld when that optional view model is absent.
 		{{/*
 		The warm panel contains one labelled inquiry section. Its native POST form
 		works without JavaScript, while server-side data can repopulate values,
-		associate validation errors, and render a non-persistent preview response.
+		associate validation errors, and report the persistence outcome.
 		*/}}
 		<section
 			class="contact-page__inquiry"
@@ -88,7 +87,7 @@ page composition is withheld when that optional view model is absent.
 		>
 			<header class="contact-page__inquiry-header">
 				<p class="contact-page__inquiry-eyebrow">
-					Inquiry preview
+					Project inquiry
 				</p>
 
 				<h2
@@ -105,11 +104,11 @@ page composition is withheld when that optional view model is absent.
 
 			{{/*
 			The form posts back to its own registered route. Its fragment is not sent
-			to the server; after the response loads, the browser moves to the mutually
-			exclusive error summary or valid preview carrying that id. The hidden half
-			of a double-submit token lets the handler compare this request with its
-			protected cookie. Browser-native required and email validation provides an
-			immediate first layer; the handler remains authoritative.
+			to the server; a validation or persistence response renders the matching target,
+			while a durable write redirects a GET to the confirmation with that id. The
+			first hidden value completes the double-submit CSRF pair. The second is an
+			independent per-form idempotency key, preventing a retry from creating a
+			second database row. Browser validation remains only the first layer.
 			*/}}
 			<form
 				class="inquiry-form"
@@ -123,14 +122,58 @@ page composition is withheld when that optional view model is absent.
 					value="{{.CSRFToken}}"
 				>
 
+				<input
+					type="hidden"
+					name="submission_token"
+					value="{{.SubmissionToken}}"
+				>
+
 				{{/*
-				A response-level summary appears only when server validation finds an
-				error. Its shared response id receives the form-action fragment, while
-				tabindex=-1 makes it a focusable destination without adding it to the
-				normal Tab sequence. Native fragment links then move visitors to the exact
-				control that needs attention, including without JavaScript.
+				One response-level region appears for a key conflict, storage failure, or
+				field validation. Its shared response id receives the form-action fragment,
+				while tabindex=-1 makes it a focusable destination outside the normal Tab
+				sequence. Validation summaries add native fragment links to exact controls;
+				the two persistence outcomes give their distinct safe recovery guidance.
 				*/}}
-				{{if .HasErrors}}
+				{{if .SubmissionConflict}}
+				<div
+					class="inquiry-form__submission-error"
+					id="contact-form-response"
+					role="alert"
+					aria-labelledby="contact-submission-conflict-title"
+					tabindex="-1"
+				>
+					<h3
+						class="inquiry-form__error-summary-title"
+						id="contact-submission-conflict-title"
+					>
+						Please review this new inquiry
+					</h3>
+
+					<p>
+						This form was already used with different details. Your current information remains below in a fresh form; review your name and email, then submit again to start a new inquiry.
+					</p>
+				</div>
+				{{else if .SubmissionFailed}}
+				<div
+					class="inquiry-form__submission-error"
+					id="contact-form-response"
+					role="alert"
+					aria-labelledby="contact-submission-error-title"
+					tabindex="-1"
+				>
+					<h3
+						class="inquiry-form__error-summary-title"
+						id="contact-submission-error-title"
+					>
+						The inquiry could not be saved
+					</h3>
+
+					<p>
+						Your information remains in the form. Please try submitting it again.
+					</p>
+				</div>
+				{{else if .HasErrors}}
 				<div
 					class="inquiry-form__error-summary"
 					id="contact-form-response"
@@ -353,9 +396,9 @@ page composition is withheld when that optional view model is absent.
 				</div>
 
 				{{/*
-				The button truthfully requests only a preview. Its description points
-				back to the always-visible availability notice, making the lack of
-				delivery and storage explicit to sighted and non-sighted visitors.
+				The button names the durable action. Its description points back to the
+				always-visible notice so the storage and delivery boundaries are available
+				to sighted and non-sighted visitors before submission.
 				*/}}
 				<div class="inquiry-form__actions">
 					<button
@@ -363,67 +406,42 @@ page composition is withheld when that optional view model is absent.
 						type="submit"
 						aria-describedby="contact-availability"
 					>
-						Preview inquiry
+						Submit inquiry
 					</button>
 				</div>
 			</form>
 
 			{{/*
-			A preview exists only after a valid POST. The explicit inverse of
-			HasErrors guarantees that it can share the form-action response id with
-			the error summary without creating duplicate ids. tabindex=-1 makes the
-			fragment destination focusable without adding an extra Tab stop. The
-			section repeats the truthful non-delivery state and uses a description list
-			for submitted label/value relationships; html/template escapes every value.
+			The confirmation exists only on the redirected GET carrying a valid signed
+			one-time receipt. It contains no visitor values, database identifier, or
+			claim of email delivery. tabindex=-1 makes the fragment destination visibly
+			focusable without adding another stop to the normal Tab sequence.
 			*/}}
-			{{if not .HasErrors}}
-			{{with .Preview}}
+			{{if .SubmissionSucceeded}}
 			<section
-				class="inquiry-preview"
+				class="inquiry-confirmation"
 				id="contact-form-response"
-				aria-labelledby="contact-preview-title"
+				aria-labelledby="contact-confirmation-title"
+				role="status"
 				tabindex="-1"
 			>
-				<header class="inquiry-preview__header">
-					<p class="inquiry-preview__eyebrow">
-						Inquiry preview
+				<header class="inquiry-confirmation__header">
+					<p class="inquiry-confirmation__eyebrow">
+						Inquiry saved
 					</p>
 
 					<h2
-						class="inquiry-preview__title"
-						id="contact-preview-title"
+						class="inquiry-confirmation__title"
+						id="contact-confirmation-title"
 					>
-						Review your information
+						Thank you for getting in touch
 					</h2>
 
-					<p class="inquiry-preview__notice">
-						This preview has not been delivered to the studio or saved.
+					<p class="inquiry-confirmation__notice">
+						Your inquiry has been saved for the studio to review. This confirmation does not promise email delivery or a response time.
 					</p>
 				</header>
-
-				<dl class="inquiry-preview__details">
-					<div class="inquiry-preview__detail">
-						<dt>Full name</dt>
-						<dd>{{.Name}}</dd>
-					</div>
-
-					<div class="inquiry-preview__detail">
-						<dt>Email address</dt>
-						<dd>{{.Email}}</dd>
-					</div>
-
-					<div class="inquiry-preview__detail">
-						<dt>Design discipline</dt>
-						<dd>{{.DisciplineLabel}}</dd>
-					</div>
-
-					<div class="inquiry-preview__detail">
-						<dt>Project summary</dt>
-						<dd class="inquiry-preview__message">{{.Message}}</dd>
-					</div>
-				</dl>
 			</section>
-			{{end}}
 			{{end}}
 		</section>
 	</div>

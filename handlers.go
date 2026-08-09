@@ -1,10 +1,18 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"log"
 	"mime"
 	"net/http"
+	"time"
+)
+
+const (
+	// inquiryPersistenceTimeout bounds one Contact database write independently
+	// from the visitor connection and the process-wide server lifetime.
+	inquiryPersistenceTimeout = 5 * time.Second
 )
 
 // homeHandler renders the public homepage for a request already matched to
@@ -305,9 +313,10 @@ func (app *application) architectureProjectDetailHandler(
 
 // contactHandler renders the initial Contact form for GET /contact.
 //
-// Contact responses are never cached because a later validation response may
-// contain reflected personal values. The handler also establishes the random
-// double-submit token that the form sends back with its protected cookie.
+// Contact responses are never cached because a validation or storage-failure
+// response may contain reflected personal values. The handler establishes the
+// reusable CSRF pair, creates a separate per-form idempotency token, and
+// consumes a valid one-time success receipt after Post/Redirect/Get.
 func (app *application) contactHandler(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -334,25 +343,51 @@ func (app *application) contactHandler(
 		return
 	}
 
+	submissionToken, err := newInquirySubmissionToken()
+	if err != nil {
+		// As with CSRF generation, a missing cryptographic token is an internal
+		// failure. Rendering a form without a safe database identity would allow a
+		// retry to create duplicate inquiries.
+		log.Printf(
+			"could not create inquiry submission token: %v",
+			err,
+		)
+		http.Error(
+			w,
+			"internal server error",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	submissionState := inquirySubmissionStateForm
+	if r.Method == http.MethodGet &&
+		app.inquirySuccess.consume(w, r) {
+		// HEAD shares Go's GET route pattern but must not consume a browser's
+		// one-time confirmation before its following document navigation.
+		submissionState = inquirySubmissionStateSucceeded
+	}
+
 	app.renderContactPage(
 		w,
 		http.StatusOK,
 		newContactPageData(
 			csrfToken,
+			submissionToken,
 			inquiryFormData{},
 			inquiryFormErrors{},
-			nil,
+			submissionState,
 		),
 	)
 }
 
-// inquiryPreviewHandler validates POST /contact and renders either correctable
-// field errors or a truthful, non-persistent preview.
+// inquirySubmissionHandler validates POST /contact, persists one idempotent
+// inquiry, and redirects only after the repository confirms durable success.
 //
-// This Stage 12 endpoint does not save, send, enqueue, or log an inquiry. Its
-// narrow job is to establish secure request and validation behavior before a
-// later PostgreSQL-backed submission workflow is designed.
-func (app *application) inquiryPreviewHandler(
+// It preserves the Stage 12 protocol and validation boundaries. Invalid input
+// never reaches PostgreSQL, and storage errors render generic copy without
+// logging the visitor's name, email address, message, or a raw driver error.
+func (app *application) inquirySubmissionHandler(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -429,6 +464,24 @@ func (app *application) inquiryPreviewHandler(
 		return
 	}
 
+	// The submission token is generated independently for one form render. Treat
+	// a missing or malformed value as an ambiguous request rather than inventing
+	// a replacement after the visitor may already be retrying an earlier POST.
+	submissionKey, validSubmissionToken := decodeInquirySubmissionToken(
+		r.PostForm.Get(inquirySubmissionFieldName),
+	)
+	if !validSubmissionToken {
+		http.Error(
+			w,
+			"bad request",
+			http.StatusBadRequest,
+		)
+		return
+	}
+	submissionToken := r.PostForm.Get(
+		inquirySubmissionFieldName,
+	)
+
 	form := normalizeInquiryForm(r.PostForm)
 	formErrors := validateInquiryForm(form)
 	if hasInquiryFormErrors(formErrors) {
@@ -437,24 +490,108 @@ func (app *application) inquiryPreviewHandler(
 			http.StatusUnprocessableEntity,
 			newContactPageData(
 				csrfToken,
+				submissionToken,
 				form,
 				formErrors,
-				nil,
+				inquirySubmissionStateForm,
 			),
 		)
 		return
 	}
 
-	preview := newInquiryPreview(form)
-	app.renderContactPage(
+	// A short deadline prevents a temporarily unavailable database from holding
+	// the request indefinitely. The request remains the parent, so a client
+	// disconnect or forced connection closure can cancel the operation sooner;
+	// graceful Shutdown itself waits for active handlers instead of canceling them.
+	createContext, cancel := context.WithTimeout(
+		r.Context(),
+		inquiryPersistenceTimeout,
+	)
+	defer cancel()
+
+	createResult, err := app.inquiries.Create(
+		createContext,
+		inquirySubmission{
+			SubmissionKey: submissionKey,
+			Name:          form.Name,
+			Email:         form.Email,
+			Discipline:    form.Discipline,
+			Message:       form.Message,
+		},
+	)
+	if errors.Is(err, errInquirySubmissionConflict) {
+		// A conflicting key can never succeed with the same payload retry. Replace
+		// only the opaque form key, retain the normalized fields for review, and
+		// explain that the next POST will be a new inquiry rather than presenting a
+		// misleading transient-failure message.
+		freshSubmissionToken, tokenErr := newInquirySubmissionToken()
+		if tokenErr != nil {
+			log.Print("could not renew conflicting inquiry submission token")
+			http.Error(
+				w,
+				"internal server error",
+				http.StatusInternalServerError,
+			)
+			return
+		}
+
+		log.Print("Contact inquiry submission key conflicted")
+		app.renderContactPage(
+			w,
+			http.StatusConflict,
+			newContactPageData(
+				csrfToken,
+				freshSubmissionToken,
+				form,
+				formErrors,
+				inquirySubmissionStateConflict,
+			),
+		)
+		return
+	}
+	if err != nil ||
+		(createResult != inquiryCreateResultCreated &&
+			createResult != inquiryCreateResultReplay) {
+		// The log intentionally records only a stable event category. Repository
+		// errors and visitor values are omitted because PostgreSQL errors can include
+		// rejected personal data in their detail text.
+		log.Print("could not save Contact inquiry")
+		app.renderContactPage(
+			w,
+			http.StatusServiceUnavailable,
+			newContactPageData(
+				csrfToken,
+				submissionToken,
+				form,
+				formErrors,
+				inquirySubmissionStateFailed,
+			),
+		)
+		return
+	}
+
+	// The signed receipt carries a fresh server-generated nonce rather than the
+	// untrusted hidden submission token. It lets the redirected GET make a
+	// truthful one-time success claim without putting PII or a forgeable query
+	// flag in the URL or cookie.
+	if err := app.inquirySuccess.issue(
 		w,
-		http.StatusOK,
-		newContactPageData(
-			csrfToken,
-			form,
-			formErrors,
-			&preview,
-		),
+		r,
+	); err != nil {
+		log.Print("could not create Contact inquiry success receipt")
+		http.Error(
+			w,
+			"inquiry saved, but confirmation unavailable",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	http.Redirect(
+		w,
+		r,
+		"/contact#contact-form-response",
+		http.StatusSeeOther,
 	)
 }
 

@@ -1,17 +1,21 @@
-# Stage 13 database development on Windows
+# Stage 13-14 database development on Windows
 
-Stage 13 establishes an explicit PostgreSQL migration workflow. It does not
-turn the public website into a database-backed application yet.
+Stage 13 establishes an explicit PostgreSQL migration workflow. Stage 14 uses
+that foundation for the first database-backed public feature: Contact inquiry
+persistence.
 
 The boundary is intentional:
 
-- `go run .` continues to start the public server without applying migrations.
-- Only `go run . migrate ...` reads database configuration or changes schema.
+- `go run .` reads `DATABASE_URL`, opens one shared pool, and never applies
+  migrations automatically.
+- Only `go run . migrate ...` changes schema.
 - No public HTTP request is allowed to run a migration.
-- The Contact form still produces a non-persistent preview. Submitting it does
-  not insert an inquiry row, send a message, or enqueue work.
-- Stage 14 is responsible for the first repository, persistence behavior, and
-  the corresponding truthful change to the Contact response.
+- A valid Contact POST inserts one inquiry through a narrow repository and then
+  uses Post/Redirect/Get.
+- A per-form key makes retries idempotent; the same submission cannot create a
+  second row.
+- The success page claims only that the inquiry was saved for studio review. It
+  does not claim email delivery or guarantee a response time.
 
 Keeping schema management separate from request handling makes database changes
 visible, reviewable, and deliberate. It also prevents two server processes from
@@ -29,10 +33,8 @@ PostgreSQL's `psql` command-line client is additionally required for the manual
 verification steps in this guide. The Go migration command itself connects
 through pgx and does not launch `psql`.
 
-At the time this Stage 13 guide was written, PostgreSQL and `psql` were not
-installed or discoverable in the current development environment. Migration
-commands cannot be verified against a real server until that prerequisite is
-completed.
+PostgreSQL and `psql` must be installed and discoverable before the live checks
+in this guide can run. Ordinary unit tests remain database-independent.
 
 Use the [official PostgreSQL Windows download
 page](https://www.postgresql.org/download/windows/) and the documentation for
@@ -59,8 +61,8 @@ connection strings, commands, and exit behavior.
 
 ## Supplying `DATABASE_URL` safely
 
-Migration commands read one required environment variable named
-`DATABASE_URL`. Set it only for the current PowerShell process:
+Migration commands and the public server each read one required environment
+variable named `DATABASE_URL`. Set it only for the current PowerShell process:
 
 ```powershell
 $env:DATABASE_URL = 'postgres://<user>:<password>@localhost:5432/<database>?sslmode=disable'
@@ -85,6 +87,17 @@ Remove the current value explicitly when finished:
 ```powershell
 Remove-Item Env:DATABASE_URL
 ```
+
+Use separate PostgreSQL roles and connection strings even though both commands
+read the same variable name. A migration session needs a schema-owner role that
+can create and alter the migration ledger, tables, constraints, and sequences.
+After migrations finish, replace `DATABASE_URL` in the server's environment
+with a least-privilege runtime role. Stage 14 runtime access needs only the
+database/schema connection privileges plus `INSERT` and the narrow replay
+`SELECT` on `public.inquiries`, and sequence access needed to generate its ID;
+it must not own the schema or receive migration privileges. Keep role creation
+and credentials outside this repository and follow the deployment provider's
+role-management documentation.
 
 Never:
 
@@ -114,9 +127,9 @@ produce no match because `.env.example` is explicitly allowed.
 
 ## Understanding the Go connection lifecycle
 
-Stage 13 uses `database/sql` with pgx as the PostgreSQL driver. A `*sql.DB` is a
-concurrency-safe database handle and connection pool, not one permanently open
-socket.
+Stages 13-14 use `database/sql` with pgx as the PostgreSQL driver. A `*sql.DB` is
+a concurrency-safe database handle and connection pool, not one permanently
+open socket.
 
 The explicit migration command owns its complete lifecycle:
 
@@ -142,10 +155,10 @@ migration code, and closes it once. Individual migration functions do not own
 or close the pool. Opening a new pool for each statement would hide ownership,
 waste connections, and teach the wrong request lifecycle.
 
-In Stage 14, the long-running application—not an HTTP handler—will own the
-shared pool. A narrow inquiry repository will borrow it and accept request
-contexts. That repository and its storage behavior are deliberately absent
-from Stage 13.
+In Stage 14, the long-running application—not an HTTP handler—owns the shared
+pool. A narrow inquiry repository borrows it and accepts request contexts. The
+server opens and pings the pool before listening, stops accepting requests on
+Ctrl+C, waits for active handlers, and then closes the pool.
 
 See the official Go documentation for [`sql.DB`
 connection management](https://go.dev/doc/database/manage-connections) and the
@@ -199,8 +212,8 @@ Migration history is compiled into the Go executable from `migrations/`. Every
 new schema version must follow one strict contract:
 
 1. Add an exact pair such as
-   `000002_descriptive_name.up.sql` and
-   `000002_descriptive_name.down.sql`.
+   `000003_descriptive_name.up.sql` and
+   `000003_descriptive_name.down.sql`.
 2. Use six digits, the next contiguous positive version, and a globally unique
    lowercase name made from words separated by single underscores.
 3. Put the forward change in `up` and the narrow exact reverse in `down`. Avoid
@@ -280,27 +293,34 @@ psql -X --set ON_ERROR_STOP=on --command '\dt'
 psql -X --set ON_ERROR_STOP=on --command '\d inquiries'
 ```
 
-Stage 13 creates schema but does not connect the public Contact route to an
-inquiry repository. Verify that the table remains empty:
-
-```powershell
-psql -X --set ON_ERROR_STOP=on --command 'SELECT COUNT(*) AS inquiry_rows FROM inquiries;'
-```
-
-Then start the public server, submit a valid Contact preview, and repeat the
-count:
+Stage 14 connects the public Contact route to the inquiry repository. Start the
+server in the same PowerShell process so it can read `DATABASE_URL`:
 
 ```powershell
 go run .
 ```
 
-After stopping the server with `Ctrl+C`, the count must still be zero. A new row
-would mean Stage 13 accidentally crossed the Stage 14 persistence boundary.
+Open `http://localhost:8080/contact`, submit one test inquiry, and verify the
+browser reaches `/contact#contact-form-response` with the saved-for-review
+confirmation. Refreshing that GET must not submit again or repeat the one-time
+confirmation. Stop the server with `Ctrl+C`, then inspect only disposable test
+values—never copy a real visitor's personal information into logs or docs:
+
+```powershell
+psql -X --set ON_ERROR_STOP=on --command 'SELECT name, email, discipline, status FROM inquiries ORDER BY id DESC LIMIT 1;'
+```
+
+The `name` and `email` columns must match the normalized form values, discipline
+must be one supported machine value, and the initial status must be `new`.
+Submitting the exact same already-rendered form twice must leave one row because
+its hidden `submission_token` maps to the unique `submission_key` column.
 
 To exercise rollback, first switch `DATABASE_URL` to a separate disposable
 database. Reconfirm the connection before doing anything destructive:
 
 ```powershell
+# Run this immediately after assigning the disposable URL to DATABASE_URL.
+$env:PGDATABASE = $env:DATABASE_URL
 psql -X --set ON_ERROR_STOP=on --command '\conninfo'
 go run . migrate up
 go run . migrate down --confirm
@@ -320,9 +340,24 @@ Remove-Item Env:PGDATABASE -ErrorAction SilentlyContinue
 
 ## Optional live PostgreSQL integration test
 
-The normal suite never connects to PostgreSQL. A separate integration test is
-available for the advisory lock, real DDL, multi-statement rollback, ledger,
-status, idempotent up, down, and reapply cycle.
+The normal suite never connects to PostgreSQL. Separate integration tests cover
+the advisory lock, real DDL, multi-statement rollback, ledger, status,
+idempotent up/down/reapply, and the inquiry repository's name/email mapping and
+retry behavior.
+
+On the verified local Windows PostgreSQL 18 installation, the guarded helper
+can run the same acceptance cycle without persisting or printing a password:
+
+```powershell
+.\stage14_postgres_check.ps1
+```
+
+The helper uses a visible secure password prompt, refuses to reuse a database,
+creates only `zafarmand_stage14_codex_test`, runs the opt-in integration tests
+and migration CLI status/up checks, and then drops only the database it created.
+The integration test itself covers one-version-at-a-time rollback and reapply.
+A failed cleanup is reported explicitly rather than broadening the deletion
+target.
 
 Create a dedicated empty database whose name ends in `_test`. It must not
 contain `public.inquiries`, `public.schema_migrations`,
@@ -331,9 +366,9 @@ contain `public.inquiries`, `public.schema_migrations`,
 variables:
 
 ```powershell
-$env:ZAFARMAND_TEST_DATABASE_URL = 'postgres://<user>:<password>@localhost:5432/zafarmand_stage13_test?sslmode=disable'
+$env:ZAFARMAND_TEST_DATABASE_URL = 'postgres://<user>:<password>@localhost:5432/zafarmand_stage14_test?sslmode=disable'
 $env:ZAFARMAND_TEST_DATABASE_CONFIRM = 'stage13-disposable-database'
-go test -count=1 -run '^TestMigrationRunnerPostgresCycle$' ./...
+go test -count=1 -run 'Postgres' ./...
 ```
 
 The test never falls back to `DATABASE_URL`, verifies both the configured and
@@ -350,10 +385,12 @@ Remove-Item Env:ZAFARMAND_TEST_DATABASE_URL -ErrorAction SilentlyContinue
 Remove-Item Env:ZAFARMAND_TEST_DATABASE_CONFIRM -ErrorAction SilentlyContinue
 ```
 
-This machine did not have PostgreSQL or `psql` available while Stage 13 was
-implemented, so the live path could not be executed here. Run the command above
-after installing PostgreSQL and record its result before treating the local
-database runtime as verified.
+The integration tests skip only when their explicit opt-in variables are
+absent; they never fall back to development credentials. Once opted in, an
+unreachable PostgreSQL server is a test failure. The Go tests connect through
+pgx and do not require `psql`; `psql` is required only for the guarded helper
+and the manual inspection commands above. Run the selected check and record its
+result before treating the local database runtime as verified.
 
 ## Normal development checks
 
@@ -370,7 +407,7 @@ The opt-in integration test described above is intentionally skipped unless its
 separate test URL and confirmation are both supplied. It must never silently
 reuse `DATABASE_URL` from a development or production environment.
 
-Before committing Stage 13, review only intended files:
+Before committing a database stage, review only intended files:
 
 ```powershell
 git status --short
@@ -383,6 +420,7 @@ migration file exists, verify its effective attribute with its real path:
 
 ```powershell
 git check-attr eol -- migrations/000001_create_inquiries.up.sql
+git check-attr eol -- migrations/000002_add_inquiry_submission_key.up.sql
 ```
 
 The reported value should be `lf`. Use the actual migration filename if it

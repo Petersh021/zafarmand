@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	// Register pgx's database/sql compatibility driver under the "pgx" name.
-	// PostgreSQL is the only external service introduced by Stage 13.
+	// PostgreSQL is shared by migration commands and the Stage 14 Contact writer.
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -28,7 +28,7 @@ var (
 )
 
 // openPostgresDatabase creates one database/sql pool and proves that it can
-// reach PostgreSQL before returning it to the migration command.
+// reach PostgreSQL before returning it to the requesting process mode.
 //
 // sql.Open creates a concurrency-safe handle but may not establish a network
 // connection immediately. PingContext is therefore the real startup boundary.
@@ -54,8 +54,8 @@ func openPostgresDatabase(
 		return nil, errDatabaseConfigurationInvalid
 	}
 
-	// The timeout bounds only connection verification. Migration statements use
-	// the command's parent context because legitimate schema work may take longer.
+	// The timeout bounds only connection verification. Migration statements and
+	// request writes receive their own parent contexts after this startup check.
 	pingContext, cancel := context.WithTimeout(
 		ctx,
 		config.pingTimeout,

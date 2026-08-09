@@ -1,12 +1,79 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 )
+
+// recordingInquiryRepository is the database-free Contact persistence double
+// shared by route tests.
+//
+// It records immutable copies of submitted values and returns a configurable
+// outcome. The mutex keeps the helper correct if a future test serves requests
+// concurrently or opts into t.Parallel.
+type recordingInquiryRepository struct {
+	mu          sync.Mutex
+	submissions []inquirySubmission
+	result      inquiryCreateResult
+	err         error
+}
+
+// Create implements inquiryRepository without opening PostgreSQL. Copying the
+// byte slice prevents a caller from mutating the recorded idempotency key after
+// the assertion boundary.
+func (repository *recordingInquiryRepository) Create(
+	_ context.Context,
+	submission inquirySubmission,
+) (inquiryCreateResult, error) {
+	repository.mu.Lock()
+	defer repository.mu.Unlock()
+
+	submission.SubmissionKey = append(
+		[]byte(nil),
+		submission.SubmissionKey...,
+	)
+	repository.submissions = append(
+		repository.submissions,
+		submission,
+	)
+
+	return repository.result, repository.err
+}
+
+// snapshot returns a separate slice for assertions so tests never read shared
+// state while another request could append to it.
+func (repository *recordingInquiryRepository) snapshot() []inquirySubmission {
+	repository.mu.Lock()
+	defer repository.mu.Unlock()
+
+	result := make(
+		[]inquirySubmission,
+		len(repository.submissions),
+	)
+	copy(result, repository.submissions)
+
+	return result
+}
+
+// setOutcome changes the next repository result under the same lock used by
+// Create. It lets a sequential retry test model PostgreSQL recovering without
+// replacing the application dependency between requests.
+func (repository *recordingInquiryRepository) setOutcome(
+	result inquiryCreateResult,
+	err error,
+) {
+	repository.mu.Lock()
+	defer repository.mu.Unlock()
+
+	repository.result = result
+	repository.err = err
+}
 
 // newTestApplication builds an application for a test and stops that test
 // immediately if shared initialization fails.
@@ -16,12 +83,46 @@ import (
 func newTestApplication(t *testing.T) *application {
 	t.Helper()
 
-	app, err := newApplication()
+	repository := &recordingInquiryRepository{
+		result: inquiryCreateResultCreated,
+	}
+
+	return newTestApplicationWithInquiryRepository(
+		t,
+		repository,
+	)
+}
+
+// newTestApplicationWithInquiryRepository builds the normal template and route
+// graph around a caller-controlled Contact persistence outcome.
+func newTestApplicationWithInquiryRepository(
+	t *testing.T,
+	repository inquiryRepository,
+) *application {
+	t.Helper()
+
+	app, err := newApplication(repository)
 	if err != nil {
 		t.Fatalf("create test application: %v", err)
 	}
 
 	return app
+}
+
+// TestNewApplicationRequiresInquiryRepository protects the production
+// composition boundary: a server cannot start with a Contact form that has no
+// persistence dependency.
+func TestNewApplicationRequiresInquiryRepository(t *testing.T) {
+	app, err := newApplication(nil)
+	if !errors.Is(err, errInquiryRepositoryRequired) {
+		t.Fatalf(
+			"nil repository error: got %v, want required sentinel",
+			err,
+		)
+	}
+	if app != nil {
+		t.Error("nil repository returned a usable application")
+	}
 }
 
 // assertHomeDisciplineEntrances verifies the number, fields, and order of the
@@ -662,7 +763,7 @@ func TestUnknownRoute(t *testing.T) {
 
 // TestPageRoutesRejectUnsupportedMethods verifies that method-aware ServeMux
 // patterns return 405 Method Not Allowed for POST requests to read-only pages.
-// Contact is intentionally absent because its preview workflow accepts POST;
+// Contact is intentionally absent because its persistence workflow accepts POST;
 // contact-specific method boundaries are covered in contact_test.go.
 func TestPageRoutesRejectUnsupportedMethods(t *testing.T) {
 	app := newTestApplication(t)

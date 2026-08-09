@@ -6,8 +6,9 @@ import (
 	"testing"
 )
 
-// TestLoadDatabaseConfig verifies that migration configuration accepts one
-// trimmed connection string and rejects every missing-value representation.
+// TestLoadDatabaseConfig verifies that the database configuration shared by
+// migration commands and server startup accepts one trimmed connection string
+// and rejects every missing-value representation.
 func TestLoadDatabaseConfig(t *testing.T) {
 	tests := []struct {
 		// name identifies one environment-loading boundary.

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"html/template"
 	"log"
@@ -35,7 +36,25 @@ type application struct {
 	// type keeps Architecture's visual and future data requirements independent
 	// from the already established Interior listing and detail flow.
 	architectureProjects []architectureProject
+	// inquiries is the narrow write dependency used only by the public Contact
+	// submission handler. Production supplies PostgreSQL, while tests can inject
+	// a recording implementation without opening a database connection.
+	inquiries inquiryRepository
+	// inquirySuccess signs and consumes the short-lived receipt carried across
+	// the Post/Redirect/Get boundary. It contains no visitor data and never
+	// exposes its process-local key.
+	inquirySuccess *inquirySuccessFlash
 }
+
+// Application construction errors identify missing runtime dependencies before
+// the HTTP server begins accepting requests.
+var (
+	// errInquiryRepositoryRequired prevents a valid-looking application from
+	// silently accepting Contact submissions that cannot be persisted.
+	errInquiryRepositoryRequired = errors.New(
+		"create application: inquiry repository is required",
+	)
+)
 
 // homeHeroData describes the content and media needed by the homepage hero.
 //
@@ -253,11 +272,11 @@ type architectureProjectDetailData struct {
 }
 
 // contactPageData is the complete presentation contract for the public Contact
-// page and its non-persistent inquiry preview.
+// page and its persisted-submission states.
 //
-// The page deliberately receives display-ready values instead of an eventual
-// database record. Stage 12 can therefore teach secure form parsing and
-// validation without claiming to send or save a visitor's personal data.
+// The page still receives display-ready form values rather than a database row.
+// Persistence remains behind inquiryRepository, so templates cannot acquire a
+// direct dependency on PostgreSQL or accidentally expose internal record data.
 type contactPageData struct {
 	// Eyebrow is the short interface label displayed above the primary heading.
 	Eyebrow string
@@ -265,12 +284,16 @@ type contactPageData struct {
 	Heading string
 	// Introduction explains what information the structural form requests.
 	Introduction string
-	// AvailabilityNotice truthfully states that this stage neither sends nor
-	// saves the inquiry values entered by a visitor.
+	// AvailabilityNotice explains exactly what submitting the form does and does
+	// not promise email delivery or a response time.
 	AvailabilityNotice string
 	// CSRFToken is the unpredictable request token emitted in the hidden form
 	// field and compared with the request's protected cookie on POST.
 	CSRFToken string
+	// SubmissionToken is a separate, single-form idempotency key. Reusing the
+	// CSRF token would make different tabs share one database identity, so this
+	// value has its own hidden field and lifecycle.
+	SubmissionToken string
 	// Form contains normalized values for the form controls. On a validation
 	// response it lets visitors correct one field without retyping the others.
 	Form inquiryFormData
@@ -279,9 +302,15 @@ type contactPageData struct {
 	// HasErrors lets the template render one accessible summary only when at
 	// least one validation message exists.
 	HasErrors bool
-	// Preview contains the validated display-only inquiry, or nil before a valid
-	// POST. Its presence never represents delivery or persistence.
-	Preview *inquiryPreviewData
+	// SubmissionSucceeded is true only on the redirected GET reached after the
+	// repository confirms either a new insert or an idempotent replay.
+	SubmissionSucceeded bool
+	// SubmissionFailed tells the template to render one generic, accessible
+	// storage failure without exposing a driver error or database configuration.
+	SubmissionFailed bool
+	// SubmissionConflict tells the template that the submitted key belongs to
+	// different data and that the rendered form now carries a fresh key.
+	SubmissionConflict bool
 	// DisciplineOptions is the trusted ordered set rendered by the radio group.
 	DisciplineOptions []inquiryDisciplineOptionData
 	// NameMaxLength supplies the browser's maxlength hint; Go remains the
@@ -296,12 +325,12 @@ type contactPageData struct {
 }
 
 // inquiryFormData contains only the four visitor-editable values accepted by
-// the Stage 12 Contact form.
+// the public Contact form.
 //
 // These fields are request data, not a persistence model. html/template escapes
 // them contextually when a validation response restores them to the form.
 type inquiryFormData struct {
-	// Name is the visitor-provided name used in the inquiry preview.
+	// Name is the normalized visitor-provided name restored after a failed POST.
 	Name string
 	// Email is the visitor-provided reply address validated with net/mail.
 	Email string
@@ -321,21 +350,6 @@ type inquiryFormErrors struct {
 	// Discipline explains why no supported discipline was selected.
 	Discipline string
 	// Message explains why the inquiry message could not be accepted.
-	Message string
-}
-
-// inquiryPreviewData contains the normalized values shown after a valid POST.
-//
-// DisciplineLabel is resolved from the server-owned option list, rather than
-// trusting the submitted machine value as visible interface copy.
-type inquiryPreviewData struct {
-	// Name is the normalized name displayed in the non-persistent preview.
-	Name string
-	// Email is the normalized reply address displayed in the preview.
-	Email string
-	// DisciplineLabel is the trusted visible label for the selected discipline.
-	DisciplineLabel string
-	// Message is the normalized inquiry text displayed in the preview.
 	Message string
 }
 
@@ -380,7 +394,7 @@ type pageData struct {
 	ArchitectureProjectListing *architectureProjectListingData
 	// ArchitectureProjectDetail contains one Architecture detail view, or nil.
 	ArchitectureProjectDetail *architectureProjectDetailData
-	// Contact contains the Contact form or validated preview, or nil elsewhere.
+	// Contact contains the Contact form and its current response state, or nil.
 	Contact *contactPageData
 }
 
@@ -390,10 +404,28 @@ type pageData struct {
 // It returns an error instead of terminating the process so the caller decides
 // how initialization failures should be handled. This also makes construction
 // reusable from both main and tests.
-func newApplication() (*application, error) {
+func newApplication(
+	inquiries inquiryRepository,
+) (*application, error) {
+	if inquiries == nil {
+		return nil, errInquiryRepositoryRequired
+	}
+
 	templateCache, err := newTemplateCache()
 	if err != nil {
 		return nil, err
+	}
+
+	// A fresh process-local signing key authenticates the short-lived success
+	// cookie used by the Contact Post/Redirect/Get flow. A random-source failure
+	// is a startup failure because rendering an unverifiable success claim would
+	// be less truthful than refusing to start.
+	inquirySuccess, err := newInquirySuccessFlash()
+	if err != nil {
+		return nil, fmt.Errorf(
+			"create inquiry success key: %w",
+			err,
+		)
 	}
 
 	app := &application{
@@ -401,6 +433,8 @@ func newApplication() (*application, error) {
 		products:             temporaryProducts(),
 		interiorProjects:     temporaryInteriorProjects(),
 		architectureProjects: temporaryArchitectureProjects(),
+		inquiries:            inquiries,
+		inquirySuccess:       inquirySuccess,
 	}
 
 	return app, nil

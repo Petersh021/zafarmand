@@ -10,9 +10,10 @@ import (
 // and the bounded connection-verification duration.
 const (
 	// databaseURLEnvironmentName is the one environment variable from which the
-	// Stage 13 migration command accepts PostgreSQL connection information.
+	// migration commands and the long-running server accept PostgreSQL connection
+	// information.
 	databaseURLEnvironmentName = "DATABASE_URL"
-	// defaultDatabasePingTimeout bounds the migration command's initial
+	// defaultDatabasePingTimeout bounds either operating mode's initial
 	// connectivity check so a stopped or unreachable server fails promptly.
 	defaultDatabasePingTimeout = 5 * time.Second
 )
@@ -23,7 +24,7 @@ var (
 	// errDatabaseURLRequired is returned without including a connection string,
 	// ensuring configuration errors never echo database credentials.
 	errDatabaseURLRequired = errors.New(
-		"DATABASE_URL is required for migration commands",
+		"DATABASE_URL is required",
 	)
 )
 
@@ -47,12 +48,12 @@ type databaseConfig struct {
 	pingTimeout time.Duration
 }
 
-// loadDatabaseConfig reads and validates the migration command's environment
+// loadDatabaseConfig reads and validates the process's database environment
 // configuration.
 //
-// Stage 13 deliberately requires DATABASE_URL only for explicit migration
-// commands. The ordinary public server remains database-independent until
-// Stage 14 introduces its first real repository consumer.
+// Stage 14 uses the same explicit configuration for migrations and server
+// startup. A single loader prevents subtly different parsing or secret-handling
+// rules between those two database consumers.
 func loadDatabaseConfig(
 	lookup environmentLookup,
 ) (databaseConfig, error) {

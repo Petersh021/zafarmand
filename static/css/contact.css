@@ -1,10 +1,10 @@
 /* --------------------------------------------------
-   Stage 12: Contact and inquiry preview
+   Stage 14: Contact inquiry persistence
 
    This stylesheet is loaded only by contact.html. It creates an image-free
    editorial correspondence page: a dark studio introduction sits beside a
-   warm native form and truthful server-rendered preview. No declaration relies
-   on final contact details, photography, JavaScript, or persistent storage.
+   warm native form and truthful persistence responses. No declaration relies
+   on final contact details, photography, JavaScript, or admin-only content.
 -------------------------------------------------- */
 
 /*
@@ -104,7 +104,7 @@
  */
 .contact-page__eyebrow,
 .contact-page__inquiry-eyebrow,
-.inquiry-preview__eyebrow {
+.inquiry-confirmation__eyebrow {
 	margin: 0 0 1rem;
 	font-family: var(--font-interface);
 	font-size: 0.75rem;
@@ -146,7 +146,7 @@
 
 /*
  * The availability statement is visually separated and always present. A
- * strong rule and full text ensure preview-only behavior is not conveyed by
+ * strong rule and full text ensure persistence behavior is not conveyed by
  * color, placement, or the button label alone.
  */
 .contact-page__availability {
@@ -182,13 +182,13 @@
 }
 
 .contact-page__inquiry-eyebrow,
-.inquiry-preview__eyebrow {
+.inquiry-confirmation__eyebrow {
 	color: var(--contact-ink-soft);
 }
 
 /* The h2 names the form region while remaining secondary to the expansive h1. */
 .contact-page__inquiry-title,
-.inquiry-preview__title {
+.inquiry-confirmation__title {
 	min-width: 0;
 	margin: 0;
 	font-family: var(--font-display);
@@ -222,7 +222,7 @@
 /*
  * Form responses and field-level error links use native fragments. This offset
  * leaves one readable gap below the fixed shared header, preventing the target
- * summary, preview, control, fieldset, or radio from landing underneath it.
+ * summary, confirmation, control, fieldset, or radio from landing beneath it.
  */
 #contact-form-response,
 #contact-name,
@@ -234,9 +234,9 @@
 }
 
 /*
- * Both mutually exclusive response targets use tabindex=-1. When fragment or
- * scripted focus reaches either one, an explicit outline makes that movement
- * visible without placing the region in the normal sequential Tab order.
+ * Every mutually exclusive response target uses tabindex=-1. When fragment or
+ * scripted focus reaches one, an explicit outline makes that movement visible
+ * without placing the region in the normal sequential Tab order.
  */
 #contact-form-response:focus {
 	outline: 2px solid var(--contact-ink);
@@ -247,12 +247,19 @@
  * The response-level error summary uses both an explicit alert role and a
  * visible bordered surface before any individual control.
  */
-.inquiry-form__error-summary {
+.inquiry-form__error-summary,
+.inquiry-form__submission-error {
 	min-width: 0;
 	padding: clamp(1rem, 2.5vw, 1.5rem);
 	border: 2px solid var(--contact-error);
 	background: var(--contact-error-surface);
 	color: var(--contact-ink);
+}
+
+/* Persistence outcomes have no field link because all submitted values are valid. */
+.inquiry-form__submission-error p {
+	margin: 0;
+	line-height: 1.6;
 }
 
 .inquiry-form__error-summary-title {
@@ -452,7 +459,7 @@
 	border-top: 1px solid var(--contact-rule);
 }
 
-/* The button exceeds 44px and promises only the truthful preview operation. */
+/* The button exceeds 44px and names the durable submission operation. */
 .inquiry-form__submit {
 	min-width: min(100%, 14rem);
 	min-height: 2.75rem;
@@ -480,86 +487,38 @@
 }
 
 /*
- * A valid server-rendered preview begins as a separately labelled region below
- * the form. The double rule gives it document-like separation without implying
- * that a message has been sent.
+ * A confirmed database write appears as a separately labelled region below the
+ * form. The double rule gives it document-like separation without implying
+ * email delivery or a guaranteed response.
  */
-.inquiry-preview {
+.inquiry-confirmation {
 	min-width: 0;
 	margin-top: clamp(3.5rem, 7vw, 7rem);
 	padding-top: clamp(2.5rem, 5vw, 4.5rem);
 	border-top: 3px double var(--contact-control-rule);
 }
 
-.inquiry-preview__header {
+.inquiry-confirmation__header {
 	max-width: 44rem;
 	min-width: 0;
 }
 
-.inquiry-preview__title {
+.inquiry-confirmation__title {
 	max-width: 14ch;
 	font-size: clamp(2rem, 2.5vw, 3.25rem);
 }
 
-/* The non-delivery statement remains visible immediately below the preview h2. */
-.inquiry-preview__notice {
+/* The exact storage boundary remains visible immediately below confirmation. */
+.inquiry-confirmation__notice {
 	max-width: 40rem;
 	margin: 1.25rem 0 0;
 	padding-left: 1rem;
-	border-left: 3px solid var(--contact-error);
+	border-left: 3px solid var(--contact-control-rule);
 	color: var(--contact-ink);
 	font-size: 0.95rem;
 	font-weight: 700;
 	line-height: 1.65;
 	overflow-wrap: anywhere;
-}
-
-/* The description list begins with one quiet rule and removes browser margins. */
-.inquiry-preview__details {
-	display: grid;
-	min-width: 0;
-	margin: clamp(2rem, 4vw, 3.5rem) 0 0;
-	border-top: 1px solid var(--contact-rule);
-}
-
-/*
- * Known labels and visitor values use shrinkable columns. The final message can
- * preserve line breaks without allowing an unbroken value to widen the page.
- */
-.inquiry-preview__detail {
-	display: grid;
-	grid-template-columns:
-		minmax(8rem, 0.36fr)
-		minmax(0, 0.64fr);
-	gap: 1rem;
-	padding-block: 1rem;
-	border-bottom: 1px solid var(--contact-rule);
-}
-
-.inquiry-preview__detail dt,
-.inquiry-preview__detail dd {
-	min-width: 0;
-	margin: 0;
-	overflow-wrap: anywhere;
-}
-
-.inquiry-preview__detail dt {
-	color: var(--contact-ink-soft);
-	font-size: 0.75rem;
-	letter-spacing: 0.13em;
-	line-height: 1.45;
-	text-transform: uppercase;
-}
-
-.inquiry-preview__detail dd {
-	font-family: var(--font-display);
-	font-size: clamp(1rem, 0.95rem + 0.2vw, 1.15rem);
-	line-height: 1.5;
-}
-
-/* Preserve visitor-authored paragraphs while still wrapping long input safely. */
-.inquiry-preview__message {
-	white-space: pre-wrap;
 }
 
 /*
@@ -597,7 +556,7 @@
 
 /*
  * Narrow phones use the established one-rem edge and a smaller display scale.
- * Preview facts stack so neither their label nor value receives a rigid floor.
+ * The single-column form and full-width action retain comfortable targets.
  */
 @media (max-width: 36rem) {
 	.contact-page__intro,
@@ -611,11 +570,6 @@
 
 	.inquiry-form__submit {
 		width: 100%;
-	}
-
-	.inquiry-preview__detail {
-		grid-template-columns: minmax(0, 1fr);
-		gap: 0.45rem;
 	}
 }
 
@@ -668,23 +622,20 @@
 	.contact-page__inquiry-eyebrow,
 	.contact-page__required-note,
 	.inquiry-form__required,
-	.inquiry-preview__eyebrow,
-	.inquiry-preview__detail dt {
+	.inquiry-confirmation__eyebrow {
 		color: var(--contact-ink);
 	}
 
 	.inquiry-form__control,
 	.inquiry-form__choice,
 	.inquiry-form__actions,
-	.inquiry-preview,
-	.inquiry-preview__details,
-	.inquiry-preview__detail {
+	.inquiry-confirmation {
 		border-color: var(--contact-ink);
 	}
 }
 
 /*
- * Stage 12 adds no animation, transition, parallax, autoplay, or smooth
+ * Stage 14 adds no animation, transition, parallax, autoplay, or smooth
  * scrolling. Native focus, hover, validation, and route changes therefore
  * remain immediate under prefers-reduced-motion without a separate override.
  */
