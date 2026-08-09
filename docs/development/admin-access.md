@@ -5,25 +5,27 @@ grow a private content-management area. It creates administrator and session
 storage, provides an operator-only first-user command, and adds login,
 dashboard, and logout routes.
 
-Stage 16 now builds one bounded feature on that foundation: both current roles
-can read saved Contact inquiries through a protected list and detail view. See
-the [Stage 16 administrator inquiry guide](admin-inquiries.md) for its exact
-authorization, pagination, privacy, and verification contract.
+Stages 16 and 17 build one bounded feature on that foundation: both current
+roles can read saved Contact inquiries and manually set one inquiry's workflow
+status. See the [administrator inquiry guide](admin-inquiries.md) for the exact
+authorization, pagination, mutation, privacy, and verification contract.
 
 Stage 15 itself deliberately added no management feature; its first dashboard
-was only an authenticated shell. The current project still has no inquiry
-mutation, product, project, media, publishing, account-management, password
-change or recovery, multi-factor authentication, or audit-reporting workflow.
+was only an authenticated shell. Stage 17 adds only manual inquiry status
+changes. The current project still has no product, project, media, publishing,
+account-management, password change or recovery, multi-factor authentication,
+or audit-reporting workflow.
 
 Expired rows are rejected during authentication but Stage 15 does not yet run
 a scheduled session-pruning job. The expiry index prepares for that later
 maintenance without making it part of an HTTP request.
 
 The two current roles are `owner` and `editor`. Stage 15 validates and displays
-those labels. Stage 16 explicitly authorizes both roles to read inquiries, but
-does not give either role a mutation or broader management permission. Do not
-describe an owner as having working user-management powers or an editor as
-having general content permissions until later handlers enforce those rules.
+those labels. Stages 16 and 17 explicitly authorize both roles to read
+inquiries and manually set their status, but do not give either role broader
+management permission. Do not describe an owner as having working
+user-management powers or an editor as having general content permissions
+until later handlers enforce those rules.
 
 ## What migration 000003 adds
 
@@ -160,16 +162,19 @@ GET  /admin         render the protected dashboard shell
 POST /admin/logout  revoke the session and clear its cookies
 ```
 
-Stage 16 separately adds these authenticated and explicitly authorized routes:
+Stages 16 and 17 separately add these authenticated and explicitly authorized
+routes:
 
 ```text
 GET /admin/inquiries       list up to 20 inquiry summaries
 GET /admin/inquiries/{id}  show one inquiry detail
+POST /admin/inquiries/{id}/status  set one explicit inquiry status
 ```
 
-Both `owner` and `editor` are on the inquiry-reader allowlist. A future role is
-denied unless route composition deliberately adds it. The inquiry routes are
-read-only, so viewing a detail does not change its status.
+Both `owner` and `editor` are explicitly present on the separate inquiry-reader
+and status-writer allowlists. A future role is denied unless route composition
+deliberately adds it to the relevant operation. Viewing or refreshing a detail
+does not change its status; only the protected POST form can do so.
 
 There is intentionally no `GET /admin/logout`: logout changes server state and
 therefore requires a protected POST. An unauthenticated visit to `/admin`
@@ -182,9 +187,10 @@ expensive dummy password verification, reducing account-enumeration timing
 differences. Database or entropy failures return a generic unavailable response
 and do not include credentials or driver detail.
 
-The dashboard displays the authenticated email and trusted role label and now
-links to the Stage 16 read-only inquiry inbox. It provides a logout form but no
-product, project, media, inquiry mutation, user, or publishing controls.
+The dashboard displays the authenticated email and trusted role label and
+links to the inquiry workspace. It provides logout and manual inquiry-status
+forms but no product, project, media, user, publishing, deletion, bulk, or
+automatic workflow controls.
 
 ## How password storage works
 
@@ -236,9 +242,11 @@ expires both cookies. Disabling a user also makes every associated session
 unusable on its next lookup.
 
 The anonymous login form has its own short-lived, ten-minute CSRF cookie and
-hidden form value. Authenticated logout requires the independent session-bound
-CSRF value. Forms are size-bounded, accept only their exact expected fields,
-and reject unsupported content types or duplicated values.
+hidden form value. Authenticated logout and inquiry-status forms reuse the
+independent session-bound CSRF value. Keeping it valid for the complete session
+supports Back navigation and multiple tabs. Forms are size-bounded, accept only
+their exact expected fields, and reject unsupported content types or duplicated
+values.
 
 Administrator cookies are host-only because no `Domain` is set. They use
 `HttpOnly`, `SameSite=Strict`, bounded `Expires`/`Max-Age`, and narrow paths:
@@ -311,11 +319,12 @@ Use separate credentials for these responsibilities:
   is finished.
 - The server runtime role needs `INSERT` and `SELECT` on inquiries: Stage 14
   inserts and checks an idempotent replay, while Stage 16 reads protected list
-  and detail fields. It also needs read access to active admin users (including
-  the verifier needed for login) and narrow insert/select/update access for
-  admin sessions. Logout updates `revoked_at`; it does not require table
-  deletion. The server does not need permission to create admin users or modify
-  their roles.
+  and detail fields. Stage 17 additionally needs column-level `UPDATE` on only
+  inquiry `status` and `updated_at`. It also needs read access to active admin
+  users (including the verifier needed for login) and narrow
+  insert/select/update access for admin sessions. Logout updates `revoked_at`;
+  it does not require table deletion. The server does not need permission to
+  update visitor content, create admin users, or modify their roles.
 
 The CLI and server both read a variable named `DATABASE_URL`, but separate
 processes can and should supply different role-specific URLs. Define grants in
@@ -339,7 +348,9 @@ Then verify in a private browser window:
 2. Submit a deliberately wrong password. The page should show one generic
    authentication failure, without confirming whether the address exists.
 3. Sign in with the local test account. The browser should reach `/admin`,
-   display the expected role label, and offer the read-only Inquiries link.
+   display the expected role label, and offer the Inquiries link. With only
+   fictional data, confirm the detail page changes status through a POST and
+   returns with HTTP 303; opening or refreshing the detail must not mutate it.
 4. In browser developer tools, inspect cookie **names and attributes only**.
    Confirm `HttpOnly`, `SameSite=Strict`, expiry, and paths; do not copy, log,
    screenshot, or paste cookie values. `Secure` is expected to be absent only
@@ -392,9 +403,10 @@ go vet ./...
 It covers password policy and canonical encoding, exact email normalization,
 SQL and parameter ordering, safe error mapping, login neutrality, session and
 CSRF handling, cookie attributes, security headers, route methods, dashboard
-protection, explicit owner/editor inquiry authorization, read-only inquiry
-routes, logout, and expiry. Production continues to use the fixed 600,000
-iteration manager; only tests can inject the inexpensive manager.
+protection, explicit owner/editor inquiry read and mutation authorization,
+strict manual status updates, Post/Redirect/Get, logout, and expiry. Production
+continues to use the fixed 600,000 iteration manager; only tests can inject the
+inexpensive manager.
 
 The PostgreSQL tests are destructive and opt-in. Supply only a dedicated empty
 database whose name ends in `_test`; never use a development, shared, or
@@ -417,8 +429,8 @@ Remove-Item Env:ZAFARMAND_TEST_DATABASE_CONFIRM -ErrorAction SilentlyContinue
 `Set-SecretProcessVariable` is the history-safe helper defined earlier in this
 guide. The live suite covers the complete v1-to-v3 migration cycle, rollback
 and reapplication, real PostgreSQL constraints, duplicate normalized email,
-session byte mapping, active-user filtering, expiry, revocation, and the Stage
-16 inquiry list/detail reader. Stage 16 adds no fourth migration. The suite
-never falls back to `DATABASE_URL` and skips only when its explicit opt-in
-variables are absent. Ensure cleanup succeeds before reusing or removing the
-disposable database.
+session byte mapping, active-user filtering, expiry, revocation, the Stage 16
+inquiry list/detail reader, and the Stage 17 status writer. Stage 17 adds no
+fourth migration. The suite never falls back to `DATABASE_URL` and skips only
+when its explicit opt-in variables are absent. Ensure cleanup succeeds before
+reusing or removing the disposable database.

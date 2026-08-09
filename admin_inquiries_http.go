@@ -86,12 +86,26 @@ type adminInquiryDetailPageData struct {
 	StatusLabel string
 	// StatusClass selects one trusted CSS modifier without visitor input.
 	StatusClass string
+	// StatusPath is the canonical protected POST destination derived from the
+	// validated inquiry identity rather than from submitted form data.
+	StatusPath string
+	// StatusActions contains exactly the two trusted non-current workflow states.
+	StatusActions []adminInquiryStatusActionPageData
 	// CreatedAtISO is the machine-readable UTC submission time.
 	CreatedAtISO string
 	// CreatedAtLabel is the concise human-readable UTC submission time.
 	CreatedAtLabel string
 	// Message is ordinary escaped text whose line breaks are preserved by CSS.
 	Message string
+}
+
+// adminInquiryStatusActionPageData is one server-owned submit-button contract.
+// Templates never derive a machine status or visible label from stored text.
+type adminInquiryStatusActionPageData struct {
+	// Value is one exact member of the closed inquiryStatus vocabulary.
+	Value string
+	// Label is the complete visible and accessible button name.
+	Label string
 }
 
 // adminInquiryListHandler validates one optional keyset cursor, reads at most
@@ -417,8 +431,14 @@ func newAdminInquiryDetailPageData(
 	if !exists || inquiry.ID <= 0 || inquiry.CreatedAt.IsZero() {
 		return adminInquiryDetailPageData{}, false
 	}
+	statusActions, exists := adminInquiryStatusActions(inquiry.Status)
+	if !exists {
+		return adminInquiryDetailPageData{}, false
+	}
 
 	createdAt := inquiry.CreatedAt.UTC()
+	statusPath := adminInquiryNavigationPath + "/" +
+		strconv.FormatInt(inquiry.ID, 10) + "/status"
 
 	return adminInquiryDetailPageData{
 		Reference:       adminInquiryReference(inquiry.ID),
@@ -427,10 +447,48 @@ func newAdminInquiryDetailPageData(
 		DisciplineLabel: disciplineLabel,
 		StatusLabel:     statusLabel,
 		StatusClass:     statusClass,
+		StatusPath:      statusPath,
+		StatusActions:   statusActions,
 		CreatedAtISO:    createdAt.Format(time.RFC3339),
 		CreatedAtLabel:  createdAt.Format(adminInquiryTimeLayout),
 		Message:         inquiry.Message,
 	}, true
+}
+
+// adminInquiryStatusActions translates the closed workflow vocabulary into
+// the two explicit alternatives available from the current state. Omitting the
+// current value avoids a disabled or ambiguous no-op control in the interface;
+// the repository still accepts a same-state replay from a crafted valid form.
+func adminInquiryStatusActions(
+	current inquiryStatus,
+) ([]adminInquiryStatusActionPageData, bool) {
+	if !current.valid() {
+		return nil, false
+	}
+
+	definitions := []struct {
+		// status is the exact persistence value submitted by this action.
+		status inquiryStatus
+		// label is the complete visible and accessible button text.
+		label string
+	}{
+		{status: inquiryStatusNew, label: "Mark as new"},
+		{status: inquiryStatusReviewed, label: "Mark as reviewed"},
+		{status: inquiryStatusArchived, label: "Mark as archived"},
+	}
+
+	actions := make([]adminInquiryStatusActionPageData, 0, len(definitions)-1)
+	for _, definition := range definitions {
+		if definition.status == current {
+			continue
+		}
+		actions = append(actions, adminInquiryStatusActionPageData{
+			Value: string(definition.status),
+			Label: definition.label,
+		})
+	}
+
+	return actions, len(actions) == 2
 }
 
 // adminInquiryStatusPresentation converts the closed persistence vocabulary to

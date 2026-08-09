@@ -50,6 +50,10 @@ type application struct {
 	// adminInquiries is the read-only personal-data boundary used by the private
 	// inquiry inbox. It remains separate from the public Contact write interface.
 	adminInquiries adminInquiryReader
+	// adminInquiryStatuses is the narrow private mutation boundary used only for
+	// explicit inquiry workflow changes. Keeping it separate from both inquiry
+	// readers and the public Contact writer makes its database authority visible.
+	adminInquiryStatuses adminInquiryStatusUpdater
 	// adminPasswords owns the versioned password hashing and verification format.
 	// Depending on its interface keeps an inexpensive deterministic manager
 	// injectable in tests while production always selects the full work factor.
@@ -431,6 +435,7 @@ func newApplication(
 	inquiries inquiryRepository,
 	admins adminRepository,
 	adminInquiries adminInquiryReader,
+	adminInquiryStatuses adminInquiryStatusUpdater,
 	passwords adminPasswordManager,
 ) (*application, error) {
 	if inquiries == nil {
@@ -441,6 +446,9 @@ func newApplication(
 	}
 	if adminInquiries == nil {
 		return nil, errAdminInquiryReaderRequired
+	}
+	if adminInquiryStatuses == nil {
+		return nil, errAdminInquiryStatusUpdaterRequired
 	}
 	if passwords == nil {
 		return nil, errAdminPasswordManagerRequired
@@ -493,6 +501,7 @@ func newApplication(
 		inquirySuccess:         inquirySuccess,
 		admins:                 admins,
 		adminInquiries:         adminInquiries,
+		adminInquiryStatuses:   adminInquiryStatuses,
 		adminPasswords:         passwords,
 		adminDummyPasswordHash: adminDummyPasswordHash,
 		adminEntropy:           rand.Reader,

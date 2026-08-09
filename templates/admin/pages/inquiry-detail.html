@@ -1,8 +1,13 @@
 {{/*
-The detail page is deliberately read-only. Each visitor-supplied value remains
-ordinary template text so html/template escapes it; no field is promoted to
-template.HTML. The message preserves intentional line breaks through CSS rather
-than injecting markup into the stored value.
+The detail page keeps every visitor-supplied value as ordinary template text,
+so html/template escapes it; no field is promoted to template.HTML. The
+message preserves intentional line breaks through CSS rather than injecting
+markup into the stored value.
+
+Stage 17 adds one narrowly scoped mutation after the administrator has read the
+message. The native form works without JavaScript, submits only the shared
+session CSRF token and one server-owned status value, and never copies visitor
+personal data into a hidden control.
 */}}
 {{define "admin-content"}}
 <main class="admin-inquiry-detail" id="admin-main-content">
@@ -20,7 +25,7 @@ than injecting markup into the stored value.
 			</div>
 
 			<p class="admin-inquiry-status admin-inquiry-status--{{.InquiryDetail.StatusClass}}">
-				{{.InquiryDetail.StatusLabel}}
+				Current status: {{.InquiryDetail.StatusLabel}}
 			</p>
 		</header>
 
@@ -49,6 +54,53 @@ than injecting markup into the stored value.
 			<h2 id="admin-message-title">Project message</h2>
 
 			<p class="admin-inquiry-message">{{.InquiryDetail.Message}}</p>
+		</section>
+
+		{{/*
+		Only the two non-current statuses are supplied by Go. Each visible button
+		has the same accessible name as its text and contributes the status field
+		only when an administrator deliberately activates that button. The raw CSRF
+		token comes from the authenticated page root, not the inquiry record.
+		*/}}
+		<section
+			class="admin-inquiry-workflow"
+			aria-labelledby="admin-inquiry-workflow-title"
+		>
+			<h2 id="admin-inquiry-workflow-title">Inquiry workflow</h2>
+
+			<form
+				class="admin-inquiry-status-form"
+				action="{{.InquiryDetail.StatusPath}}"
+				method="post"
+			>
+				<input
+					type="hidden"
+					name="csrf_token"
+					value="{{$.SessionCSRFToken}}"
+				>
+
+				<fieldset aria-describedby="admin-inquiry-status-help">
+					<legend>Change status</legend>
+
+					<p id="admin-inquiry-status-help">
+						Choose a different workflow status. Marking an inquiry
+						as archived keeps it stored and available here.
+					</p>
+
+					<div class="admin-inquiry-status-actions">
+						{{range .InquiryDetail.StatusActions}}
+						<button
+							class="admin-status-button"
+							type="submit"
+							name="status"
+							value="{{.Value}}"
+						>
+							{{.Label}}
+						</button>
+						{{end}}
+					</div>
+				</fieldset>
+			</form>
 		</section>
 	</article>
 </main>

@@ -113,6 +113,22 @@ func (app *application) routes() http.Handler {
 		),
 	)
 
+	// Status changes are explicit POST mutations. Repeating the role allowlist
+	// here makes write permission a separate decision from read permission, even
+	// while both current roles are intentionally allowed during Stage 17.
+	inquiryStatusWriterRoles := requireAdminRoles(
+		adminRoleOwner,
+		adminRoleEditor,
+	)
+	mux.Handle(
+		"POST /admin/inquiries/{id}/status",
+		app.requireAdmin(
+			inquiryStatusWriterRoles(
+				http.HandlerFunc(app.adminInquiryStatusUpdateHandler),
+			),
+		),
+	)
+
 	// Applying headers outside ServeMux also protects its generated admin 404 and
 	// 405 responses while leaving the established public response policy intact.
 	return adminSecurityHeaders(mux)

@@ -29,7 +29,7 @@ const (
 	// adminTokenBytes gives every independently generated secret 256 bits of
 	// cryptographic entropy before URL-safe encoding.
 	adminTokenBytes = 32
-	// adminMaximumFormBytes bounds parsing work for the small login/logout forms.
+	// adminMaximumFormBytes bounds parsing work for every small private form.
 	adminMaximumFormBytes = 16 * 1024
 	// adminLoginCSRFLifetime limits how long an unused anonymous form stays valid.
 	adminLoginCSRFLifetime = 10 * time.Minute
@@ -80,7 +80,7 @@ type adminPageData struct {
 	NavigationPath string
 	// Identity contains the minimal authenticated display fields, or nil on login.
 	Identity *adminIdentityPageData
-	// SessionCSRFToken is rendered only into the authenticated logout form.
+	// SessionCSRFToken is rendered only into authenticated mutation forms.
 	SessionCSRFToken string
 	// InquiryList contains only the read-only inbox presentation contract.
 	InquiryList *adminInquiryListPageData
@@ -483,14 +483,10 @@ func (app *application) adminLogoutHandler(
 		return
 	}
 
-	submitted, _, valid := decodeAndHashAdminToken(form.Get("csrf_token"))
-	expected, _, expectedValid := decodeAndHashAdminToken(
+	if !adminSessionCSRFTokenIsValid(
 		requestIdentity.CSRFToken,
-	)
-	if !valid || !expectedValid || subtle.ConstantTimeCompare(
-		submitted,
-		expected,
-	) != 1 {
+		form.Get("csrf_token"),
+	) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 
 		return

@@ -1,10 +1,10 @@
 /* --------------------------------------------------
-   Stages 15–16: Secure administration and inquiry review
+   Stages 15–17: Secure administration and inquiry workflow
 
    The admin interface has its own restrained document shell and does not load
    public navigation or route-specific presentation. Stage 16 extends the
-   authenticated shell with a responsive read-only inquiry inbox and detail
-   view while retaining the original login presentation.
+   authenticated shell with a responsive inquiry inbox and detail view; Stage
+   17 adds the explicit status workflow while retaining the login presentation.
 -------------------------------------------------- */
 
 :root {
@@ -264,7 +264,8 @@ a {
 .admin-primary-link:focus-visible,
 .admin-secondary-link:focus-visible,
 .admin-back-link:focus-visible,
-.admin-inquiry-card h2 a:focus-visible {
+.admin-inquiry-card h2 a:focus-visible,
+.admin-status-button:focus-visible {
 	outline: 3px solid var(--admin-focus);
 	outline-offset: 3px;
 }
@@ -272,7 +273,8 @@ a {
 /* A darker focus color keeps the same three-pixel outline clear on cream. */
 .admin-login .admin-form__field input:focus,
 .admin-login .admin-button:focus-visible,
-.admin-login .admin-alert:focus {
+.admin-login .admin-alert:focus,
+.admin-inquiry-record .admin-status-button:focus-visible {
 	outline-color: var(--admin-focus-on-light);
 }
 
@@ -629,7 +631,8 @@ a {
 	margin-top: clamp(2.5rem, 6vw, 5rem);
 }
 
-.admin-inquiry-message-section h2 {
+.admin-inquiry-message-section h2,
+.admin-inquiry-workflow h2 {
 	font-size: clamp(1.8rem, 4vw, 3rem);
 }
 
@@ -642,6 +645,86 @@ a {
 	overflow-wrap: anywhere;
 	white-space: pre-wrap;
 	word-break: break-word;
+}
+
+/*
+   The status workflow follows the message in source order so an administrator
+   can review the inquiry before changing its state. Its form contains only
+   native controls and remains fully usable when JavaScript is unavailable.
+*/
+.admin-inquiry-workflow {
+	margin-top: clamp(2.5rem, 6vw, 5rem);
+	padding-top: clamp(2rem, 5vw, 3.5rem);
+	border-top: 1px solid var(--admin-rule);
+}
+
+.admin-inquiry-status-form {
+	margin-top: 1.5rem;
+}
+
+/* Reset browser fieldset spacing before applying the compact workflow layout. */
+.admin-inquiry-status-form fieldset {
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+.admin-inquiry-status-form legend {
+	padding: 0;
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.admin-inquiry-status-form p {
+	max-width: 58ch;
+	margin: 0.75rem 0 0;
+	color: var(--admin-ink-soft);
+}
+
+.admin-inquiry-status-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	margin-top: 1.25rem;
+}
+
+/*
+   Each button names its complete destination state in visible text. The
+   2.75rem minimum creates a comfortable keyboard and pointer target, while
+   wrapping prevents long translated labels from widening the page.
+*/
+.admin-status-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 0;
+	min-height: 2.75rem;
+	max-width: 100%;
+	padding: 0.7rem 1rem;
+	border: 1px solid var(--admin-ink);
+	border-radius: 0;
+	background: transparent;
+	color: var(--admin-ink);
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	line-height: 1.35;
+	overflow-wrap: anywhere;
+	text-align: center;
+	text-transform: uppercase;
+	white-space: normal;
+	cursor: pointer;
+}
+
+/* Hover is additive; visible text, borders, and focus never rely on it. */
+@media (hover: hover) {
+	.admin-status-button:hover {
+		background: var(--admin-ink);
+		color: var(--admin-light);
+	}
 }
 
 /* Tablet and phone layouts follow semantic source order without overflow. */
@@ -718,6 +801,16 @@ a {
 	.admin-inquiry-facts div:last-child {
 		border-bottom: 0;
 	}
+
+	/* Full-width actions stay legible and avoid cramped rows on narrow phones. */
+	.admin-inquiry-status-actions {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.admin-status-button {
+		width: 100%;
+	}
 }
 
 /* Forced-color users retain control and region boundaries without color alone. */
@@ -730,8 +823,13 @@ a {
 	.admin-button,
 	.admin-alert,
 	.admin-inquiry-status,
-	.admin-primary-link {
+	.admin-primary-link,
+	.admin-status-button {
 		border: 2px solid CanvasText;
+	}
+
+	.admin-inquiry-workflow {
+		border-top: 2px solid CanvasText;
 	}
 
 	.admin-nav__link--active {

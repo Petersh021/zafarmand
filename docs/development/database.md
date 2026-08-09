@@ -1,4 +1,4 @@
-# Stage 13-16 database development on Windows
+# Stage 13-17 database development on Windows
 
 Stage 13 establishes an explicit PostgreSQL migration workflow. Stage 14 uses
 that foundation for the first database-backed public feature: Contact inquiry
@@ -7,6 +7,9 @@ the separate [admin access guide](admin-access.md) explains that security slice.
 Stage 16 adds a protected, read-only inquiry list and detail reader without a
 schema migration; its exact data boundary is documented in the [administrator
 inquiry guide](admin-inquiries.md).
+Stage 17 adds an explicit administrator status writer using the table's
+existing `status`, `updated_at`, and closed status constraint, so it also needs
+no schema migration.
 
 The boundary is intentional:
 
@@ -23,6 +26,9 @@ The boundary is intentional:
 - Authenticated owners and editors can read bounded inquiry pages through a
   separate repository; the list does not select email, message, or submission
   key data.
+- Authenticated and explicitly authorized owners and editors can manually set
+  one supported status through another narrow repository; opening a detail
+  page never performs that update.
 - The success page claims only that the inquiry was saved for studio review. It
   does not claim email delivery or guarantee a response time.
 
@@ -102,16 +108,18 @@ read the same variable name. A migration session needs a schema-owner role that
 can create and alter the migration ledger, tables, constraints, and sequences.
 After migrations finish, replace `DATABASE_URL` in the server's environment
 with a least-privilege runtime role. The current server needs database/schema
-connection privileges; `INSERT` and `SELECT` on `public.inquiries`; `SELECT` on
+connection privileges; `INSERT` and `SELECT` on `public.inquiries` plus
+column-level `UPDATE` on only its `status` and `updated_at`; `SELECT` on
 `public.admin_users`; and `SELECT`, `INSERT`, and `UPDATE` on
 `public.admin_sessions`. The broader inquiry read is required by Stage 16's
-protected list and detail statements, while application-level interfaces keep
-it unavailable to the public Contact handler. Identity sequences need the
-access required to generate IDs. The separate administrator bootstrap process
-additionally needs `INSERT` on `public.admin_users`, but neither runtime should
-own the schema or receive migration privileges. Keep role creation and
-credentials outside this repository and follow the deployment provider's
-role-management documentation.
+protected list and detail statements, while the narrow column update is
+required by Stage 17's status statement. Separate application-level interfaces
+keep both capabilities unavailable to the public Contact handler. Identity
+sequences need the access required to generate IDs. The separate administrator
+bootstrap process additionally needs `INSERT` on `public.admin_users`, but
+neither runtime should own the schema or receive migration privileges. Keep
+role creation and credentials outside this repository and follow the deployment
+provider's role-management documentation.
 
 Never:
 
@@ -169,9 +177,10 @@ migration code, and closes it once. Individual migration functions do not own
 or close the pool. Opening a new pool for each statement would hide ownership,
 waste connections, and teach the wrong request lifecycle.
 
-In Stages 14-16, the long-running application—not an HTTP handler—owns the
-shared pool. The public inquiry writer, private inquiry reader, and
-administrator authentication repository borrow it and accept request contexts.
+In Stages 14-17, the long-running application—not an HTTP handler—owns the
+shared pool. The public inquiry writer, private inquiry reader, private inquiry
+status updater, and administrator authentication repository borrow it and
+accept request contexts.
 The server opens and pings the pool before listening, stops accepting requests
 on Ctrl+C, waits for active handlers, and then closes the pool.
 
@@ -335,13 +344,20 @@ must be one supported machine value, and the initial status must be `new`.
 Submitting the exact same already-rendered form twice must leave one row because
 its hidden `submission_token` maps to the unique `submission_key` column.
 
-Stage 16 reuses this table and its primary-key index; it adds no migration 4.
+Stages 16 and 17 reuse this table and its primary-key index; neither adds
+migration 4. Stage 17 also reuses the existing status constraint and
+`updated_at` column. A same-status write succeeds while preserving the stored
+timestamp value. A real transition changes `status` and assigns PostgreSQL's
+`CURRENT_TIMESTAMP` to `updated_at`; finite timestamp precision means that
+value cannot be promised to advance strictly on two immediate transitions.
+Concurrent administrators use documented last-successful-write-wins behavior
+rather than a hidden versioning promise.
 Its protected inbox orders by descending ID and requests older pages with the
 exclusive `before=<id>` keyset. Verify that interface with one fictional local
 Contact submission rather than selecting a real visitor's personal data into a
 terminal. The [administrator inquiry guide](admin-inquiries.md) gives the exact
-browser checks, explains why the 20-item reader does not use `OFFSET`, and
-documents the receipt-order timestamp caveat.
+read and manual-status browser checks, explains why the 20-item reader does not
+use `OFFSET`, and documents the receipt-order timestamp caveat.
 
 To exercise rollback, first switch `DATABASE_URL` to a separate disposable
 database. Reconfirm the connection before doing anything destructive:
@@ -371,7 +387,8 @@ Remove-Item Env:PGDATABASE -ErrorAction SilentlyContinue
 The normal suite never connects to PostgreSQL. Separate integration tests cover
 the advisory lock, real DDL, multi-statement rollback, ledger, status,
 idempotent up/down/reapply, the public inquiry repository's name/email mapping
-and retry behavior, and the private Stage 16 list/detail reader.
+and retry behavior, the private Stage 16 list/detail reader, and the Stage 17
+status writer's transition, no-op, and safe-failure behavior.
 
 On the verified local Windows PostgreSQL 18 installation, the guarded helper
 can run the same acceptance cycle without persisting or printing a password:
@@ -383,7 +400,8 @@ can run the same acceptance cycle without persisting or printing a password:
 The helper keeps its historical Stage 14 filename and disposable database name,
 but its `Postgres` test selection runs the complete current v1-to-v3 suite,
 including Stage 15 admin schema/repository checks and Stage 16 inquiry reads.
-There is no v4 schema step in this stage.
+It also checks Stage 17 status updates. There is no v4 schema step in this
+stage.
 
 The helper uses a visible secure password prompt, refuses to reuse a database,
 creates only `zafarmand_stage14_codex_test`, runs the opt-in integration tests
@@ -428,9 +446,10 @@ result before treating the local database runtime as verified.
 
 ## Normal development checks
 
-The ordinary automated suite, including Stage 16 authorization, pagination,
-repository, handler, and template checks, must remain database-independent. It
-should pass even when PostgreSQL is stopped or absent:
+The ordinary automated suite, including Stage 16 reads and Stage 17 status
+authorization, repository, handler, CSRF, redirect, and template checks, must
+remain database-independent. It should pass even when PostgreSQL is stopped or
+absent:
 
 ```powershell
 go fmt ./...

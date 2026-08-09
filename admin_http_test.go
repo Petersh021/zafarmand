@@ -67,6 +67,7 @@ func newAdminHTTPTestApplicationWithInquiryReader(
 		inquiries,
 		repository,
 		adminInquiries,
+		newRecordingAdminInquiryStatusUpdater(),
 		passwords,
 	)
 	if err != nil {
@@ -1519,6 +1520,7 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 			inquiries,
 			nil,
 			newRecordingAdminInquiryReader(),
+			newRecordingAdminInquiryStatusUpdater(),
 			newTestAdminPasswordManager(t),
 		)
 		requireErrorIs(t, err, errAdminRepositoryRequired)
@@ -1532,6 +1534,7 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 			inquiries,
 			newRecordingAdminRepository(),
 			nil,
+			newRecordingAdminInquiryStatusUpdater(),
 			newTestAdminPasswordManager(t),
 		)
 		requireErrorIs(t, err, errAdminInquiryReaderRequired)
@@ -1540,11 +1543,26 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 		}
 	})
 
+	t.Run("nil admin inquiry status updater", func(t *testing.T) {
+		app, err := newApplication(
+			inquiries,
+			newRecordingAdminRepository(),
+			newRecordingAdminInquiryReader(),
+			nil,
+			newTestAdminPasswordManager(t),
+		)
+		requireErrorIs(t, err, errAdminInquiryStatusUpdaterRequired)
+		if app != nil {
+			t.Error("nil admin inquiry status updater returned a usable application")
+		}
+	})
+
 	t.Run("nil password manager", func(t *testing.T) {
 		app, err := newApplication(
 			inquiries,
 			newRecordingAdminRepository(),
 			newRecordingAdminInquiryReader(),
+			newRecordingAdminInquiryStatusUpdater(),
 			nil,
 		)
 		requireErrorIs(t, err, errAdminPasswordManagerRequired)

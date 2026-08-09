@@ -107,6 +107,7 @@ func newTestApplicationWithInquiryRepository(
 		repository,
 		adminRepository,
 		newRecordingAdminInquiryReader(),
+		newRecordingAdminInquiryStatusUpdater(),
 		passwords,
 	)
 	if err != nil {
@@ -124,6 +125,7 @@ func TestNewApplicationRequiresInquiryRepository(t *testing.T) {
 		nil,
 		newRecordingAdminRepository(),
 		newRecordingAdminInquiryReader(),
+		newRecordingAdminInquiryStatusUpdater(),
 		newTestAdminPasswordManager(t),
 	)
 	if !errors.Is(err, errInquiryRepositoryRequired) {
