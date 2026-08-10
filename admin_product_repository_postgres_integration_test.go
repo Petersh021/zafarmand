@@ -6,9 +6,9 @@ import (
 )
 
 // TestPostgresAdminProductReaderIntegration proves the behavior that unit stubs
-// cannot: migration 4 starts empty, the protected projection reads all lifecycle
-// states, PostgreSQL applies `(sort_order, id)` ordering, and positive-ID detail
-// lookup maps a genuine missing row safely.
+// cannot: migrations 4–5 start empty, the protected projection reads all
+// lifecycle states and revisions, PostgreSQL applies `(sort_order, id)` ordering,
+// and positive-ID detail lookup maps a genuine missing row safely.
 //
 // The shared two-part opt-in and `_test` database-name guard make an ordinary
 // `go test` skip this function. It never falls back to DATABASE_URL.
@@ -117,12 +117,13 @@ func assertAdminProductMatchesPostgresFixture(
 		actual.Name != expected.Name ||
 		actual.Category != expected.Category ||
 		actual.SortOrder != expected.SortOrder ||
-		actual.PublicationStatus != expected.PublicationStatus {
+		actual.PublicationStatus != expected.PublicationStatus ||
+		actual.Version != 1 {
 		t.Error("protected Product projection does not match its synthetic fixture")
 	}
 	if actual.CreatedAt.IsZero() ||
 		actual.UpdatedAt.IsZero() ||
 		actual.UpdatedAt.Before(actual.CreatedAt) {
-		t.Error("protected Product timestamps violate migration-4 invariants")
+		t.Error("protected Product timestamps violate migration-5 invariants")
 	}
 }

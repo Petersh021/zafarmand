@@ -1,0 +1,27 @@
+{{/*
+This response deliberately omits the submitted form and current database row.
+The administrator must open a fresh edit GET, which retrieves the newest values
+and revision before another save can be attempted.
+*/}}
+{{define "admin-content"}}
+<main class="admin-product-conflict" id="admin-main-content">
+	<section class="admin-conflict-panel" aria-labelledby="admin-product-conflict-title">
+		<p class="admin-eyebrow">Product was not saved</p>
+
+		<h1 id="admin-product-conflict-title">This Product changed in another session</h1>
+
+		<p>
+			Your form used an older revision, so Zafarmand did not overwrite the newer Product data.
+		</p>
+
+		<p>
+			Open a fresh edit form, review the latest values, and apply your change again if it is still needed.
+		</p>
+
+		<div class="admin-product-form__actions">
+			<a class="admin-primary-link" href="{{.ProductConflict.EditPath}}">Open latest edit form</a>
+			<a class="admin-secondary-link" href="{{.ProductConflict.DetailPath}}">View current Product</a>
+		</div>
+	</section>
+</main>
+{{end}}

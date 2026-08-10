@@ -86,20 +86,21 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 
 	// A fresh database exposes the complete embedded history in order without
 	// claiming that any schema stage has already been applied.
-	assertMigrationIntegrationStatus(t, runner, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, false, false, false, false, false)
 
 	applied, err := runner.Up(t.Context())
 	if err != nil {
 		t.Fatalf("apply embedded migrations: %v", err)
 	}
-	if len(applied) != 4 ||
+	if len(applied) != 5 ||
 		applied[0].Version != 1 ||
 		applied[1].Version != 2 ||
 		applied[2].Version != 3 ||
-		applied[3].Version != 4 {
-		t.Fatalf("applied migrations: got %#v, want versions 1 through 4", applied)
+		applied[3].Version != 4 ||
+		applied[4].Version != 5 {
+		t.Fatalf("applied migrations: got %#v, want versions 1 through 5", applied)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", true)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", true)
@@ -192,19 +193,49 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		1,
 		"draft",
 	)
+	assertMigrationIntegrationProductVersion(t, database, productID, 1)
 	assertMigrationIntegrationProductConstraints(t, database)
 
 	// Down intentionally rolls back only the newest applied migration. Version
-	// 000004 owns only Products, so its table and partial index disappear while
-	// the independent administrator and inquiry records remain unchanged.
+	// 000005 removes the edit revision while preserving the Product row, table,
+	// public index, administrator tables, and inquiry records.
 	rolledBack, err := runner.Down(t.Context())
+	if err != nil {
+		t.Fatalf("roll back Stage 20 migration: %v", err)
+	}
+	if rolledBack == nil || rolledBack.Version != 5 {
+		t.Fatalf("rolled-back migration: got %#v, want version 5", rolledBack)
+	}
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, false)
+	assertMigrationIntegrationTableExists(t, database, "products", true)
+	assertMigrationIntegrationColumnExists(t, database, "products", "version", false)
+	assertMigrationIntegrationIndexExists(
+		t,
+		database,
+		"products_published_order_idx",
+		true,
+	)
+	assertMigrationIntegrationProduct(
+		t,
+		database,
+		productID,
+		"stage-eighteen-product",
+		"Stage Eighteen Product",
+		"Furniture",
+		1,
+		"draft",
+	)
+
+	// The next one-step rollback reaches version 000004. Its strict table drop
+	// removes Products and the partial index while unrelated schemas remain.
+	rolledBack, err = runner.Down(t.Context())
 	if err != nil {
 		t.Fatalf("roll back Stage 18 migration: %v", err)
 	}
 	if rolledBack == nil || rolledBack.Version != 4 {
 		t.Fatalf("rolled-back migration: got %#v, want version 4", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, false, false)
 	assertMigrationIntegrationTableExists(t, database, "products", false)
 	assertMigrationIntegrationIndexExists(
 		t,
@@ -235,7 +266,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 3 {
 		t.Fatalf("rolled-back migration: got %#v, want version 3", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", false)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", false)
@@ -284,7 +315,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 2 {
 		t.Fatalf("rolled-back migration: got %#v, want version 2", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
 	assertMigrationIntegrationColumnExists(
 		t,
@@ -309,19 +340,20 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	)
 
 	// Reapplying with version 000001 still present plans versions 000002 through
-	// 000004 in order. The key backfill preserves inquiry contact data, while the
+	// 000005 in order. The key backfill preserves inquiry contact data, while the
 	// recreated admin and Product tables return empty after their deliberate drop.
 	applied, err = runner.Up(t.Context())
 	if err != nil {
 		t.Fatalf("reapply Stages 14, 15, and 18 migrations: %v", err)
 	}
-	if len(applied) != 3 ||
+	if len(applied) != 4 ||
 		applied[0].Version != 2 ||
 		applied[1].Version != 3 ||
-		applied[2].Version != 4 {
-		t.Fatalf("reapplied migrations: got %#v, want versions 2 through 4", applied)
+		applied[2].Version != 4 ||
+		applied[3].Version != 5 {
+		t.Fatalf("reapplied migrations: got %#v, want versions 2 through 5", applied)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true)
 	assertMigrationIntegrationBackfilledKeys(t, database, 2)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", true)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", true)
@@ -347,6 +379,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		true,
 	)
 	assertMigrationIntegrationTableRowCount(t, database, "products", 0)
+	assertMigrationIntegrationColumnExists(t, database, "products", "version", true)
 	assertMigrationIntegrationInquiryContact(
 		t,
 		database,
@@ -388,13 +421,25 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	)
 	assertMigrationIntegrationTableRowCount(t, database, "admin_sessions", 0)
 
-	// A synthetic version 000005 fails after executing DDL. PostgreSQL must roll
-	// back that DDL while retaining all four applied embedded versions.
+	// A synthetic version 000006 fails after executing DDL. PostgreSQL must roll
+	// back that DDL while retaining all five applied embedded versions.
 	assertMigrationIntegrationAtomicFailure(t, database, catalog)
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true)
 
-	// Four explicit rollback calls prove the runner reverses the catalog one
-	// migration at a time: Products, admin access, the inquiry key, then inquiries.
+	// Five explicit rollback calls prove the runner reverses the catalog one
+	// migration at a time: Product revision, Products, admin access, inquiry key,
+	// then inquiries.
+	rolledBack, err = runner.Down(t.Context())
+	if err != nil {
+		t.Fatalf("roll back Stage 20 migration before full rollback: %v", err)
+	}
+	if rolledBack == nil || rolledBack.Version != 5 {
+		t.Fatalf("rolled-back migration: got %#v, want version 5", rolledBack)
+	}
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, false)
+	assertMigrationIntegrationTableExists(t, database, "products", true)
+	assertMigrationIntegrationColumnExists(t, database, "products", "version", false)
+
 	rolledBack, err = runner.Down(t.Context())
 	if err != nil {
 		t.Fatalf("roll back Stage 18 migration before full rollback: %v", err)
@@ -402,7 +447,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 4 {
 		t.Fatalf("rolled-back migration: got %#v, want version 4", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, false, false)
 	assertMigrationIntegrationTableExists(t, database, "products", false)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", true)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", true)
@@ -415,7 +460,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 3 {
 		t.Fatalf("rolled-back migration: got %#v, want version 3", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", false)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", false)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
@@ -427,7 +472,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 2 {
 		t.Fatalf("rolled-back migration: got %#v, want version 2", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
 
 	rolledBack, err = runner.Down(t.Context())
@@ -438,7 +483,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		t.Fatalf("rolled-back migration: got %#v, want version 1", rolledBack)
 	}
 	assertMigrationIntegrationTableExists(t, database, "inquiries", false)
-	assertMigrationIntegrationStatus(t, runner, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, false, false, false, false, false)
 
 	if _, err := runner.Down(t.Context()); !errors.Is(err, errNoAppliedMigrations) {
 		t.Fatalf("empty rollback: got %v, want no applied migrations", err)
@@ -450,14 +495,15 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reapply embedded migrations after full rollback: %v", err)
 	}
-	if len(applied) != 4 ||
+	if len(applied) != 5 ||
 		applied[0].Version != 1 ||
 		applied[1].Version != 2 ||
 		applied[2].Version != 3 ||
-		applied[3].Version != 4 {
-		t.Fatalf("reapplied migrations: got %#v, want versions 1 through 4", applied)
+		applied[3].Version != 4 ||
+		applied[4].Version != 5 {
+		t.Fatalf("reapplied migrations: got %#v, want versions 1 through 5", applied)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true)
 }
 
 // loadMigrationIntegrationConfig requires two explicit environment values and
@@ -874,6 +920,42 @@ WHERE id = $1`,
 			updatedAt,
 		)
 	}
+}
+
+// assertMigrationIntegrationProductVersion proves migration 000005 backfills
+// the default positive revision and rejects a non-positive direct update.
+func assertMigrationIntegrationProductVersion(
+	t *testing.T,
+	database *sql.DB,
+	productID int64,
+	expectedVersion int64,
+) {
+	t.Helper()
+
+	var version int64
+	if err := database.QueryRowContext(
+		t.Context(),
+		"SELECT version FROM public.products WHERE id = $1",
+		productID,
+	).Scan(&version); err != nil {
+		t.Fatal("read migration integration Product version")
+	}
+	if version != expectedVersion {
+		t.Errorf("Product version: got %d, want %d", version, expectedVersion)
+	}
+
+	_, err := database.ExecContext(
+		t.Context(),
+		"UPDATE public.products SET version = 0 WHERE id = $1",
+		productID,
+	)
+	assertPostgresConstraintError(
+		t,
+		err,
+		postgresCheckViolationCode,
+		"products_version_positive",
+		"",
+	)
 }
 
 // assertMigrationIntegrationProductConstraints bypasses future application
@@ -1381,10 +1463,10 @@ func assertMigrationIntegrationAtomicFailure(
 	t.Helper()
 
 	failingMigration := migrationDefinition{
-		// Versions 000001 through 000004 are the real embedded history. The probe
+		// Versions 000001 through 000005 are the real embedded history. The probe
 		// therefore uses the next contiguous version instead of colliding with the
-		// Stage 18 definition during catalog validation.
-		Version: 5,
+		// Stage 20 definition during catalog validation.
+		Version: 6,
 		Name:    "prove_atomicity",
 		UpSQL: `CREATE TABLE public.stage13_atomicity_probe (id bigint);
 SELECT * FROM public.stage13_intentionally_missing_table;`,
@@ -1426,7 +1508,7 @@ SELECT * FROM public.stage13_intentionally_missing_table;`,
 	).Scan(&ledgerRows); err != nil {
 		t.Fatal("count migration integration ledger rows")
 	}
-	if ledgerRows != 4 {
-		t.Errorf("ledger rows after failed migration: got %d, want 4", ledgerRows)
+	if ledgerRows != 5 {
+		t.Errorf("ledger rows after failed migration: got %d, want 5", ledgerRows)
 	}
 }

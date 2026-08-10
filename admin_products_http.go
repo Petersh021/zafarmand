@@ -24,9 +24,17 @@ var errAdminProductReaderRequired = errors.New(
 	"create application: admin product reader is required",
 )
 
+// errAdminProductWriterRequired prevents protected Product mutation routes
+// from starting without their explicit create/edit dependency.
+var errAdminProductWriterRequired = errors.New(
+	"create application: admin product writer is required",
+)
+
 // adminProductListPageData is the complete protected Product-list template
 // contract. An empty slice truthfully renders an empty database state.
 type adminProductListPageData struct {
+	// NewPath is the trusted protected route for creating a Product.
+	NewPath string
 	// Items contains every validated Product in editorial order.
 	Items []adminProductSummaryPageData
 	// EmptyMessage explains why no cards appear after a successful empty read.
@@ -57,11 +65,13 @@ type adminProductSummaryPageData struct {
 	UpdatedAtLabel string
 }
 
-// adminProductDetailPageData contains only migration-4 fields and trusted
-// presentation values. It has no mutation controls in this read-only stage.
+// adminProductDetailPageData contains migration-5 read fields and trusted
+// presentation/navigation values. Mutation remains on a separate POST form.
 type adminProductDetailPageData struct {
 	// Reference is the stable administrative label derived from the internal ID.
 	Reference string
+	// EditPath is the canonical protected form URL for this Product.
+	EditPath string
 	// Name is the page's primary Product heading.
 	Name string
 	// Slug is the stored canonical route segment.
@@ -70,6 +80,8 @@ type adminProductDetailPageData struct {
 	Category string
 	// SortOrder is formatted base-10 interface text.
 	SortOrder string
+	// Version is the positive revision shown as concurrency context.
+	Version string
 	// StatusLabel is trusted visible lifecycle text.
 	StatusLabel string
 	// StatusClass is one trusted CSS modifier selected by Go.
@@ -159,6 +171,7 @@ func (app *application) adminProductListHandler(
 		requestIdentity,
 	)
 	data.ProductList = &adminProductListPageData{
+		NewPath:      adminProductNewPath,
 		Items:        items,
 		EmptyMessage: "No Products have been created yet.",
 	}
@@ -316,7 +329,7 @@ func newAdminProductSummaryPageData(
 }
 
 // newAdminProductDetailPageData validates and converts one repository record
-// into the complete read-only detail contract.
+// into the complete read-only detail and edit-navigation contract.
 func newAdminProductDetailPageData(
 	product adminProductRecord,
 ) (adminProductDetailPageData, bool) {
@@ -333,10 +346,12 @@ func newAdminProductDetailPageData(
 	updatedAt := product.UpdatedAt.UTC()
 	detail := adminProductDetailPageData{
 		Reference:         adminProductReference(product.ID),
+		EditPath:          adminProductPath(product.ID) + "/edit",
 		Name:              product.Name,
 		Slug:              product.Slug,
 		Category:          product.Category,
 		SortOrder:         strconv.Itoa(product.SortOrder),
+		Version:           strconv.FormatInt(product.Version, 10),
 		StatusLabel:       statusLabel,
 		StatusClass:       statusClass,
 		VisibilityMessage: visibilityMessage,

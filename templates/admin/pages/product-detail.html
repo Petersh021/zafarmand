@@ -1,7 +1,7 @@
 {{/*
-The Stage 19 detail view is deliberately read-only. Stored Product text remains
-ordinary template data, so html/template escapes it; publication state is
-converted by Go into a trusted label, class suffix, and visibility explanation.
+The Product detail remains an escaped read view and links to a separate edit
+GET. Publication state is converted by Go into trusted display values; only the
+POST form may mutate it after authorization, CSRF, validation, and version checks.
 
 Only Published records receive a public link. Draft and Archived rows therefore
 cannot accidentally turn their stored slug into a discoverable public route.
@@ -11,6 +11,10 @@ cannot accidentally turn their stored slug into a discoverable public route.
 	<a class="admin-back-link" href="/admin/products">
 		<span aria-hidden="true">&larr;</span>
 		Product catalogue
+	</a>
+
+	<a class="admin-primary-link admin-product-edit-link" href="{{.ProductDetail.EditPath}}">
+		Edit Product
 	</a>
 
 	<article class="admin-product-record" aria-labelledby="admin-product-title">
@@ -40,6 +44,11 @@ cannot accidentally turn their stored slug into a discoverable public route.
 			<div>
 				<dt>Sort order</dt>
 				<dd>{{.ProductDetail.SortOrder}}</dd>
+			</div>
+
+			<div>
+				<dt>Revision</dt>
+				<dd>{{.ProductDetail.Version}}</dd>
 			</div>
 
 			<div>
@@ -73,13 +82,6 @@ cannot accidentally turn their stored slug into a discoverable public route.
 			{{end}}
 		</section>
 
-		<aside class="admin-read-only-note" aria-labelledby="admin-product-stage-title">
-			<h2 id="admin-product-stage-title">Read-only catalogue stage</h2>
-
-			<p>
-				Product creation, editing, and publication controls will be designed as a separate protected workflow.
-			</p>
-		</aside>
 	</article>
 </main>
 {{end}}

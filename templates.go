@@ -49,6 +49,9 @@ type application struct {
 	// adminProducts is the read-only all-status Product boundary used only by
 	// protected catalogue and detail pages.
 	adminProducts adminProductReader
+	// adminProductWrites is the separate Product create/edit authority. Keeping
+	// it apart from readers makes mutation permission explicit in composition.
+	adminProductWrites adminProductWriter
 	// adminInquiries is the read-only personal-data boundary used by the private
 	// inquiry inbox. It remains separate from the public Contact write interface.
 	adminInquiries adminInquiryReader
@@ -438,6 +441,7 @@ func newApplication(
 	inquiries inquiryRepository,
 	admins adminRepository,
 	adminProducts adminProductReader,
+	adminProductWrites adminProductWriter,
 	adminInquiries adminInquiryReader,
 	adminInquiryStatuses adminInquiryStatusUpdater,
 	passwords adminPasswordManager,
@@ -453,6 +457,9 @@ func newApplication(
 	}
 	if adminProducts == nil {
 		return nil, errAdminProductReaderRequired
+	}
+	if adminProductWrites == nil {
+		return nil, errAdminProductWriterRequired
 	}
 	if adminInquiries == nil {
 		return nil, errAdminInquiryReaderRequired
@@ -511,6 +518,7 @@ func newApplication(
 		inquirySuccess:         inquirySuccess,
 		admins:                 admins,
 		adminProducts:          adminProducts,
+		adminProductWrites:     adminProductWrites,
 		adminInquiries:         adminInquiries,
 		adminInquiryStatuses:   adminInquiryStatuses,
 		adminPasswords:         passwords,

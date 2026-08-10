@@ -1,10 +1,10 @@
 /* --------------------------------------------------
-   Stages 15–19: Secure administration and focused private workflows
+   Stages 15–20: Secure administration and focused private workflows
 
    The admin interface has its own restrained document shell and does not load
    public navigation or route-specific presentation. Stages 16–17 add inquiry
-   review and explicit status changes; Stage 19 adds read-only review of every
-   Product publication state while retaining the established login presentation.
+   review and explicit status changes; Stages 19–20 add Product review and a
+   concurrency-aware create/edit workflow while retaining login presentation.
 -------------------------------------------------- */
 
 :root {
@@ -50,7 +50,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
 	font: inherit;
 }
 
@@ -267,7 +268,10 @@ a {
 .admin-back-link:focus-visible,
 .admin-inquiry-card h2 a:focus-visible,
 .admin-product-card h2 a:focus-visible,
-.admin-status-button:focus-visible {
+.admin-status-button:focus-visible,
+.admin-product-form input:focus,
+.admin-product-form select:focus,
+.admin-product-form .admin-alert a:focus-visible {
 	outline: 3px solid var(--admin-focus);
 	outline-offset: 3px;
 }
@@ -277,7 +281,12 @@ a {
 .admin-login .admin-button:focus-visible,
 .admin-login .admin-alert:focus,
 .admin-inquiry-record .admin-status-button:focus-visible,
-.admin-product-record .admin-primary-link:focus-visible {
+.admin-product-record .admin-primary-link:focus-visible,
+.admin-product-form input:focus,
+.admin-product-form select:focus,
+.admin-product-form .admin-alert a:focus-visible,
+.admin-conflict-panel .admin-primary-link:focus-visible,
+.admin-conflict-panel .admin-secondary-link:focus-visible {
 	outline-color: var(--admin-focus-on-light);
 }
 
@@ -419,6 +428,14 @@ a {
 	padding: clamp(2.5rem, 7vw, 7rem) var(--admin-gutter);
 }
 
+.admin-product-form-page,
+.admin-product-conflict {
+	width: 100%;
+	max-width: 68rem;
+	margin-inline: auto;
+	padding: clamp(2.5rem, 7vw, 7rem) var(--admin-gutter);
+}
+
 .admin-page-header {
 	max-width: 52rem;
 }
@@ -447,6 +464,10 @@ a {
 	margin: 1.5rem 0 0;
 	color: rgba(244, 239, 229, 0.72);
 	font-size: clamp(1rem, 1.5vw, 1.2rem);
+}
+
+.admin-page-header__action {
+	margin-top: 1.75rem;
 }
 
 /* Back links keep the hierarchy understandable without browser scripting. */
@@ -778,8 +799,8 @@ a {
 }
 
 /*
-   The Product detail uses the same quiet reading surface without suggesting
-   that its values can already be edited.
+   The Product detail stays a quiet reading surface. Editing begins at a
+   separate GET form, so opening or refreshing this record cannot mutate data.
 */
 .admin-product-record {
 	min-width: 0;
@@ -806,10 +827,14 @@ a {
 
 .admin-product-facts {
 	display: grid;
-	grid-template-columns: repeat(5, minmax(0, 1fr));
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	margin: clamp(2rem, 5vw, 4rem) 0 0;
 	border-top: 1px solid var(--admin-rule);
 	border-bottom: 1px solid var(--admin-rule);
+}
+
+.admin-product-edit-link {
+	margin: 0 0 1.5rem;
 }
 
 .admin-product-facts div {
@@ -846,6 +871,106 @@ a {
 .admin-read-only-note {
 	padding-top: clamp(2rem, 5vw, 3.5rem);
 	border-top: 1px solid var(--admin-rule);
+}
+
+/*
+   Product create/edit uses one native no-JavaScript form. The bounded cream
+   surface separates editable values from the dark private shell, while every
+   label and error remains adjacent in semantic source order.
+*/
+.admin-product-form,
+.admin-conflict-panel {
+	min-width: 0;
+	margin-top: clamp(2rem, 5vw, 4rem);
+	padding: clamp(1.25rem, 5vw, 3.5rem);
+	background: var(--admin-surface);
+	color: var(--admin-ink);
+}
+
+.admin-product-form {
+	display: grid;
+	gap: 1.5rem;
+}
+
+.admin-product-form__field {
+	display: grid;
+	gap: 0.55rem;
+	min-width: 0;
+}
+
+.admin-product-form__field label {
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.admin-product-form__field input,
+.admin-product-form__field select {
+	width: 100%;
+	min-width: 0;
+	min-height: 3rem;
+	padding: 0.7rem 0.8rem;
+	border: 1px solid var(--admin-rule);
+	border-radius: 0;
+	background: transparent;
+	color: var(--admin-ink);
+}
+
+.admin-product-form__hint,
+.admin-product-form__error {
+	max-width: 65ch;
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.admin-product-form__hint {
+	color: var(--admin-ink-soft);
+	font-size: 0.9rem;
+}
+
+.admin-product-form__error {
+	color: var(--admin-error);
+	font-weight: 700;
+}
+
+.admin-product-form__actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 1rem;
+	margin-top: 0.5rem;
+}
+
+.admin-product-form__actions .admin-primary-link,
+.admin-product-form__actions .admin-secondary-link {
+	margin-top: 0;
+}
+
+.admin-product-form .admin-alert {
+	margin-top: 0;
+}
+
+.admin-product-form .admin-alert h2,
+.admin-conflict-panel h1 {
+	margin: 0;
+	font-family: var(--admin-serif);
+	font-weight: 400;
+	line-height: 1.08;
+	overflow-wrap: anywhere;
+}
+
+.admin-product-form .admin-alert ul {
+	margin-bottom: 0;
+}
+
+.admin-conflict-panel h1 {
+	font-size: clamp(2.2rem, 6vw, 5rem);
+}
+
+.admin-conflict-panel > p:not(.admin-eyebrow) {
+	max-width: 65ch;
+	color: var(--admin-ink-soft);
 }
 
 /*
@@ -1030,6 +1155,18 @@ a {
 	.admin-status-button {
 		width: 100%;
 	}
+
+	.admin-product-form__actions {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.admin-product-form__actions .admin-status-button,
+	.admin-product-form__actions .admin-primary-link,
+	.admin-product-form__actions .admin-secondary-link {
+		width: 100%;
+		text-align: center;
+	}
 }
 
 /* Forced-color users retain control and region boundaries without color alone. */
@@ -1038,8 +1175,12 @@ a {
 	.admin-dashboard__status,
 	.admin-inquiry-record,
 	.admin-product-record,
+	.admin-product-form,
+	.admin-conflict-panel,
 	.admin-empty-state,
 	.admin-form__field input,
+	.admin-product-form__field input,
+	.admin-product-form__field select,
 	.admin-button,
 	.admin-alert,
 	.admin-inquiry-status,
@@ -1053,7 +1194,8 @@ a {
 		border-top: 2px solid CanvasText;
 	}
 
-	.admin-read-only-note {
+	.admin-read-only-note,
+	.admin-conflict-panel {
 		border-top: 2px solid CanvasText;
 	}
 

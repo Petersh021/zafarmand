@@ -89,7 +89,7 @@ func (stub *adminProductRowsStub) Next() bool {
 	return true
 }
 
-// Scan copies one Product into the eight exact destinations selected by the
+// Scan copies one Product into the nine exact destinations selected by the
 // protected list query or returns the configured failure.
 func (stub *adminProductRowsStub) Scan(destinations ...any) error {
 	if stub.currentIndex < 0 || stub.currentIndex >= len(stub.products) {
@@ -98,8 +98,8 @@ func (stub *adminProductRowsStub) Scan(destinations ...any) error {
 	if stub.currentIndex == stub.scanErrorAt {
 		return stub.scanError
 	}
-	if len(destinations) != 8 {
-		return errors.New("admin product list scan expected eight destinations")
+	if len(destinations) != 9 {
+		return errors.New("admin product list scan expected nine destinations")
 	}
 
 	product := stub.products[stub.currentIndex]
@@ -109,10 +109,11 @@ func (stub *adminProductRowsStub) Scan(destinations ...any) error {
 	category, categoryOK := destinations[3].(*string)
 	sortOrder, sortOrderOK := destinations[4].(*int)
 	status, statusOK := destinations[5].(*string)
-	createdAt, createdAtOK := destinations[6].(*time.Time)
-	updatedAt, updatedAtOK := destinations[7].(*time.Time)
+	version, versionOK := destinations[6].(*int64)
+	createdAt, createdAtOK := destinations[7].(*time.Time)
+	updatedAt, updatedAtOK := destinations[8].(*time.Time)
 	if !idOK || !slugOK || !nameOK || !categoryOK || !sortOrderOK ||
-		!statusOK || !createdAtOK || !updatedAtOK {
+		!statusOK || !versionOK || !createdAtOK || !updatedAtOK {
 		return errors.New("admin product list scan received unexpected destinations")
 	}
 
@@ -122,6 +123,7 @@ func (stub *adminProductRowsStub) Scan(destinations ...any) error {
 	*category = product.Category
 	*sortOrder = product.SortOrder
 	*status = product.PublicationStatus
+	*version = product.Version
 	*createdAt = product.CreatedAt
 	*updatedAt = product.UpdatedAt
 
@@ -178,13 +180,13 @@ type adminProductRowStub struct {
 	scanError error
 }
 
-// Scan implements the eight-column detail projection used by FindByID.
+// Scan implements the nine-column detail projection used by FindByID.
 func (stub *adminProductRowStub) Scan(destinations ...any) error {
 	if stub.scanError != nil {
 		return stub.scanError
 	}
-	if len(destinations) != 8 {
-		return errors.New("admin product detail scan expected eight destinations")
+	if len(destinations) != 9 {
+		return errors.New("admin product detail scan expected nine destinations")
 	}
 
 	id, idOK := destinations[0].(*int64)
@@ -193,10 +195,11 @@ func (stub *adminProductRowStub) Scan(destinations ...any) error {
 	category, categoryOK := destinations[3].(*string)
 	sortOrder, sortOrderOK := destinations[4].(*int)
 	status, statusOK := destinations[5].(*string)
-	createdAt, createdAtOK := destinations[6].(*time.Time)
-	updatedAt, updatedAtOK := destinations[7].(*time.Time)
+	version, versionOK := destinations[6].(*int64)
+	createdAt, createdAtOK := destinations[7].(*time.Time)
+	updatedAt, updatedAtOK := destinations[8].(*time.Time)
 	if !idOK || !slugOK || !nameOK || !categoryOK || !sortOrderOK ||
-		!statusOK || !createdAtOK || !updatedAtOK {
+		!statusOK || !versionOK || !createdAtOK || !updatedAtOK {
 		return errors.New("admin product detail scan received unexpected destinations")
 	}
 
@@ -206,13 +209,14 @@ func (stub *adminProductRowStub) Scan(destinations ...any) error {
 	*category = stub.product.Category
 	*sortOrder = stub.product.SortOrder
 	*status = stub.product.PublicationStatus
+	*version = stub.product.Version
 	*createdAt = stub.product.CreatedAt
 	*updatedAt = stub.product.UpdatedAt
 
 	return nil
 }
 
-// validAdminProductRecord returns one deterministic migration-4 record. Tests
+// validAdminProductRecord returns one deterministic migration-5 record. Tests
 // vary one field at a time to isolate a defensive rule.
 func validAdminProductRecord(
 	id int64,
@@ -229,6 +233,7 @@ func validAdminProductRecord(
 		Category:          "Furniture",
 		SortOrder:         sortOrder,
 		PublicationStatus: status,
+		Version:           1,
 		CreatedAt:         createdAt,
 		UpdatedAt:         createdAt.Add(time.Hour),
 	}
@@ -333,6 +338,11 @@ func TestPostgresAdminProductReaderRejectsUnsafeLists(t *testing.T) {
 		{name: "invalid status", reader: &postgresAdminProductReader{query: func(context.Context, string, ...any) (adminProductRows, error) {
 			invalid := valid
 			invalid.PublicationStatus = "future"
+			return newAdminProductRowsStub([]adminProductRecord{invalid}), nil
+		}}},
+		{name: "invalid version", reader: &postgresAdminProductReader{query: func(context.Context, string, ...any) (adminProductRows, error) {
+			invalid := valid
+			invalid.Version = 0
 			return newAdminProductRowsStub([]adminProductRecord{invalid}), nil
 		}}},
 		{name: "unordered", reader: &postgresAdminProductReader{query: func(context.Context, string, ...any) (adminProductRows, error) {

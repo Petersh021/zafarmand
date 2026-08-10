@@ -1,203 +1,219 @@
-# Stage 19 protected Product review
+# Stages 19–20 protected Product management
 
-Stage 19 adds the first protected Product-management view. It is deliberately
-read-only: authenticated Owners and Editors can inspect every Product row and
-open one canonical detail page, but no HTTP route can create, edit, publish,
-archive, reorder, or delete a Product.
+Stage 19 established protected, read-only Product list and detail pages. Stage
+20 keeps those GET routes read-only and adds the first bounded Product mutation
+workflow: authenticated Owners and Editors can create a Product or edit its five
+existing catalogue fields.
 
-This order matters for a learning project. The stage first establishes:
-
-- which stored fields administrators need to understand;
-- how Draft, Published, and Archived differ from public visibility;
-- the authorization boundary around unpublished catalogue information;
-- the read repository and failure contract; and
-- the responsive, keyboard-usable interface that later mutation forms will
-  extend.
-
-Mutation validation, CSRF behavior, concurrent-edit handling, and publishing
-confirmation can then be designed explicitly in a later stage instead of being
-hidden inside this read slice.
+The stage intentionally does not add deletion, media, descriptions, SEO,
+featured placement, preview links, bulk actions, or an audit history. Those
+features need separate data and security decisions.
 
 ## Routes and authorization
 
-Stage 19 registers two server-rendered routes:
+The private Product routes are:
 
 ```text
-GET /admin/products       list every Product lifecycle state
-GET /admin/products/{id}  show one protected Product record
+GET  /admin/products            list every lifecycle state
+GET  /admin/products/new        render an empty create form
+POST /admin/products            create one Product
+GET  /admin/products/{id}       show one protected Product
+GET  /admin/products/{id}/edit  render the current Product revision
+POST /admin/products/{id}       save one version-guarded edit
 ```
 
-Both routes pass through the existing session middleware and a Product-reader
-allowlist that names `owner` and `editor` independently from the inquiry
-allowlists. A future role receives no access merely because it can authenticate.
+All six routes pass through administrator session authentication. Separate
+read and write allowlists explicitly name `owner` and `editor`; a future role
+does not inherit access merely because it can sign in.
 
-The route contract is intentionally strict:
+GET requests never mutate data. Successful POST requests use HTTP `303 See
+Other` to redirect to `/admin/products/{id}`, so refresh and browser Back/Forward
+operate on a GET instead of resubmitting a form.
 
-- list and detail accept GET or its automatic HEAD equivalent only;
-- the list accepts no query string, including a bare trailing `?`;
-- detail accepts one canonical positive base-10 `int64` identity;
-- zero, a sign, leading zeroes, non-decimal text, overflow, encoded-equivalent
-  digits, an extra segment, or any query returns an error before a Product read;
-- anonymous requests redirect to `/admin/login` before repository access; and
-- a valid missing identity returns the ordinary protected `404 Not Found`.
+Canonical routing remains strict:
 
-Canonical IDs are suitable for this private route because administrators need
-a stable internal reference even when a Draft slug has never been public. The
-browser URL never contains a Product name, category, or publication status.
+- IDs are positive base-10 `int64` values with no sign or leading zeroes;
+- encoded-equivalent digits, overflow, extra path segments, and alternate path
+  spellings return `404 Not Found`;
+- queries and a bare trailing `?` are rejected;
+- Product POST bodies must be `application/x-www-form-urlencoded` with no
+  content coding;
+- the create form contains exactly six fields including CSRF;
+- the edit form contains exactly those fields plus `version`; and
+- missing, duplicate, or extra form fields return `400 Bad Request`.
 
-## No migration 5
+## Migration 5: Product revision
 
-Stage 19 reuses `public.products` from migration 4. That table already owns the
-complete data needed by the interface:
+Migration 4 still owns the Product table. Stage 20 adds migration 5:
 
 ```text
-id
+migrations/000005_add_product_version.up.sql
+migrations/000005_add_product_version.down.sql
+```
+
+The up migration adds:
+
+```sql
+version bigint NOT NULL DEFAULT 1
+```
+
+with the named `products_version_positive` check. Existing rows receive revision
+1. Each successful edit increments the value by one. The down migration drops
+only this column; migration 4 remains responsible for the table.
+
+Do not edit migration 4 after it has been applied. On a complete schema,
+`go run . migrate down --confirm` first removes only version 5's revision
+column. A second rollback removes migration 4's entire Product table and all its
+rows. Use rollback only in a confirmed disposable database.
+
+## Separate read and write dependencies
+
+The protected reader remains independent:
+
+```text
+List(ctx)
+FindByID(ctx, id)
+```
+
+Its migration-5 projection now includes `version` in addition to ID, slug, name,
+category, sort order, publication state, and timestamps. The public reader is
+unchanged and still returns Published rows only.
+
+The writer has only two methods:
+
+```text
+Create(ctx, input)                    -> ID and version
+Update(ctx, id, expectedVersion, input) -> ID and new version
+```
+
+The editable input contains exactly:
+
+```text
 slug
 name
 category
 sort_order
 publication_status
-created_at
-updated_at
 ```
 
-The existing primary key supports exact detail lookup, and the current small
-catalogue can be listed in `(sort_order, id)` order. This stage adds no filter,
-count, pagination, mutation, or new query pattern that justifies another index.
-Adding an empty schema version merely to match a stage number would confuse
-application milestones with database history.
+IDs, revisions, and timestamps are database-owned. There is deliberately no
+delete method on this interface.
 
-Migration 4 remains schema-only. A newly migrated database therefore renders a
-truthful empty protected catalogue as well as an empty public catalogue.
+All SQL is fixed and parameterized. Create returns the generated ID and initial
+version. Update changes the five editable values, assigns PostgreSQL
+`CURRENT_TIMESTAMP`, and increments `version` only when both ID and expected
+version match.
 
-## Narrow protected repository
+## Concurrent-edit behavior
 
-The application depends on a separate interface:
+The edit GET renders the row's current positive version in a hidden control.
+That value is not authorization evidence; authentication, the role allowlist,
+and session-bound CSRF validation still run independently.
 
-```text
-List(ctx)          return every Product in (sort_order, id) order
-FindByID(ctx, id)  return one Product or a safe not-found category
-```
+If two administrators open revision 4:
 
-This interface is separate from the public `productCatalogueReader`:
+1. the first successful save writes revision 5;
+2. the second POST still expects revision 4;
+3. PostgreSQL changes no row; and
+4. the application returns a fixed `409 Conflict` page.
 
-| Boundary | Visible lifecycle states | Lookup | Result fields |
-| --- | --- | --- | --- |
-| Public Product reader | Published only | Public slug | Public catalogue projection |
-| Protected Product reader | Draft, Published, Archived | Positive internal ID | All migration-4 fields |
+The conflict page does not echo the stale Product form or the newer database
+row. It links to a fresh edit GET so the administrator can review revision 5
+before trying again. There is no silent last-write-wins overwrite.
 
-The separation makes the privacy rule structural. A public handler cannot ask
-its dependency for a Draft record, and an admin template does not need to infer
-whether a public-only result has hidden siblings.
+An explicit same-value save still increments the revision. That deliberate
+choice means another tab holding the previous version becomes stale even when
+the stored catalogue values happen to compare equal. Stage 20 does not yet
+record a durable change history or actor identity.
 
-The list SQL is fixed and parameter-free:
+## Validation and safe failures
 
-```sql
-SELECT
-    id,
-    slug,
-    name,
-    category,
-    sort_order,
-    publication_status,
-    created_at,
-    updated_at
-FROM public.products
-ORDER BY sort_order ASC, id ASC;
-```
+Go validates the same editable boundaries before calling PostgreSQL:
 
-Detail uses the same projection with `WHERE id = $1`. The positive identity is
-bound as a parameter; no URL or stored value is interpolated into SQL.
+- slug is 1–120 lowercase ASCII letters/digits with single internal hyphens;
+- name is trimmed, valid UTF-8, and 1–160 characters;
+- category is trimmed, valid UTF-8, and 1–80 characters;
+- sort order is a canonical integer from 1 through 2147483647; and
+- publication status is exactly `draft`, `published`, or `archived`.
 
-Both methods receive the request context under the existing five-second admin
-repository deadline. The process-owned `*sql.DB` pool remains open until the
-server stops; row iterators are closed by the method that acquires them.
+Visible-field errors return `422 Unprocessable Entity`, retain escaped form
+values, and identify each field in an accessible error summary. The server does
+not trim, case-fold, or otherwise turn an invalid value into a different valid
+Product.
 
-## Defensive result validation
+A unique `products_slug_unique` violation returns a correctable generic `409`
+form error. PostgreSQL diagnostics, SQL, constraint detail, connection data, and
+stored Product text never enter the response or logs. Other dependency failures
+return a fixed `503 Service Unavailable`; missing update IDs return 404.
 
-Database constraints remain the first durable boundary, but Go independently
-rechecks substituted-reader and decoding results before templates receive them:
+The session CSRF token is validated before Product semantics or repository
+access. A present empty, malformed, non-canonical, or mismatched value returns
+403. A structurally missing or duplicate CSRF field is a malformed form and
+returns 400.
 
-- ID and sort order are positive;
-- sort order fits PostgreSQL `integer`;
-- slug matches the canonical lowercase-hyphen grammar;
-- name and category are valid, trimmed, bounded UTF-8 text;
-- publication status is exactly `draft`, `published`, or `archived`;
-- timestamps are nonzero and `updated_at` does not predate `created_at`;
-- list order is strictly increasing by `(sort_order, id)`; and
-- identities and slugs do not repeat.
+## Public visibility
 
-A malformed stored or substituted result is a dependency-contract failure. The
-handler returns a generic `503 Service Unavailable`; it does not render a
-partially trusted catalogue.
+Publishing is an explicit status choice in the Product form. The separate public
+SQL still filters to `publication_status = 'published'`, so:
 
-Driver errors, SQL text, connection details, IDs, slugs, and stored Product text
-are also absent from application logs. Logs contain only a fixed operation
-category. A genuine no-row detail remains a separate generic 404.
+- Draft and Archived Products remain absent from `/products` and public detail;
+- a Published save makes the Product eligible for the public catalogue; and
+- changing Published to Draft or Archived removes it from public reads without
+  deleting the row.
 
-## Presentation and public visibility
+No public handler receives the protected revision or private lifecycle siblings.
 
-The protected list displays:
+## Accessible no-JavaScript interface
 
-- administrative reference;
-- name;
-- canonical stored slug;
-- category;
-- sort order;
-- visible lifecycle status; and
-- last stored update time in UTC.
+The create and edit pages use native labels, inputs, a select, hidden CSRF, and
+a native submit button. Server-rendered field errors use `aria-invalid` and
+`aria-describedby`. The lifecycle state is always written as text rather than
+communicated by color alone.
 
-The detail adds the creation time and a plain-language visibility explanation.
-Only a Published detail receives an `Open published Product` link. A Draft or
-Archived row still shows its stored slug for review, but the template receives
-no public path for it. This prevents protected state from becoming a public
-discovery link by accident.
+Controls have visible keyboard focus and at least a 44-pixel target. At narrow
+widths, actions stack without changing source order. Forced-colors mode retains
+control and panel boundaries. JavaScript is not required.
 
-The document title remains the generic `Product detail | Zafarmand Admin`; it
-does not place a possibly confidential Draft name in browser history. Stored
-text remains ordinary Go strings and is escaped by `html/template`; no
-`template.HTML` conversion is used.
-
-The shared admin shell now includes Overview, Products, and Inquiries. The
-Products item receives both `aria-current="page"` and a visible underline on
-list and detail pages. The same authenticated header retains identity and the
-POST-only logout form.
-
-The interface uses semantic ordered lists, articles, headings, definition
-lists, and `time` elements. Links have visible focus, status is always written
-as text rather than conveyed by color alone, narrow layouts collapse facts into
-one column, and forced-colors mode preserves borders. No JavaScript is required.
+The authenticated shell keeps `Cache-Control: no-store`, a restrictive CSP,
+`no-referrer`, framing protection, and `X-Robots-Tag` on successes and errors.
 
 ## Least-privilege database access
 
-Stage 19 adds no write permission. The runtime Product reader now needs SELECT
-on all migration-4 columns because protected pages display timestamps and
-publication state:
+The runtime role needs the protected SELECT columns plus narrow insert/update
+authority. An operator-managed grant can use:
 
 ```sql
 GRANT SELECT (
-    id,
-    slug,
-    name,
-    category,
-    sort_order,
-    publication_status,
-    created_at,
-    updated_at
-) ON TABLE public.products TO chosen_runtime_role;
+    id, slug, name, category, sort_order, publication_status,
+    version, created_at, updated_at
+) ON public.products TO chosen_runtime_role;
+
+GRANT INSERT (
+    slug, name, category, sort_order, publication_status
+) ON public.products TO chosen_runtime_role;
+
+GRANT UPDATE (
+    slug, name, category, sort_order, publication_status,
+    version, updated_at
+) ON public.products TO chosen_runtime_role;
+
+GRANT USAGE, SELECT ON SEQUENCE public.products_id_seq
+TO chosen_runtime_role;
 ```
 
-Replace `chosen_runtime_role` in deployment automation with the actual role.
-Do not grant Product `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, sequence usage,
-schema ownership, or migration-ledger access for this stage.
+The actual generated identity-sequence name must be confirmed in the target
+PostgreSQL schema before deployment. Do not grant DELETE, TRUNCATE, table/schema
+ownership, migration-ledger access, or broad database privileges for Stage 20.
 
-## Step-by-step manual verification
+Because the update statement reads ID and version and evaluates existing
+columns, the runtime role also needs the listed SELECT access. Keep the migration
+role separate from the HTTP runtime role.
 
-Use a dedicated local development database and a fictional administrator. Do
-not use unpublished real Zafarmand content merely to test the interface.
+## Manual verification
 
-1. Apply migrations through version 4 with the schema-owner URL as described in
-   [database.md](database.md):
+Use a local development database and fictional Product values only.
+
+1. With the migration-role URL in the current PowerShell process, run:
 
    ```powershell
    go run . migrate status
@@ -205,49 +221,34 @@ not use unpublished real Zafarmand content merely to test the interface.
    go run . migrate status
    ```
 
-2. If the database has no administrator, follow the history-safe bootstrap
-   steps in [admin-access.md](admin-access.md). Use a fictional local email and
-   a test-only password stored outside Git.
+   Versions 1 through 5 should be applied.
 
-3. Switch the current process `DATABASE_URL` to the least-privilege runtime URL
-   and start the server:
+2. Switch `DATABASE_URL` to the runtime role, start `go run .`, sign in, and open
+   `http://localhost:8080/admin/products`.
 
-   ```powershell
-   go run .
-   ```
+3. Select Create Product. With JavaScript disabled, create a fictional Draft.
+   Confirm the response redirects to its canonical detail and revision is 1.
 
-4. Open `http://localhost:8080/admin`, sign in, and select Products. A fresh
-   database should show `No Products to display` without an error.
+4. Open Edit Product, change it to Published, and save. Confirm revision becomes
+   2 and the public `/products/{slug}` route is available.
 
-5. Optionally insert the five fictional Stage 18 rows from
-   [products.md](products.md) using the local schema owner, then restart with the
-   runtime role. Confirm the protected list shows all five rows, including Draft
-   and Archived, in sort-order/ID order. The public `/products` route must still
-   show only the three Published rows.
+5. Open the same edit page in two tabs. Save tab A, then save tab B. Tab B must
+   show the 409 conflict page and must not overwrite tab A. Open the fresh edit
+   link before saving again.
 
-6. Open each protected detail. Confirm:
+6. Test keyboard-only use, 200% zoom, Windows forced colors, and widths 375,
+   430, 768, 960, 1024, and 1280 pixels. Confirm visible focus, readable errors,
+   no horizontal scrollbar, and usable logout.
 
-   - the Products navigation item remains active;
-   - Draft says it is not publicly visible and has no public Product link;
-   - Published has one canonical `/products/{slug}` link;
-   - Archived says it remains stored but hidden and has no public Product link;
-   - refreshing performs no database mutation; and
-   - Back and Forward use normal server-rendered history.
+7. Sign out and confirm direct GET/POST Product-management requests redirect to
+   login before a write.
 
-7. Verify at 375, 430, 768, 960, 1024, and 1280 CSS pixels, at 200% zoom, with
-   keyboard-only navigation, and with JavaScript disabled. There should be no
-   horizontal scrollbar, overlap, lost focus indicator, or inaccessible logout.
-
-8. Sign out. Direct requests to both protected Product routes must redirect to
-   `/admin/login`. Clean up only the exact fictional slugs by following the
-   bounded delete and environment-variable cleanup in [products.md](products.md).
-
-Do not copy session cookies, CSRF values, passwords, database URLs, or real
-Product drafts into screenshots, terminal output, issue trackers, or commits.
+Do not place real drafts, passwords, session/CSRF values, database URLs, or
+private administrator information in screenshots, logs, issues, or commits.
 
 ## Automated verification
 
-The normal database-independent checks are:
+Run:
 
 ```powershell
 go fmt ./...
@@ -255,36 +256,26 @@ go test -count=1 ./...
 go vet ./...
 ```
 
-Stage 19 tests cover:
+The tests cover migration 5 catalog/up/down behavior, reader version mapping,
+writer SQL and parameters, field validation, slug conflict redaction, missing
+rows, stale versions, owner/editor routes, strict form and CSRF boundaries,
+422/409/503 responses, contextual escaping, PRG, and no-mutation GET requests.
 
-- constructor rejection of a missing protected reader;
-- exact list/detail SQL, context forwarding, mapping, order, and row cleanup;
-- all three lifecycle states and malformed-result rejection;
-- driver-error redaction and distinct not-found behavior;
-- anonymous redirect and explicit Owner/Editor access;
-- method, canonical path, query, and positive-ID contracts;
-- truthful empty state and contextual template escaping;
-- status text, active navigation, shared logout, timestamps, and public-link
-  separation; and
-- generic 404 and 503 responses with the existing private security headers.
-
-The guarded PostgreSQL suite additionally proves real migration-4 empty state,
-all-state ordering, equal-sort ID tie-breaking, field/timestamp mapping, exact-ID
-details, and missing-row behavior:
+The opt-in disposable PostgreSQL suite additionally proves real identity and
+version defaults, unique slug handling, publication visibility, revision
+increments, stale-write rejection, and the full v1-to-v5 migration cycle:
 
 ```powershell
 go test -count=1 -run 'Postgres' ./...
 ```
 
-Use only the two-variable disposable `_test` database opt-in documented in
-[database.md](database.md). The live suite never falls back to `DATABASE_URL`.
+Follow the two-variable `_test` database guard in [database.md](database.md).
+The suite never falls back to the development `DATABASE_URL`.
 
-## Deferred after Stage 19
+## Deferred after Stage 20
 
-The next focused Product stage may design protected create/edit/publish/archive
-behavior, strict form parsing, CSRF, validation, Post/Redirect/Get, and explicit
-concurrent-edit handling. It must not be inferred from this reader.
-
-Also deferred are deletion/retention, bulk actions, preview tokens, audit
-history, media and uploads, descriptions and richer metadata, SEO management,
-homepage featuring, search/filtering, and finalized Zafarmand content.
+Deferred work includes deletion/retention, audit history and actor attribution,
+preview tokens, rich descriptions/materials/dimensions, media uploads and image
+metadata, featured placement, SEO, search/filtering, bulk actions, and final
+Zafarmand content. Stage 21 can design the rich Product content/media slice on
+top of this completed concurrency-aware mutation boundary.

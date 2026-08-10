@@ -37,9 +37,9 @@ var (
 	)
 )
 
-// adminProductRecord is the complete migration-4 Product projection needed by
+// adminProductRecord is the complete migration-5 Product projection needed by
 // protected list and detail pages. It contains no future descriptions, media,
-// SEO fields, pricing, or mutation metadata that the schema does not own.
+// SEO fields, or pricing fields that the schema does not own.
 type adminProductRecord struct {
 	// ID is PostgreSQL's positive internal Product identity.
 	ID int64
@@ -53,6 +53,8 @@ type adminProductRecord struct {
 	SortOrder int
 	// PublicationStatus is one value from the migration's closed lifecycle set.
 	PublicationStatus string
+	// Version is the positive revision used to reject stale administrator edits.
+	Version int64
 	// CreatedAt is the stored database creation timestamp.
 	CreatedAt time.Time
 	// UpdatedAt is the stored update timestamp and cannot predate creation.
@@ -69,7 +71,7 @@ type adminProductReader interface {
 	FindByID(context.Context, int64) (adminProductRecord, error)
 }
 
-// listAdminProductsSQL selects only migration-4 fields. All lifecycle states
+// listAdminProductsSQL selects only migration-5 fields. All lifecycle states
 // are visible to authenticated administrators, while the public reader remains
 // separately constrained to published rows.
 const listAdminProductsSQL = `SELECT
@@ -79,6 +81,7 @@ const listAdminProductsSQL = `SELECT
     category,
     sort_order,
     publication_status,
+    version,
     created_at,
     updated_at
 FROM public.products
@@ -94,6 +97,7 @@ const findAdminProductByIDSQL = `SELECT
     category,
     sort_order,
     publication_status,
+    version,
     created_at,
     updated_at
 FROM public.products
@@ -104,7 +108,7 @@ WHERE id = $1`
 type adminProductRows interface {
 	// Next advances to the next result row when one exists.
 	Next() bool
-	// Scan copies the current eight projected columns into Go destinations.
+	// Scan copies the current nine projected columns into Go destinations.
 	Scan(...any) error
 	// Err reports an iteration failure that happened after the last Scan.
 	Err() error
@@ -212,6 +216,7 @@ func (reader *postgresAdminProductReader) List(
 			&product.Category,
 			&product.SortOrder,
 			&product.PublicationStatus,
+			&product.Version,
 			&product.CreatedAt,
 			&product.UpdatedAt,
 		); err != nil {
@@ -282,6 +287,7 @@ func (reader *postgresAdminProductReader) FindByID(
 		&product.Category,
 		&product.SortOrder,
 		&product.PublicationStatus,
+		&product.Version,
 		&product.CreatedAt,
 		&product.UpdatedAt,
 	); err != nil {
@@ -306,7 +312,7 @@ func isValidProductPublicationStatus(status string) bool {
 		status == productPublicationStatusArchived
 }
 
-// isValidStoredAdminProduct rechecks every migration-4 field before a stored
+// isValidStoredAdminProduct rechecks every migration-5 field before a stored
 // row can influence protected HTML or navigation.
 func isValidStoredAdminProduct(product adminProductRecord) bool {
 	return product.ID > 0 &&
@@ -316,6 +322,7 @@ func isValidStoredAdminProduct(product adminProductRecord) bool {
 		product.SortOrder > 0 &&
 		product.SortOrder <= math.MaxInt32 &&
 		isValidProductPublicationStatus(product.PublicationStatus) &&
+		product.Version > 0 &&
 		!product.CreatedAt.IsZero() &&
 		!product.UpdatedAt.IsZero() &&
 		!product.UpdatedAt.Before(product.CreatedAt)

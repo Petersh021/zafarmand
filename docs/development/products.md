@@ -13,11 +13,11 @@ read-only slice:
 - a fresh database truthfully renders an empty catalogue because the migration
   inserts no sample business content.
 
-Stage 19 now adds protected, read-only review of every Product lifecycle state
-without changing this public contract or adding a migration. Its exact routes,
-authorization, privacy boundary, and verification steps are documented in
-[admin-products.md](admin-products.md). Product creation, editing, publication
-changes, media, and final Zafarmand content remain future reviewed stages.
+Stages 19–20 add protected all-state review and a concurrency-aware Product
+create/edit/publication workflow without changing this published-only public
+contract. Their routes, authorization, validation, and verification steps are
+documented in [admin-products.md](admin-products.md). Media and final Zafarmand
+content remain future reviewed stages.
 
 ## Migration 4 schema
 
@@ -40,6 +40,10 @@ The up migration creates `public.products` with these columns:
 | `publication_status` | `text` | Closed `draft`, `published`, or `archived` state; defaults to `draft`. |
 | `created_at` | `timestamptz` | Database creation time. |
 | `updated_at` | `timestamptz` | Stored update time that cannot predate creation. Later writers must change it explicitly. |
+
+Migration 5 later adds the positive `version bigint` used only by protected
+optimistic editing. The public reader does not select or expose that revision;
+see [admin-products.md](admin-products.md).
 
 Named constraints protect stored rows. Go independently validates the smaller,
 SQL-derived public projection before handlers receive it:
@@ -199,9 +203,9 @@ database pool.
 Application construction rejects a nil Product reader. The request handlers
 also fail safely if a manually assembled application bypasses normal
 construction. Repository construction itself performs no query, so operators
-must apply migration 4 before serving traffic. If the table is absent, Product
-requests fail generically rather than falling back to the removed temporary
-records.
+must apply the current migrations through version 5 before serving traffic. If
+the table or revision is absent, Product requests fail generically rather than
+falling back to temporary records or disabling concurrency checks.
 
 The existing template presentation boundary remains useful:
 
@@ -230,12 +234,11 @@ sort_order
 publication_status
 ```
 
-The runtime does not need Product `INSERT`, `UPDATE`, `DELETE`, table ownership,
-migration-ledger access, or Product identity-sequence privileges. The Stage 18
-public reader does not select `created_at` or `updated_at`; the Stage 19
-protected reader does, so the shared runtime SELECT grant includes both. Define
-grants in deployment automation or provider configuration rather than
-hard-coding a role name in the application or migration.
+The Stage 18 public reader does not need Product writes and does not select
+timestamps or revision data. Stages 19–20 expand the shared application runtime
+for protected reads and narrow create/edit authority; their least-privilege
+grant is documented in [admin-products.md](admin-products.md). Define grants in
+deployment automation rather than hard-coding a role name in application code.
 
 An illustrative grant for a role chosen by the operator is:
 
@@ -247,6 +250,7 @@ GRANT SELECT (
     category,
     sort_order,
     publication_status,
+    version,
     created_at,
     updated_at
 ) ON TABLE public.products TO chosen_runtime_role;
@@ -384,16 +388,17 @@ It covers:
 - the rule that no temporary Product collection or unpublished state reaches a
   public response.
 
-Stage 19 extends that suite with the separate all-state administrator reader,
-strict protected routes, Owner/Editor authorization, read-only templates, and
-public-link separation described in [admin-products.md](admin-products.md).
+Stages 19–20 extend that suite with the all-state administrator reader, strict
+Owner/Editor routes, version-guarded writer, Product forms, and public-link
+separation described in [admin-products.md](admin-products.md).
 
 The opt-in PostgreSQL suite additionally proves the real migration and window
 queries against a guarded disposable database. It confirms that migration 4
 seeds zero rows, inserts synthetic rows out of editorial order, produces
 consecutive published-only numbers, uses ID to break equal sort positions,
 keeps detail numbering consistent with the list, hides draft, archived, and
-missing public slugs, and separately verifies protected all-state ID reads.
+missing public slugs, and separately verifies protected all-state reads plus
+real create, publication, and stale-version behavior.
 
 Follow the two-variable destructive opt-in in [database.md](database.md), then
 run:
@@ -415,15 +420,17 @@ git diff
 git diff --check
 git check-attr eol -- migrations/000004_create_products.up.sql
 git check-attr eol -- migrations/000004_create_products.down.sql
+git check-attr eol -- migrations/000005_add_product_version.up.sql
+git check-attr eol -- migrations/000005_add_product_version.down.sql
 ```
 
 ## Explicitly deferred to future Product stages
 
-Stages 18 and 19 do not implement:
+Stages 18–20 do not implement:
 
-- administrator Product creation, editing, or deletion;
-- administrator publication-status changes or preview-before-publishing;
-- optimistic concurrency, change history, or actor attribution;
+- administrator Product deletion or retention;
+- preview-before-publishing;
+- durable change history or actor attribution;
 - descriptions, materials, dimensions, designers, prices, purchasing, or stock;
 - Product images, galleries, uploads, alt text, captions, ordering, cropping, or
   focal points;

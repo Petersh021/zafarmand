@@ -454,15 +454,15 @@ func TestLoadMigrationCatalogRejectsNonRegularEntries(t *testing.T) {
 
 // TestEmbeddedMigrationCatalog verifies the production catalog contains the
 // inquiry table, its idempotency key, the admin-access boundary, and the first
-// Product catalogue table with exact ordered identities and independently
-// reversible schema changes.
+// Product catalogue table, and its edit revision boundary with exact ordered
+// identities and independently reversible schema changes.
 func TestEmbeddedMigrationCatalog(t *testing.T) {
 	catalog, err := loadEmbeddedMigrationCatalog()
 	if err != nil {
 		t.Fatalf("load embedded migration catalog: %v", err)
 	}
-	if len(catalog) != 4 {
-		t.Fatalf("embedded catalog length: got %d, want 4", len(catalog))
+	if len(catalog) != 5 {
+		t.Fatalf("embedded catalog length: got %d, want 5", len(catalog))
 	}
 
 	initialDefinition := catalog[0]
@@ -792,6 +792,68 @@ DROP TABLE public.products;
 	} {
 		if strings.Contains(upperProductDownSQL, forbiddenSQL) {
 			t.Errorf("products down SQL contains forbidden %q", forbiddenSQL)
+		}
+	}
+
+	versionDefinition := catalog[4]
+	if versionDefinition.Version != 5 ||
+		versionDefinition.Name != "add_product_version" {
+		t.Errorf(
+			"embedded migration identity: got %06d_%s",
+			versionDefinition.Version,
+			versionDefinition.Name,
+		)
+	}
+
+	// Version 000005 adds only the positive optimistic-concurrency value needed
+	// by Product edit forms. It neither rewrites catalogue rows nor introduces
+	// unrelated content-management fields.
+	expectedVersionUpSQL := []string{
+		"ALTER TABLE public.products",
+		"ADD COLUMN version bigint NOT NULL DEFAULT 1",
+		"CONSTRAINT products_version_positive",
+		"CHECK (version > 0)",
+	}
+	for _, expectedSQL := range expectedVersionUpSQL {
+		if !strings.Contains(versionDefinition.UpSQL, expectedSQL) {
+			t.Errorf("product-version up SQL does not contain %q", expectedSQL)
+		}
+	}
+	upperVersionUpSQL := strings.ToUpper(versionDefinition.UpSQL)
+	for _, forbiddenSQL := range []string{
+		"INSERT INTO",
+		"UPDATE PUBLIC.PRODUCTS",
+		"DELETE FROM",
+		"CREATE TABLE",
+		"CREATE INDEX",
+	} {
+		if strings.Contains(upperVersionUpSQL, forbiddenSQL) {
+			t.Errorf("product-version up SQL contains forbidden %q", forbiddenSQL)
+		}
+	}
+
+	expectedVersionDownSQL := `-- Reverse only the revision boundary introduced by version 000005. PostgreSQL
+-- removes the column's dependent check constraint with the column itself.
+ALTER TABLE public.products
+    DROP COLUMN version;
+`
+	if versionDefinition.DownSQL != expectedVersionDownSQL {
+		t.Errorf(
+			"product-version down SQL: got %q, want exact strict column drop",
+			versionDefinition.DownSQL,
+		)
+	}
+	upperVersionDownSQL := strings.ToUpper(versionDefinition.DownSQL)
+	for _, forbiddenSQL := range []string{
+		"CASCADE",
+		"IF EXISTS",
+		"DROP TABLE",
+		"INQUIRIES",
+		"ADMIN_USERS",
+		"ADMIN_SESSIONS",
+	} {
+		if strings.Contains(upperVersionDownSQL, forbiddenSQL) {
+			t.Errorf("product-version down SQL contains forbidden %q", forbiddenSQL)
 		}
 	}
 }

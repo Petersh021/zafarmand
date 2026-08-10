@@ -1,7 +1,7 @@
 {{/*
 The protected Product catalogue renders all lifecycle states supplied by the
-Stage 19 reader. The public catalogue remains a separate published-only query,
-so seeing Draft or Archived here does not make either state publicly reachable.
+reader. Stage 20 adds one trusted create route while the public catalogue stays
+a separate published-only query.
 
 Go validates and formats every reference, status modifier, timestamp, and path
 before this template runs. html/template still contextually escapes stored
@@ -20,8 +20,12 @@ names, slugs, and categories at the final output boundary.
 		<h1>Product catalogue</h1>
 
 		<p class="admin-page-header__lede">
-			Review the durable identity, ordering, and publication state used by the public Product catalogue.
+			Review durable catalogue facts, create Products, and open a record before editing its publication state.
 		</p>
+
+		<a class="admin-primary-link admin-page-header__action" href="{{.ProductList.NewPath}}">
+			Create Product
+		</a>
 	</header>
 
 	{{/*
@@ -79,6 +83,8 @@ names, slugs, and categories at the final output boundary.
 		<h2 id="admin-products-empty-title">No Products to display</h2>
 
 		<p>{{.ProductList.EmptyMessage}}</p>
+
+		<a class="admin-primary-link" href="{{.ProductList.NewPath}}">Create the first Product</a>
 	</section>
 	{{end}}
 </main>

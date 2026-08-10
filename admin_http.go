@@ -37,7 +37,7 @@ const (
 	// forward, so every browser session eventually requires a fresh login.
 	adminSessionLifetime = 8 * time.Hour
 	// adminRepositoryTimeout prevents an unavailable database from holding a
-	// private authentication or inquiry request indefinitely.
+	// private authentication, inquiry, or Product request indefinitely.
 	adminRepositoryTimeout = 5 * time.Second
 	// adminDummyPassword is not an account credential. It exists only to produce
 	// one startup-validated verifier for account-neutral missing-user logins.
@@ -90,6 +90,10 @@ type adminPageData struct {
 	ProductList *adminProductListPageData
 	// ProductDetail contains one protected read-only Product contract.
 	ProductDetail *adminProductDetailPageData
+	// ProductForm contains one protected create/edit presentation contract.
+	ProductForm *adminProductFormPageData
+	// ProductConflict contains only fixed navigation after a stale edit.
+	ProductConflict *adminProductConflictPageData
 }
 
 // adminIdentityPageData keeps persistence and authorization records out of the

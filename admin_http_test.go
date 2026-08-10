@@ -68,6 +68,7 @@ func newAdminHTTPTestApplicationWithInquiryReader(
 		inquiries,
 		repository,
 		newRecordingAdminProductReader(),
+		newRecordingAdminProductWriter(),
 		adminInquiries,
 		newRecordingAdminInquiryStatusUpdater(),
 		passwords,
@@ -1523,6 +1524,7 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 			inquiries,
 			nil,
 			newRecordingAdminProductReader(),
+			newRecordingAdminProductWriter(),
 			newRecordingAdminInquiryReader(),
 			newRecordingAdminInquiryStatusUpdater(),
 			newTestAdminPasswordManager(t),
@@ -1539,6 +1541,7 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 			inquiries,
 			newRecordingAdminRepository(),
 			nil,
+			newRecordingAdminProductWriter(),
 			newRecordingAdminInquiryReader(),
 			newRecordingAdminInquiryStatusUpdater(),
 			newTestAdminPasswordManager(t),
@@ -1549,12 +1552,30 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 		}
 	})
 
+	t.Run("nil admin product writer", func(t *testing.T) {
+		app, err := newApplication(
+			newRecordingProductCatalogueReader(),
+			inquiries,
+			newRecordingAdminRepository(),
+			newRecordingAdminProductReader(),
+			nil,
+			newRecordingAdminInquiryReader(),
+			newRecordingAdminInquiryStatusUpdater(),
+			newTestAdminPasswordManager(t),
+		)
+		requireErrorIs(t, err, errAdminProductWriterRequired)
+		if app != nil {
+			t.Error("nil admin product writer returned a usable application")
+		}
+	})
+
 	t.Run("nil admin inquiry reader", func(t *testing.T) {
 		app, err := newApplication(
 			newRecordingProductCatalogueReader(),
 			inquiries,
 			newRecordingAdminRepository(),
 			newRecordingAdminProductReader(),
+			newRecordingAdminProductWriter(),
 			nil,
 			newRecordingAdminInquiryStatusUpdater(),
 			newTestAdminPasswordManager(t),
@@ -1571,6 +1592,7 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 			inquiries,
 			newRecordingAdminRepository(),
 			newRecordingAdminProductReader(),
+			newRecordingAdminProductWriter(),
 			newRecordingAdminInquiryReader(),
 			nil,
 			newTestAdminPasswordManager(t),
@@ -1587,6 +1609,7 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 			inquiries,
 			newRecordingAdminRepository(),
 			newRecordingAdminProductReader(),
+			newRecordingAdminProductWriter(),
 			newRecordingAdminInquiryReader(),
 			newRecordingAdminInquiryStatusUpdater(),
 			nil,

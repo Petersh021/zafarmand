@@ -89,9 +89,8 @@ func (app *application) routes() http.Handler {
 		app.requireAdmin(http.HandlerFunc(app.adminLogoutHandler)),
 	)
 
-	// Product administration is read-only in Stage 19. Both current roles can
-	// inspect every lifecycle state, while future roles receive no access unless
-	// they are added explicitly to this independent allowlist.
+	// Both current roles can inspect every Product lifecycle state, while future
+	// roles receive no access unless added explicitly to this read allowlist.
 	productReaderRoles := requireAdminRoles(
 		adminRoleOwner,
 		adminRoleEditor,
@@ -109,6 +108,46 @@ func (app *application) routes() http.Handler {
 		app.requireAdmin(
 			productReaderRoles(
 				http.HandlerFunc(app.adminProductDetailHandler),
+			),
+		),
+	)
+
+	// Product creation and editing use a separate mutation allowlist even though
+	// owner and editor are both permitted in Stage 20. Static /new wins over the
+	// detail wildcard, and every successful POST redirects to a canonical GET.
+	productWriterRoles := requireAdminRoles(
+		adminRoleOwner,
+		adminRoleEditor,
+	)
+	mux.Handle(
+		"GET /admin/products/new",
+		app.requireAdmin(
+			productWriterRoles(
+				http.HandlerFunc(app.adminProductNewHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"POST /admin/products",
+		app.requireAdmin(
+			productWriterRoles(
+				http.HandlerFunc(app.adminProductCreateHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"GET /admin/products/{id}/edit",
+		app.requireAdmin(
+			productWriterRoles(
+				http.HandlerFunc(app.adminProductEditHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"POST /admin/products/{id}",
+		app.requireAdmin(
+			productWriterRoles(
+				http.HandlerFunc(app.adminProductUpdateHandler),
 			),
 		),
 	)

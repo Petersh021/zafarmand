@@ -175,16 +175,16 @@ func TestAdminProductRoutesAcceptOnlyCanonicalURLs(t *testing.T) {
 	}
 }
 
-// TestAdminProductRoutesRejectPOST verifies that ServeMux advertises only GET
-// and its automatic HEAD equivalent before a protected read can occur.
-func TestAdminProductRoutesRejectPOST(t *testing.T) {
+// TestAdminProductRoutesRejectUnsupportedMethods verifies that collection and
+// detail routes advertise the Stage 20 GET/HEAD/POST contract.
+func TestAdminProductRoutesRejectUnsupportedMethods(t *testing.T) {
 	for _, path := range []string{"/admin/products", "/admin/products/1"} {
 		t.Run(path, func(t *testing.T) {
 			reader := newRecordingAdminProductReader()
 			fixture := newAdminHTTPAuthenticatedFixture(t, adminRoleOwner)
 			fixture.app.adminProducts = reader
 			request := adminHTTPNewRequest(
-				http.MethodPost,
+				http.MethodPut,
 				path,
 				nil,
 				false,
@@ -193,8 +193,10 @@ func TestAdminProductRoutesRejectPOST(t *testing.T) {
 			response := stage16ServeAdminRequest(t, fixture.app, request)
 
 			assertStage16AdminStatus(t, response, http.StatusMethodNotAllowed)
-			if allow := response.Header.Get("Allow"); allow != http.MethodGet+", "+http.MethodHead {
-				t.Errorf("Allow: got %q, want %q", allow, http.MethodGet+", "+http.MethodHead)
+			if allow := response.Header.Get("Allow"); !strings.Contains(allow, http.MethodGet) ||
+				!strings.Contains(allow, http.MethodHead) ||
+				!strings.Contains(allow, http.MethodPost) {
+				t.Errorf("Allow: got %q, want GET, HEAD, and POST", allow)
 			}
 			assertAdminProductCalls(t, reader, 0, nil)
 		})
@@ -294,7 +296,7 @@ func TestAdminProductDetailSeparatesProtectedAndPublicVisibility(t *testing.T) {
 			response := stage16ServeAdminRequest(t, fixture.app, request)
 
 			assertStage16AdminStatus(t, response, http.StatusOK)
-			assertStage16BodyContains(t, response.Body, "Current status: "+test.label, test.visibility, "Read-only catalogue stage")
+			assertStage16BodyContains(t, response.Body, "Current status: "+test.label, test.visibility, "Edit Product", "Revision")
 			if test.publicPath == "" {
 				assertStage16BodyOmits(t, response.Body, `href="/products/`)
 			} else {

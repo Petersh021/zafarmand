@@ -282,8 +282,9 @@ Stages 16 and 17 did not alter an inquiry table, constraint, or index. Stage 17
 reuses the existing `status`, `updated_at`, and
 `inquiries_status_supported` constraint; no empty inquiry migration should be
 created merely to mark an application-code stage. In the current Stage 18
-project, `go run . migrate status` should report versions 1 through 4 because
-migration 4 independently creates the public Product catalogue.
+project, `go run . migrate status` should report versions 1 through 5 because
+migration 4 creates Product storage and migration 5 independently adds its edit
+revision. Neither changes the inquiry schema.
 
 The least-privilege runtime PostgreSQL role does need one deliberate grant
 change: it must be able to `SELECT` the columns required from
@@ -372,7 +373,7 @@ The opt-in PostgreSQL suite described in [database.md](database.md) additionally
 checks the real list, detail, and conditional status statements, descending
 page boundaries, field mapping, missing records, timestamp behavior, and
 repository construction. It now tests the complete migration 1-to-4 cycle;
-Stage 17 still has no schema migration, while migration 4 belongs to Products.
+Stage 17 still has no schema migration, while migrations 4–5 belong to Products.
 
 ## Explicitly deferred work
 

@@ -1,4 +1,4 @@
-# Stage 13-19 database development on Windows
+# Stage 13–20 database development on Windows
 
 Stage 13 establishes an explicit PostgreSQL migration workflow. Stage 14 uses
 that foundation for the first database-backed public feature: Contact inquiry
@@ -16,8 +16,9 @@ ordering, publication-state, and timestamp data for the catalogue; the
 complete Stage 18 behavior is documented in the
 [Products development guide](products.md).
 Stage 19 reuses migration 4 for protected, read-only review of every Product
-lifecycle state. It adds no migration 5; see the
-[administrator Product guide](admin-products.md).
+lifecycle state. Stage 20 adds migration 5's positive revision column and the
+concurrency-aware Product writer; see the [administrator Product
+guide](admin-products.md).
 
 The boundary is intentional:
 
@@ -124,13 +125,15 @@ with a least-privilege runtime role. The current server needs database/schema
 connection privileges; `INSERT` and `SELECT` on `public.inquiries` plus
 column-level `UPDATE` on only its `status` and `updated_at`; `SELECT` on
 the `id`, `slug`, `name`, `category`, `sort_order`, `publication_status`,
-`created_at`, and `updated_at` columns of `public.products`; `SELECT` on
+`version`, `created_at`, and `updated_at` columns of `public.products`, plus
+narrow Product INSERT/UPDATE and identity-sequence access described in
+[admin-products.md](admin-products.md); `SELECT` on
 `public.admin_users`; and `SELECT`, `INSERT`, and `UPDATE` on
 `public.admin_sessions`. The broader inquiry read is required by Stage 16's
 protected list and detail statements, while the narrow column update is
-required by Stage 17's status statement. Stages 18-19 need no Product insert,
-update, delete, or identity-sequence permission because both repositories are
-read-only. Separate application-level interfaces keep administrative inquiry
+required by Stage 17's status statement. Stage 20 adds the separate Product
+writer but still needs no Product DELETE or schema ownership. Separate
+application-level interfaces keep administrative inquiry
 capabilities unavailable to the public Contact handler and keep unpublished
 Product state outside public templates. Inquiry and administrator identity
 sequences need the access required by their existing writers. The separate
@@ -167,7 +170,7 @@ produce no match because `.env.example` is explicitly allowed.
 
 ## Understanding the Go connection lifecycle
 
-Stages 13-19 use `database/sql` with pgx as the PostgreSQL driver. A `*sql.DB` is
+Stages 13–20 use `database/sql` with pgx as the PostgreSQL driver. A `*sql.DB` is
 a concurrency-safe database handle and connection pool, not one permanently
 open socket.
 
@@ -387,8 +390,9 @@ fresh migration. The public reader selects only published rows and does not
 receive draft or archived state as display data. Use the [Products development
 guide](products.md) for schema details, fictional local verification data, and
 the public list/detail behavior. The separate Stage 19 reader selects every
-state by protected positive ID; its read-only interface is documented in
-[admin-products.md](admin-products.md).
+state by protected positive ID. Stage 20 adds the protected create/edit writer
+and migration 5 revision without changing public selection; both are documented
+in [admin-products.md](admin-products.md).
 
 To exercise rollback, first switch `DATABASE_URL` to a separate disposable
 database. Reconfirm the connection before doing anything destructive:
@@ -421,7 +425,9 @@ idempotent up/down/reapply, the public inquiry repository's name/email mapping
 and retry behavior, the private Stage 16 list/detail reader, and the Stage 17
 status writer's transition, no-op, and safe-failure behavior. Stage 18 adds the
 real Product schema plus published-list and published-detail repository checks;
-Stage 19 adds protected all-state ordering and ID-detail checks.
+Stage 19 adds protected all-state ordering and ID-detail checks. Stage 20 adds
+real Product creation, slug conflict, publication, revision increments, and
+stale-write rejection.
 
 On the verified local Windows PostgreSQL 18 installation, the guarded helper
 can run the same acceptance cycle without persisting or printing a password:
@@ -431,11 +437,12 @@ can run the same acceptance cycle without persisting or printing a password:
 ```
 
 The helper keeps its historical Stage 14 filename and disposable database name,
-but its `Postgres` test selection runs the complete current v1-to-v4 suite,
+but its `Postgres` test selection runs the complete current v1-to-v5 suite,
 including Stage 15 admin schema/repository checks and Stage 16 inquiry reads.
 It also checks Stage 17 status updates and Stage 18's unseeded Product schema,
 published ordering, numbering, detail mapping, and non-public exclusion. Stage
-19 additionally checks the all-state administrator projection and missing ID.
+19 additionally checks the all-state administrator projection and missing ID;
+Stage 20 checks the revision-backed writer and conflict behavior.
 
 The helper uses a visible secure password prompt, refuses to reuse a database,
 creates only `zafarmand_stage14_codex_test`, runs the opt-in integration tests
@@ -482,8 +489,8 @@ result before treating the local database runtime as verified.
 ## Normal development checks
 
 The ordinary automated suite, including Stage 16 reads, Stage 17 status
-authorization, Stage 18 public Products, and Stage 19 protected Product
-repository, route, and template checks, must remain database-independent. It
+authorization, Stage 18 public Products, Stage 19 protected Product reads, and
+Stage 20 Product form/writer checks, must remain database-independent. It
 should pass even when PostgreSQL is stopped or absent:
 
 ```powershell
@@ -513,6 +520,8 @@ git check-attr eol -- migrations/000002_add_inquiry_submission_key.up.sql
 git check-attr eol -- migrations/000003_create_admin_access.up.sql
 git check-attr eol -- migrations/000004_create_products.up.sql
 git check-attr eol -- migrations/000004_create_products.down.sql
+git check-attr eol -- migrations/000005_add_product_version.up.sql
+git check-attr eol -- migrations/000005_add_product_version.down.sql
 ```
 
 The reported value should be `lf`. Use the actual migration filename if it

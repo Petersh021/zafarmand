@@ -36,12 +36,12 @@ so a stage number never silently changes meaning.
 | 17 | Explicit inquiry status workflow | Complete |
 | 18 | PostgreSQL-backed published Product catalogue and public detail | Complete |
 | 19 | Protected read-only all-state Product catalogue and detail | Complete |
+| 20 | Protected Product create/edit/publication workflow with validation and stale-edit protection | Complete |
 
 ## Remaining focused stages
 
 | Stage | Planned outcome |
 | --- | --- |
-| 20 | Protected Product create/edit/publication workflow with explicit validation and concurrent-edit handling |
 | 21 | Rich Product content and reviewed media-management foundation |
 | 22 | PostgreSQL-backed Interior projects and protected management workflow |
 | 23 | PostgreSQL-backed Architecture projects and protected management workflow |
@@ -49,7 +49,7 @@ so a stage number never silently changes meaning.
 | 25 | Security, privacy, retention, observability, backup, and operational hardening |
 | 26 | End-to-end acceptance, accessibility/performance review, and deployment |
 
-Later stages must remain vertical. For example, Stage 20 should finish one safe
-Product mutation path before Stage 21 broadens the Product schema to media, and
-Stages 22-23 should reuse lessons from that completed path rather than generating
+Later stages must remain vertical. Stage 20 finishes one safe Product mutation
+path before Stage 21 broadens the Product schema to media, and Stages 22-23
+should reuse lessons from that completed path rather than generating
 two large administration systems at once.

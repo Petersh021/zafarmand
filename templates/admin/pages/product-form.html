@@ -1,0 +1,157 @@
+{{/*
+This one native form serves both Product creation and editing. Go supplies only
+trusted action paths and lifecycle options; administrator-entered values remain
+ordinary data so html/template escapes them for their exact HTML contexts.
+
+The edit revision is a concurrency check, not authorization evidence. Session
+authentication, the explicit role allowlist, and CSRF validation still run on
+every POST before the writer receives a Product value.
+*/}}
+{{define "admin-content"}}
+<main class="admin-product-form-page" id="admin-main-content">
+	<a class="admin-back-link" href="{{.ProductForm.CancelPath}}">
+		<span aria-hidden="true">&larr;</span>
+		Cancel and return
+	</a>
+
+	<header class="admin-page-header admin-product-form-header">
+		<p class="admin-eyebrow">{{.ProductForm.Eyebrow}}</p>
+
+		<h1>{{.ProductForm.Heading}}</h1>
+
+		<p class="admin-page-header__lede">{{.ProductForm.Introduction}}</p>
+	</header>
+
+	{{if .ProductForm.HasErrors}}
+	<section class="admin-alert admin-alert--error" aria-labelledby="admin-product-errors-title">
+		<h2 id="admin-product-errors-title">Check the Product fields</h2>
+
+		<p>No Product was saved. Correct the marked fields and submit again.</p>
+
+		<ul>
+			{{with .ProductForm.Errors.Slug}}<li><a href="#product-slug">{{.}}</a></li>{{end}}
+			{{with .ProductForm.Errors.Name}}<li><a href="#product-name">{{.}}</a></li>{{end}}
+			{{with .ProductForm.Errors.Category}}<li><a href="#product-category">{{.}}</a></li>{{end}}
+			{{with .ProductForm.Errors.SortOrder}}<li><a href="#product-sort-order">{{.}}</a></li>{{end}}
+			{{with .ProductForm.Errors.PublicationStatus}}<li><a href="#product-publication-status">{{.}}</a></li>{{end}}
+		</ul>
+	</section>
+	{{end}}
+
+	<form class="admin-product-form" action="{{.ProductForm.Action}}" method="post">
+		<input type="hidden" name="csrf_token" value="{{.SessionCSRFToken}}">
+
+		{{if .ProductForm.IsEdit}}
+		{{/*
+		The server issued this positive revision on GET. A concurrent successful
+		save increments it, making this exact form stale instead of last-write-wins.
+		*/}}
+		<input type="hidden" name="version" value="{{.ProductForm.Version}}">
+		{{end}}
+
+		<div class="admin-product-form__field">
+			<label for="product-slug">Slug</label>
+			<p class="admin-product-form__hint" id="product-slug-hint">
+				Lowercase letters and numbers with single hyphens; this becomes the public URL when Published.
+			</p>
+			<input
+				id="product-slug"
+				name="slug"
+				type="text"
+				value="{{.ProductForm.Values.Slug}}"
+				maxlength="120"
+				pattern="[a-z0-9]+(-[a-z0-9]+)*"
+				autocomplete="off"
+				aria-describedby="product-slug-hint{{if .ProductForm.Errors.Slug}} product-slug-error{{end}}"
+				{{if .ProductForm.Errors.Slug}}aria-invalid="true"{{end}}
+				required
+			>
+			{{with .ProductForm.Errors.Slug}}
+			<p class="admin-product-form__error" id="product-slug-error">{{.}}</p>
+			{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="product-name">Name</label>
+			<input
+				id="product-name"
+				name="name"
+				type="text"
+				value="{{.ProductForm.Values.Name}}"
+				maxlength="160"
+				{{if .ProductForm.Errors.Name}}aria-describedby="product-name-error" aria-invalid="true"{{end}}
+				required
+			>
+			{{with .ProductForm.Errors.Name}}
+			<p class="admin-product-form__error" id="product-name-error">{{.}}</p>
+			{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="product-category">Category</label>
+			<input
+				id="product-category"
+				name="category"
+				type="text"
+				value="{{.ProductForm.Values.Category}}"
+				maxlength="80"
+				{{if .ProductForm.Errors.Category}}aria-describedby="product-category-error" aria-invalid="true"{{end}}
+				required
+			>
+			{{with .ProductForm.Errors.Category}}
+			<p class="admin-product-form__error" id="product-category-error">{{.}}</p>
+			{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="product-sort-order">Sort order</label>
+			<p class="admin-product-form__hint" id="product-sort-order-hint">
+				Smaller numbers appear earlier in the public catalogue; Product ID breaks ties.
+			</p>
+			<input
+				id="product-sort-order"
+				name="sort_order"
+				type="number"
+				value="{{.ProductForm.Values.SortOrder}}"
+				min="1"
+				max="2147483647"
+				step="1"
+				inputmode="numeric"
+				aria-describedby="product-sort-order-hint{{if .ProductForm.Errors.SortOrder}} product-sort-order-error{{end}}"
+				{{if .ProductForm.Errors.SortOrder}}aria-invalid="true"{{end}}
+				required
+			>
+			{{with .ProductForm.Errors.SortOrder}}
+			<p class="admin-product-form__error" id="product-sort-order-error">{{.}}</p>
+			{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="product-publication-status">Publication status</label>
+			<p class="admin-product-form__hint" id="product-publication-status-hint">
+				Draft and Archived stay private. Published appears immediately on the public Products routes.
+			</p>
+			<select
+				id="product-publication-status"
+				name="publication_status"
+				aria-describedby="product-publication-status-hint{{if .ProductForm.Errors.PublicationStatus}} product-publication-status-error{{end}}"
+				{{if .ProductForm.Errors.PublicationStatus}}aria-invalid="true"{{end}}
+				required
+			>
+				<option value="" {{if not .ProductForm.HasValidStatus}}selected{{end}} disabled>Choose a status</option>
+				{{range .ProductForm.StatusOptions}}
+				<option value="{{.Value}}" {{if .Selected}}selected{{end}}>{{.Label}}</option>
+				{{end}}
+			</select>
+			{{with .ProductForm.Errors.PublicationStatus}}
+			<p class="admin-product-form__error" id="product-publication-status-error">{{.}}</p>
+			{{end}}
+		</div>
+
+		<div class="admin-product-form__actions">
+			<button class="admin-status-button" type="submit">{{.ProductForm.SubmitLabel}}</button>
+			<a class="admin-secondary-link" href="{{.ProductForm.CancelPath}}">Cancel</a>
+		</div>
+	</form>
+</main>
+{{end}}
