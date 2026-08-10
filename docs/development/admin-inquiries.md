@@ -14,7 +14,9 @@ write before the browser returns to the canonical detail page.
 
 This guide supplements the [administrator access guide](admin-access.md) and
 the [database development guide](database.md). Stage 15 authentication must be
-working, and migrations 1 through 3 must already be applied.
+working, and the current migrations 1 through 4 must already be applied before
+starting the complete Stage 18 server. Migration 4 belongs to the separate
+public Product catalogue and does not change inquiry behavior.
 
 ## Exact route scope
 
@@ -221,9 +223,10 @@ This is keyset pagination. It is preferable here to `OFFSET` for two reasons:
    and discarding every earlier offset row on a deep page.
 
 The existing `inquiries` primary-key B-tree supports the lookup and can be
-scanned backward for descending ID order. Stage 16 therefore adds **no migration
-4 and no new index**. PostgreSQL guarantees a chosen result order only when an
-explicit `ORDER BY` is present; its documentation explains both [row
+scanned backward for descending ID order. Stage 16 therefore required no new
+inquiry index or migration. The later migration 4 creates only Product storage.
+PostgreSQL guarantees a chosen result order only when an explicit `ORDER BY` is
+present; its documentation explains both [row
 sorting](https://www.postgresql.org/docs/current/queries-order.html) and how
 [B-tree indexes satisfy ordered
 queries](https://www.postgresql.org/docs/current/indexes-ordering.html).
@@ -275,11 +278,12 @@ reach a parameterized query.
 
 ## Database permission change without a schema change
 
-Stages 16 and 17 do not alter a table, constraint, or index, so `go run .
-migrate status` should still report only versions 1, 2, and 3 as applied. Stage
-17 reuses the existing `status`, `updated_at`, and
-`inquiries_status_supported` constraint. Do not create an empty migration
-merely to mark an application-code stage.
+Stages 16 and 17 did not alter an inquiry table, constraint, or index. Stage 17
+reuses the existing `status`, `updated_at`, and
+`inquiries_status_supported` constraint; no empty inquiry migration should be
+created merely to mark an application-code stage. In the current Stage 18
+project, `go run . migrate status` should report versions 1 through 4 because
+migration 4 independently creates the public Product catalogue.
 
 The least-privilege runtime PostgreSQL role does need one deliberate grant
 change: it must be able to `SELECT` the columns required from
@@ -299,7 +303,7 @@ Use a local or disposable development database and an intentionally fictional
 Contact submission. Never copy a real visitor's name, email, message, token, or
 database row into a terminal transcript, screenshot, chat, issue, or test.
 
-1. Confirm migrations 1 through 3 are applied with `go run . migrate status`.
+1. Confirm migrations 1 through 4 are applied with `go run . migrate status`.
 2. Start the application with the local runtime `DATABASE_URL` and sign in as a
    local test owner or editor.
 3. In another private browser context, submit a Contact form using unmistakably
@@ -367,8 +371,8 @@ key.
 The opt-in PostgreSQL suite described in [database.md](database.md) additionally
 checks the real list, detail, and conditional status statements, descending
 page boundaries, field mapping, missing records, timestamp behavior, and
-repository construction. It continues to test the existing migration 1-to-3
-cycle because Stage 17 has no schema migration.
+repository construction. It now tests the complete migration 1-to-4 cycle;
+Stage 17 still has no schema migration, while migration 4 belongs to Products.
 
 ## Explicitly deferred work
 

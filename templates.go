@@ -21,11 +21,10 @@ type application struct {
 	// templates maps public filenames such as "home.html" and namespaced private
 	// keys such as "admin/login.html" to their isolated parsed template sets.
 	templates map[string]*template.Template
-	// products is the ordered temporary source shared by listing and detail handlers.
-	//
-	// Handlers treat this slice as read-only. A later database-backed repository
-	// can replace it without changing the current page view models.
-	products []product
+	// products is the read-only published-catalogue boundary shared by the public
+	// Product listing and detail handlers. Production supplies PostgreSQL, while
+	// tests inject deterministic records without opening a database connection.
+	products productCatalogueReader
 	// interiorProjects is the ordered temporary source shared by Interior
 	// listing and detail handlers.
 	//
@@ -138,8 +137,8 @@ type disciplinePageData struct {
 //
 // The pointer to this value is optional on pageData because only /products uses
 // it. Keeping section copy beside its ordered preview slice establishes the
-// same handler-to-template data flow that a later database-backed catalogue can
-// use without introducing persistence concerns during this stage.
+// handler-to-template boundary while the repository remains responsible for
+// PostgreSQL eligibility, ordering, and stored-value validation.
 type productListingData struct {
 	// Eyebrow is the short interface label displayed above the section heading.
 	Eyebrow string
@@ -149,35 +148,35 @@ type productListingData struct {
 	Introduction string
 	// EmptyMessage is shown when Items is nil or empty.
 	EmptyMessage string
-	// Items contains temporary structural previews in their editorial order.
+	// Items contains published catalogue previews in repository order.
 	Items []productPreviewData
 }
 
-// productPreviewData is the minimal presentation shape for one temporary
-// catalogue slot.
+// productPreviewData is the minimal presentation shape for one published
+// catalogue entry.
 //
-// These values are not final Product records. They receive a complete trusted
-// Path rather than the source Slug and intentionally omit prices, descriptions,
-// database IDs, and media until approved content is introduced.
+// It receives a complete trusted Path rather than exposing the stored Slug and
+// intentionally omits database identity, publication state, sort order, prices,
+// descriptions, and media that the current public interface does not use.
 type productPreviewData struct {
 	// Number is the zero-padded editorial position visible in the media field.
 	Number string
-	// Name is the temporary product heading displayed inside the catalogue card.
+	// Name is the published product heading displayed inside the catalogue card.
 	Name string
-	// Category identifies the broad product family reserved by this slot.
+	// Category identifies the published product's broad family.
 	Category string
-	// Status truthfully communicates that approved catalogue content is pending.
+	// Status is trusted interface copy derived from the published-only boundary.
 	Status string
 	// Path is the real server-rendered detail URL used by the card anchor.
 	Path string
 }
 
-// productDetailData is the complete view model needed by one structural
+// productDetailData is the complete view model needed by the current published
 // product detail page.
 //
-// It deliberately contains only facts present in the temporary source. Final
-// specifications, descriptive copy, pricing, imagery, and purchasing controls
-// remain outside Stage 7.
+// It deliberately contains only the Stage 18 repository projection and trusted
+// presentation mapping. Specifications, copy, pricing, imagery, and purchasing
+// controls remain deferred until their public design and data needs are known.
 type productDetailData struct {
 	// Number is the catalogue position displayed as editorial context.
 	Number string
@@ -185,7 +184,7 @@ type productDetailData struct {
 	Name string
 	// Category identifies the product family in the visible facts list.
 	Category string
-	// Status communicates that the page is a temporary catalogue preview.
+	// Status is trusted interface copy derived from the published-only boundary.
 	Status string
 }
 
@@ -432,12 +431,16 @@ type pageData struct {
 // how initialization failures should be handled. This also makes construction
 // reusable from both main and tests.
 func newApplication(
+	products productCatalogueReader,
 	inquiries inquiryRepository,
 	admins adminRepository,
 	adminInquiries adminInquiryReader,
 	adminInquiryStatuses adminInquiryStatusUpdater,
 	passwords adminPasswordManager,
 ) (*application, error) {
+	if products == nil {
+		return nil, errProductCatalogueReaderRequired
+	}
 	if inquiries == nil {
 		return nil, errInquiryRepositoryRequired
 	}
@@ -494,7 +497,7 @@ func newApplication(
 
 	app := &application{
 		templates:              templateCache,
-		products:               temporaryProducts(),
+		products:               products,
 		interiorProjects:       temporaryInteriorProjects(),
 		architectureProjects:   temporaryArchitectureProjects(),
 		inquiries:              inquiries,

@@ -10,7 +10,7 @@ import (
 // extractProductPreviewArticles returns each complete product-preview article
 // from source in document order.
 //
-// The Stage 6 template does not nest article elements, so a direct opening and
+// The Products template does not nest article elements, so a direct opening and
 // closing-tag scan is sufficient and keeps these tests independent from a
 // third-party HTML parser. Returning an empty slice is intentional: empty-data
 // tests can assert that no catalogue articles were emitted.
@@ -56,11 +56,11 @@ func extractProductPreviewArticles(
 	return articles
 }
 
-// TestProductsRouteRendersCatalogue verifies the complete public Stage 6–7
+// TestProductsRouteRendersCatalogue verifies the complete public Stage 18
 // response produced by productsHandler.
 //
 // The assertions prove that route data becomes one labelled semantic list in
-// the same order as the Go slice. Stage 7 also requires each article's one
+// the same order as the repository result. Each article's one
 // native anchor to reach the matching real detail page.
 func TestProductsRouteRendersCatalogue(t *testing.T) {
 	app := newTestApplication(t)
@@ -174,13 +174,13 @@ func TestProductsRouteRendersCatalogue(t *testing.T) {
 	}
 
 	expectedItems := []struct {
-		// number is the visible catalogue-slot sequence supplied by Go.
+		// number is the visible catalogue-entry sequence supplied by Go.
 		number string
 		// name is the article's h3 and matching detail-page h1.
 		name string
 		// category is the broad product family shown in card metadata.
 		category string
-		// status is the truthful temporary-content state.
+		// status is the trusted label implied by the published-only query.
 		status string
 		// path is the real server-rendered detail URL paired with the card.
 		path string
@@ -189,28 +189,28 @@ func TestProductsRouteRendersCatalogue(t *testing.T) {
 			number:   "01",
 			name:     "Furniture Study 01",
 			category: "Furniture",
-			status:   "Catalogue preview",
+			status:   "Published",
 			path:     "/products/furniture-study-01",
 		},
 		{
 			number:   "02",
 			name:     "Lighting Study 01",
 			category: "Lighting",
-			status:   "Catalogue preview",
+			status:   "Published",
 			path:     "/products/lighting-study-01",
 		},
 		{
 			number:   "03",
 			name:     "Object Study 01",
 			category: "Objects",
-			status:   "Catalogue preview",
+			status:   "Published",
 			path:     "/products/object-study-01",
 		},
 		{
 			number:   "04",
 			name:     "Material Study 01",
 			category: "Materials",
-			status:   "Catalogue preview",
+			status:   "Published",
 			path:     "/products/material-study-01",
 		},
 	}
@@ -231,7 +231,7 @@ func TestProductsRouteRendersCatalogue(t *testing.T) {
 		// Matching by slice index proves template range preserves the handler's
 		// editorial ordering and that fields stay associated inside one article.
 		expectedStrings := []string{
-			"Catalogue slot " + expected.number,
+			"Catalogue entry " + expected.number,
 			expected.name,
 			expected.category,
 			expected.status,
@@ -335,7 +335,7 @@ func TestProductsRouteRendersCatalogue(t *testing.T) {
 		}
 	}
 
-	// Stage 7 uses real detail URLs and must not regress to placeholder anchors.
+	// Published records use real detail URLs and must not regress to placeholders.
 	if strings.Contains(mainElement, `href="#"`) {
 		t.Error(
 			"Products main must not contain a placeholder href",
@@ -442,7 +442,7 @@ func TestProductsTemplateUsesDataAndEscapesHTML(t *testing.T) {
 
 	firstArticle := normalizeHTMLWhitespace(articles[0])
 	for _, expected := range []string{
-		"Catalogue slot A1",
+		"Catalogue entry A1",
 		"&lt;b&gt;Unsafe product&lt;/b&gt;",
 		"&lt;em&gt;Unsafe category&lt;/em&gt;",
 		"First sentinel status",
@@ -458,7 +458,7 @@ func TestProductsTemplateUsesDataAndEscapesHTML(t *testing.T) {
 
 	secondArticle := normalizeHTMLWhitespace(articles[1])
 	for _, expected := range []string{
-		"Catalogue slot B2",
+		"Catalogue entry B2",
 		"Second sentinel product",
 		"Second sentinel category",
 		"&lt;script&gt;Unsafe status&lt;/script&gt;",

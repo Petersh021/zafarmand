@@ -33,7 +33,7 @@ func TestPostgresAdminRepositoryIntegration(t *testing.T) {
 	t.Cleanup(func() {
 		cleanupMigrationIntegrationSchema(t, database)
 	})
-	applyInquiryIntegrationMigrations(t, database)
+	applyRepositoryIntegrationMigrations(t, database)
 
 	repository, err := newPostgresAdminRepository(database)
 	if err != nil {

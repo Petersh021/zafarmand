@@ -64,6 +64,7 @@ func newAdminHTTPTestApplicationWithInquiryReader(
 		result: inquiryCreateResultCreated,
 	}
 	app, err := newApplication(
+		newRecordingProductCatalogueReader(),
 		inquiries,
 		repository,
 		adminInquiries,
@@ -1517,6 +1518,7 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 
 	t.Run("nil admin repository", func(t *testing.T) {
 		app, err := newApplication(
+			newRecordingProductCatalogueReader(),
 			inquiries,
 			nil,
 			newRecordingAdminInquiryReader(),
@@ -1531,6 +1533,7 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 
 	t.Run("nil admin inquiry reader", func(t *testing.T) {
 		app, err := newApplication(
+			newRecordingProductCatalogueReader(),
 			inquiries,
 			newRecordingAdminRepository(),
 			nil,
@@ -1545,6 +1548,7 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 
 	t.Run("nil admin inquiry status updater", func(t *testing.T) {
 		app, err := newApplication(
+			newRecordingProductCatalogueReader(),
 			inquiries,
 			newRecordingAdminRepository(),
 			newRecordingAdminInquiryReader(),
@@ -1559,6 +1563,7 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 
 	t.Run("nil password manager", func(t *testing.T) {
 		app, err := newApplication(
+			newRecordingProductCatalogueReader(),
 			inquiries,
 			newRecordingAdminRepository(),
 			newRecordingAdminInquiryReader(),

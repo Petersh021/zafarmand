@@ -1,4 +1,4 @@
-# Stage 13-17 database development on Windows
+# Stage 13-18 database development on Windows
 
 Stage 13 establishes an explicit PostgreSQL migration workflow. Stage 14 uses
 that foundation for the first database-backed public feature: Contact inquiry
@@ -10,6 +10,11 @@ inquiry guide](admin-inquiries.md).
 Stage 17 adds an explicit administrator status writer using the table's
 existing `status`, `updated_at`, and closed status constraint, so it also needs
 no schema migration.
+Stage 18 adds migration 4 and the first database-backed public catalogue. The
+new `public.products` table stores minimal durable identity, public text,
+ordering, publication-state, and timestamp data for the catalogue; the
+complete Stage 18 behavior is documented in the
+[Products development guide](products.md).
 
 The boundary is intentional:
 
@@ -29,6 +34,9 @@ The boundary is intentional:
 - Authenticated and explicitly authorized owners and editors can manually set
   one supported status through another narrow repository; opening a detail
   page never performs that update.
+- The public Products repository can select only published catalogue fields.
+  Migration 4 inserts no sample products, and draft or archived records remain
+  indistinguishable from missing records on public detail routes.
 - The success page claims only that the inquiry was saved for studio review. It
   does not claim email delivery or guarantee a response time.
 
@@ -110,16 +118,21 @@ After migrations finish, replace `DATABASE_URL` in the server's environment
 with a least-privilege runtime role. The current server needs database/schema
 connection privileges; `INSERT` and `SELECT` on `public.inquiries` plus
 column-level `UPDATE` on only its `status` and `updated_at`; `SELECT` on
+the `id`, `slug`, `name`, `category`, `sort_order`, and `publication_status`
+columns of `public.products`; `SELECT` on
 `public.admin_users`; and `SELECT`, `INSERT`, and `UPDATE` on
 `public.admin_sessions`. The broader inquiry read is required by Stage 16's
 protected list and detail statements, while the narrow column update is
-required by Stage 17's status statement. Separate application-level interfaces
-keep both capabilities unavailable to the public Contact handler. Identity
-sequences need the access required to generate IDs. The separate administrator
-bootstrap process additionally needs `INSERT` on `public.admin_users`, but
-neither runtime should own the schema or receive migration privileges. Keep
-role creation and credentials outside this repository and follow the deployment
-provider's role-management documentation.
+required by Stage 17's status statement. Stage 18 needs no Product insert,
+update, delete, or identity-sequence permission because its repository is
+read-only. Separate application-level interfaces keep administrative inquiry
+capabilities unavailable to the public Contact handler and keep unpublished
+Product state outside public templates. Inquiry and administrator identity
+sequences need the access required by their existing writers. The separate
+administrator bootstrap process additionally needs `INSERT` on
+`public.admin_users`, but neither runtime should own the schema or receive
+migration privileges. Keep role creation and credentials outside this
+repository and follow the deployment provider's role-management documentation.
 
 Never:
 
@@ -149,7 +162,7 @@ produce no match because `.env.example` is explicitly allowed.
 
 ## Understanding the Go connection lifecycle
 
-Stages 13-16 use `database/sql` with pgx as the PostgreSQL driver. A `*sql.DB` is
+Stages 13-18 use `database/sql` with pgx as the PostgreSQL driver. A `*sql.DB` is
 a concurrency-safe database handle and connection pool, not one permanently
 open socket.
 
@@ -177,10 +190,10 @@ migration code, and closes it once. Individual migration functions do not own
 or close the pool. Opening a new pool for each statement would hide ownership,
 waste connections, and teach the wrong request lifecycle.
 
-In Stages 14-17, the long-running application—not an HTTP handler—owns the
-shared pool. The public inquiry writer, private inquiry reader, private inquiry
-status updater, and administrator authentication repository borrow it and
-accept request contexts.
+In Stages 14-18, the long-running application—not an HTTP handler—owns the
+shared pool. The public inquiry writer, public Product reader, private inquiry
+reader, private inquiry status updater, and administrator authentication
+repository borrow it and accept request contexts.
 The server opens and pings the pool before listening, stops accepting requests
 on Ctrl+C, waits for active handlers, and then closes the pool.
 
@@ -236,8 +249,8 @@ Migration history is compiled into the Go executable from `migrations/`. Every
 new schema version must follow one strict contract:
 
 1. Add an exact pair such as
-   `000004_descriptive_name.up.sql` and
-   `000004_descriptive_name.down.sql`.
+   `000005_descriptive_name.up.sql` and
+   `000005_descriptive_name.down.sql`.
 2. Use six digits, the next contiguous positive version, and a globally unique
    lowercase name made from words separated by single underscores.
 3. Put the forward change in `up` and the narrow exact reverse in `down`. Avoid
@@ -317,6 +330,8 @@ psql -X --set ON_ERROR_STOP=on --command '\dt'
 psql -X --set ON_ERROR_STOP=on --command '\d inquiries'
 psql -X --set ON_ERROR_STOP=on --command '\d admin_users'
 psql -X --set ON_ERROR_STOP=on --command '\d admin_sessions'
+psql -X --set ON_ERROR_STOP=on --command '\d products'
+psql -X --set ON_ERROR_STOP=on --command '\di products_published_order_idx'
 ```
 
 Inspect table definitions only. Do not select or copy password hashes, session
@@ -344,20 +359,29 @@ must be one supported machine value, and the initial status must be `new`.
 Submitting the exact same already-rendered form twice must leave one row because
 its hidden `submission_token` maps to the unique `submission_key` column.
 
-Stages 16 and 17 reuse this table and its primary-key index; neither adds
-migration 4. Stage 17 also reuses the existing status constraint and
+Stages 16 and 17 reuse this table and its primary-key index; neither required a
+new inquiry migration. Stage 17 also reuses the existing status constraint and
 `updated_at` column. A same-status write succeeds while preserving the stored
 timestamp value. A real transition changes `status` and assigns PostgreSQL's
 `CURRENT_TIMESTAMP` to `updated_at`; finite timestamp precision means that
 value cannot be promised to advance strictly on two immediate transitions.
 Concurrent administrators use documented last-successful-write-wins behavior
-rather than a hidden versioning promise.
+rather than a hidden versioning promise. Migration 4 belongs to the separate
+Stage 18 Product catalogue and does not alter inquiry storage.
 Its protected inbox orders by descending ID and requests older pages with the
 exclusive `before=<id>` keyset. Verify that interface with one fictional local
 Contact submission rather than selecting a real visitor's personal data into a
 terminal. The [administrator inquiry guide](admin-inquiries.md) gives the exact
 read and manual-status browser checks, explains why the 20-item reader does not
 use `OFFSET`, and documents the receipt-order timestamp caveat.
+
+Migration 4 creates `public.products` and its partial
+`products_published_order_idx`. It deliberately inserts no business records,
+so `SELECT COUNT(*) FROM public.products` must return zero immediately after a
+fresh migration. The public reader selects only published rows and does not
+receive draft or archived state as display data. Use the [Products development
+guide](products.md) for schema details, fictional local verification data, and
+the public list/detail behavior.
 
 To exercise rollback, first switch `DATABASE_URL` to a separate disposable
 database. Reconfirm the connection before doing anything destructive:
@@ -388,7 +412,8 @@ The normal suite never connects to PostgreSQL. Separate integration tests cover
 the advisory lock, real DDL, multi-statement rollback, ledger, status,
 idempotent up/down/reapply, the public inquiry repository's name/email mapping
 and retry behavior, the private Stage 16 list/detail reader, and the Stage 17
-status writer's transition, no-op, and safe-failure behavior.
+status writer's transition, no-op, and safe-failure behavior. Stage 18 adds the
+real Product schema plus published-list and published-detail repository checks.
 
 On the verified local Windows PostgreSQL 18 installation, the guarded helper
 can run the same acceptance cycle without persisting or printing a password:
@@ -398,10 +423,10 @@ can run the same acceptance cycle without persisting or printing a password:
 ```
 
 The helper keeps its historical Stage 14 filename and disposable database name,
-but its `Postgres` test selection runs the complete current v1-to-v3 suite,
+but its `Postgres` test selection runs the complete current v1-to-v4 suite,
 including Stage 15 admin schema/repository checks and Stage 16 inquiry reads.
-It also checks Stage 17 status updates. There is no v4 schema step in this
-stage.
+It also checks Stage 17 status updates and Stage 18's unseeded Product schema,
+published ordering, numbering, detail mapping, and non-public exclusion.
 
 The helper uses a visible secure password prompt, refuses to reuse a database,
 creates only `zafarmand_stage14_codex_test`, runs the opt-in integration tests
@@ -412,7 +437,8 @@ target.
 
 Create a dedicated empty database whose name ends in `_test`. It must not
 contain `public.inquiries`, `public.admin_users`, `public.admin_sessions`,
-`public.schema_migrations`, `public.stage13_atomicity_probe`, or
+`public.products`, `public.schema_migrations`,
+`public.stage13_atomicity_probe`, or
 `public.stage13_intentionally_missing_table`. Then opt in with two test-only
 variables:
 
@@ -423,12 +449,12 @@ go test -count=1 -run 'Postgres' ./...
 ```
 
 The test never falls back to `DATABASE_URL`, verifies both the configured and
-server-reported database names, and checks all six reserved relations before
+server-reported database names, and checks every reserved relation before
 mutation. It cleans up only `public.admin_sessions`, `public.admin_users`,
-`public.inquiries`, `public.schema_migrations`, and its exact atomicity-probe
-table; the intentionally missing relation is checked but never dropped. Still
-use a database created solely for this test; the confirmation is a safety gate,
-not a backup.
+`public.products`, `public.inquiries`, `public.schema_migrations`, and its exact
+atomicity-probe table; the intentionally missing relation is checked but never
+dropped. Still use a database created solely for this test; the confirmation
+is a safety gate, not a backup.
 
 Remove the test credentials afterward:
 
@@ -446,10 +472,10 @@ result before treating the local database runtime as verified.
 
 ## Normal development checks
 
-The ordinary automated suite, including Stage 16 reads and Stage 17 status
-authorization, repository, handler, CSRF, redirect, and template checks, must
-remain database-independent. It should pass even when PostgreSQL is stopped or
-absent:
+The ordinary automated suite, including Stage 16 reads, Stage 17 status
+authorization, and Stage 18 Product migration, repository, handler, and
+template checks, must remain database-independent. It should pass even when
+PostgreSQL is stopped or absent:
 
 ```powershell
 go fmt ./...
@@ -465,7 +491,7 @@ Before committing a database stage, review only intended files:
 
 ```powershell
 git status --short
-git diff -- .gitignore .gitattributes docs/development/database.md
+git diff -- .gitignore .gitattributes docs/development/database.md docs/development/products.md
 git diff -- migrations
 ```
 
@@ -476,6 +502,8 @@ migration file exists, verify its effective attribute with its real path:
 git check-attr eol -- migrations/000001_create_inquiries.up.sql
 git check-attr eol -- migrations/000002_add_inquiry_submission_key.up.sql
 git check-attr eol -- migrations/000003_create_admin_access.up.sql
+git check-attr eol -- migrations/000004_create_products.up.sql
+git check-attr eol -- migrations/000004_create_products.down.sql
 ```
 
 The reported value should be `lf`. Use the actual migration filename if it

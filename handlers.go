@@ -10,6 +10,10 @@ import (
 )
 
 const (
+	// productCatalogueReadTimeout prevents a slow public catalogue query from
+	// occupying one HTTP request indefinitely. The request context remains the
+	// parent, so a disconnected visitor can cancel the work sooner.
+	productCatalogueReadTimeout = 5 * time.Second
 	// inquiryPersistenceTimeout bounds one Contact database write independently
 	// from the visitor connection and the process-wide server lifetime.
 	inquiryPersistenceTimeout = 5 * time.Second
@@ -70,18 +74,50 @@ func (app *application) homeHandler(
 	)
 }
 
-// productsHandler renders the Products landing page with an HTTP 200 response.
+// productsHandler renders the published Products catalogue.
 //
 // CurrentPath matches the route exactly so shared navigation templates can
 // mark Products as the current page for sighted users and assistive technology.
 // DisciplinePage contains truthful route-level presentation data, while
-// ProductListing maps the application's shared temporary product source into
-// catalogue previews. Each preview now includes a real Stage 7 detail path,
-// while prices, final descriptions, media, and database state remain deferred.
+// ProductListing maps only records returned through the public PostgreSQL read
+// boundary. An empty database therefore produces the existing honest empty
+// state instead of falling back to fictional production content.
 func (app *application) productsHandler(
 	w http.ResponseWriter,
-	_ *http.Request,
+	r *http.Request,
 ) {
+	if app.products == nil {
+		// Construction normally rejects this state. The request-time guard keeps a
+		// manually assembled application from panicking or rendering invented data.
+		log.Print("public product catalogue dependency unavailable")
+		http.Error(
+			w,
+			"service temporarily unavailable",
+			http.StatusServiceUnavailable,
+		)
+
+		return
+	}
+
+	readContext, cancel := context.WithTimeout(
+		r.Context(),
+		productCatalogueReadTimeout,
+	)
+	products, err := app.products.ListPublished(readContext)
+	cancel()
+	if err != nil || !isValidPublishedProductCatalogue(products) {
+		// Repository and stored-value details remain private because a driver error
+		// can disclose SQL, connection data, or content rejected during scanning.
+		log.Print("public product catalogue list failed")
+		http.Error(
+			w,
+			"service temporarily unavailable",
+			http.StatusServiceUnavailable,
+		)
+
+		return
+	}
+
 	disciplinePage := &disciplinePageData{
 		Number:   "03",
 		Name:     "Products",
@@ -89,16 +125,16 @@ func (app *application) productsHandler(
 		NextPath: "/interior-design",
 	}
 
-	// The listing view keeps section copy beside a mapped preview slice. Both the
-	// catalogue and detail handler read app.products, so card URLs and lookup
-	// records cannot drift into two independent hard-coded collections.
+	// The listing view keeps section copy beside the mapped, already ordered
+	// records. The catalogue and detail handler share one repository contract, so
+	// public eligibility and field validation cannot drift between routes.
 	productListing := &productListingData{
 		Eyebrow: "Zafarmand objects",
 		Heading: "Product catalogue",
 		Introduction: "An evolving index of furniture, lighting, " +
 			"objects, and material studies.",
 		EmptyMessage: "Product entries are being prepared for publication.",
-		Items:        productPreviews(app.products),
+		Items:        productPreviews(products),
 	}
 
 	app.render(
@@ -114,24 +150,56 @@ func (app *application) productsHandler(
 	)
 }
 
-// productDetailHandler renders one temporary product detail selected by the
-// slug captured in the GET /products/{slug} route.
+// productDetailHandler renders one published product selected by the slug
+// captured in the GET /products/{slug} route.
 //
-// Request.PathValue reads the decoded wildcard supplied by Go's ServeMux. An
-// exact whitelist lookup prevents arbitrary visitor input from becoming page
-// content or a template name. Unknown slugs receive a normal HTTP 404 before
-// any detail template is executed.
+// Request.PathValue reads the decoded wildcard supplied by Go's ServeMux.
+// Canonical validation happens before PostgreSQL; unknown, draft, and archived
+// records deliberately share the same public 404 response.
 func (app *application) productDetailHandler(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
 	slug := r.PathValue("slug")
-	product, exists := findProductBySlug(
-		app.products,
-		slug,
-	)
-	if !exists {
+	if !isCanonicalProductSlug(slug) {
 		http.NotFound(w, r)
+
+		return
+	}
+	if app.products == nil {
+		log.Print("public product catalogue dependency unavailable")
+		http.Error(
+			w,
+			"service temporarily unavailable",
+			http.StatusServiceUnavailable,
+		)
+
+		return
+	}
+
+	readContext, cancel := context.WithTimeout(
+		r.Context(),
+		productCatalogueReadTimeout,
+	)
+	product, err := app.products.FindPublishedBySlug(readContext, slug)
+	cancel()
+	if errors.Is(err, errProductCatalogueNotFound) {
+		http.NotFound(w, r)
+
+		return
+	}
+	if err != nil ||
+		!isValidCatalogueProduct(product) ||
+		product.Slug != slug {
+		// A malformed injected result is treated as a dependency failure rather
+		// than allowing untrusted stored data to define a title or canonical path.
+		log.Print("public product catalogue detail failed")
+		http.Error(
+			w,
+			"service temporarily unavailable",
+			http.StatusServiceUnavailable,
+		)
+
 		return
 	}
 

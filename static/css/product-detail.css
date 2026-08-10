@@ -1,5 +1,5 @@
 /* --------------------------------------------------
-   Stage 7: Structural product detail page
+   Stage 18: Published Product detail page
 
    This file is loaded only by product-detail.html. It creates a premium
    editorial detail composition without relying on the reference composite,
@@ -33,7 +33,7 @@
 
 /*
  * The main landmark defines page-specific surface and text tokens locally,
- * preventing temporary detail colors from becoming global design decisions.
+ * preventing detail-page colors from becoming global design decisions.
  * min-width:0 is the outer guard against long future managed content.
  */
 .product-detail {
@@ -155,7 +155,7 @@
 }
 
 /*
- * The one h1 establishes the selected temporary record. Fluid type preserves
+ * The one h1 establishes the selected published record. Fluid type preserves
  * the editorial scale while overflow-wrap protects future managed names.
  */
 .product-detail__title {
@@ -172,8 +172,8 @@
 }
 
 /*
- * The description list groups only known Stage 7 facts. A top rule separates
- * metadata from the h1 without implying an interactive control.
+ * The description list groups only facts supported by migration 4. A top rule
+ * separates metadata from the h1 without implying an interactive control.
  */
 .product-detail__facts {
 	display: grid;
@@ -400,8 +400,8 @@
 
 /*
  * Increased contrast removes atmospheric transparency and strengthens every
- * structural boundary. No Stage 7 rule animates or scrolls smoothly, so the
- * page already respects reduced-motion preference without a separate override.
+ * structural boundary. No detail rule animates or scrolls smoothly, so the page
+ * already respects reduced-motion preference without a separate override.
  */
 @media (prefers-contrast: more) {
 	.site-header {

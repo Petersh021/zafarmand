@@ -1,8 +1,8 @@
 {{/*
-The overview intentionally presents only navigation into the first read-only
-admin workflow. It does not request or imply inquiry counts, because summary
-queries and operational metrics belong to a later stage with explicit data and
-performance requirements.
+The overview intentionally presents navigation into the current inquiry review
+and status workflow. It does not request or imply inquiry counts, because
+summary queries and operational metrics belong to a later stage with explicit
+data and performance requirements.
 */}}
 {{define "admin-content"}}
 <main class="admin-dashboard" id="admin-main-content">
@@ -15,7 +15,7 @@ performance requirements.
 		<h1 id="admin-dashboard-title">Administration overview</h1>
 
 		<p class="admin-dashboard__lede">
-			Review messages received through the public Contact form in the private, read-only inquiry workspace.
+			Review messages received through the public Contact form and manage their explicit workflow status.
 		</p>
 
 		<a class="admin-primary-link" href="/admin/inquiries">
@@ -42,7 +42,7 @@ performance requirements.
 
 			<div>
 				<dt>Available tools</dt>
-				<dd>Read-only inquiry review</dd>
+				<dd>Inquiry review and status management</dd>
 			</div>
 		</dl>
 	</section>

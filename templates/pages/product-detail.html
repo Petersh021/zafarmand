@@ -1,8 +1,8 @@
 {{/*
 The product detail page is a separate template-cache entry discovered by the
-existing templates/pages glob. It renders one structural Stage 7 record and
-does not reuse the landing-page discipline shell, which keeps detail semantics
-and presentation independent from /products.
+existing templates/pages glob. Stage 18 renders one repository-validated
+published record and does not reuse the landing-page discipline shell, which
+keeps detail semantics and presentation independent from /products.
 */}}
 
 {{/*
@@ -19,8 +19,9 @@ can focus on the warm detail composition and header contrast.
 
 {{/*
 The main landmark is always emitted so the shared skip link keeps a valid,
-unique destination even if future handler code accidentally supplies nil
-ProductDetail data. The optional record controls only the article inside it.
+unique destination even if later handler code accidentally supplies nil
+ProductDetail data. Normal requests reach this template only after the handler
+has found one published slug; the optional record controls only the article.
 */}}
 {{define "content"}}
 <main
@@ -40,7 +41,7 @@ ProductDetail data. The optional record controls only the article inside it.
 		{{/*
 		A native catalogue link is predictable with JavaScript disabled and works
 		with browser history, copied URLs, and new-tab commands. The fragment
-		returns visitors directly to the real catalogue section.
+		returns visitors directly to the repository-backed catalogue section.
 		*/}}
 		<nav
 			class="product-detail__navigation"
@@ -76,8 +77,10 @@ ProductDetail data. The optional record controls only the article inside it.
 
 				{{/*
 				A description list expresses name/value relationships more clearly
-				than visually aligned paragraphs. Every value comes from the same
-				Go productDetailData record selected by the route slug.
+				than visually aligned paragraphs. Every value comes from the same Go
+				productDetailData record mapped from the published row selected by the
+				route slug. Its catalogue number is derived from the complete published
+				order rather than stored as mutable display text.
 				*/}}
 				<dl class="product-detail__facts">
 					<div class="product-detail__fact">
@@ -97,20 +100,20 @@ ProductDetail data. The optional record controls only the article inside it.
 				</dl>
 
 				{{/*
-				This interface note is intentionally truthful and generic. It does
-				not invent materials, dimensions, designers, prices, or descriptive
-				claims before approved content exists.
+				This interface note is intentionally truthful and generic. Migration 4
+				does not store materials, dimensions, designers, prices, descriptions,
+				or media, so the template does not invent those future fields.
 				*/}}
 				<p class="product-detail__notice">
-					Approved product information and media are being
-					prepared for publication.
+					Additional product information and media are not
+					available in this catalogue stage.
 				</p>
 			</div>
 
 			{{/*
-			The visual field reserves future product-media space without publishing
-			or cropping the supplied reference composite. Everything inside is
-			decorative and repeated as visible text elsewhere, so the complete
+			The visual field reserves future product-media space without
+			publishing or cropping an unapproved reference image. Everything inside
+			is decorative and repeated as visible text elsewhere, so the complete
 			field is hidden from assistive technology.
 			*/}}
 			<div

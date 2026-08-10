@@ -453,15 +453,16 @@ func TestLoadMigrationCatalogRejectsNonRegularEntries(t *testing.T) {
 }
 
 // TestEmbeddedMigrationCatalog verifies the production catalog contains the
-// inquiry table, its idempotency key, and the admin-access boundary with exact
-// ordered identities and independently reversible schema changes.
+// inquiry table, its idempotency key, the admin-access boundary, and the first
+// Product catalogue table with exact ordered identities and independently
+// reversible schema changes.
 func TestEmbeddedMigrationCatalog(t *testing.T) {
 	catalog, err := loadEmbeddedMigrationCatalog()
 	if err != nil {
 		t.Fatalf("load embedded migration catalog: %v", err)
 	}
-	if len(catalog) != 3 {
-		t.Fatalf("embedded catalog length: got %d, want 3", len(catalog))
+	if len(catalog) != 4 {
+		t.Fatalf("embedded catalog length: got %d, want 4", len(catalog))
 	}
 
 	initialDefinition := catalog[0]
@@ -700,6 +701,97 @@ DROP TABLE public.inquiries;
 	for _, forbiddenSQL := range []string{"CASCADE", "IF EXISTS", "INQUIRIES"} {
 		if strings.Contains(upperAdminDownSQL, forbiddenSQL) {
 			t.Errorf("admin-access down SQL contains forbidden %q", forbiddenSQL)
+		}
+	}
+
+	productDefinition := catalog[3]
+	if productDefinition.Version != 4 ||
+		productDefinition.Name != "create_products" {
+		t.Errorf(
+			"embedded migration identity: got %06d_%s",
+			productDefinition.Version,
+			productDefinition.Name,
+		)
+	}
+
+	// These fragments lock version 000004 to the minimal durable Product storage
+	// needed by the public catalogue read boundary. Every stored catalogue text
+	// value is bounded, and draft remains the fail-closed state until a later
+	// authenticated publishing workflow changes it.
+	expectedProductUpSQL := []string{
+		"CREATE TABLE public.products",
+		"id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY",
+		"slug text NOT NULL",
+		"name text NOT NULL",
+		"category text NOT NULL",
+		"sort_order integer NOT NULL",
+		"publication_status text NOT NULL DEFAULT 'draft'",
+		"created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP",
+		"updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP",
+		"CONSTRAINT products_slug_length",
+		"CHECK (char_length(slug) BETWEEN 1 AND 120)",
+		"CONSTRAINT products_slug_format",
+		"CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$')",
+		"CONSTRAINT products_slug_unique",
+		"UNIQUE (slug)",
+		"CONSTRAINT products_name_trimmed",
+		"CHECK (name = btrim(name))",
+		"CONSTRAINT products_name_length",
+		"CHECK (char_length(name) BETWEEN 1 AND 160)",
+		"CONSTRAINT products_category_trimmed",
+		"CHECK (category = btrim(category))",
+		"CONSTRAINT products_category_length",
+		"CHECK (char_length(category) BETWEEN 1 AND 80)",
+		"CONSTRAINT products_sort_order_positive",
+		"CHECK (sort_order > 0)",
+		"CONSTRAINT products_publication_status_supported",
+		"CHECK (publication_status IN ('draft', 'published', 'archived'))",
+		"CONSTRAINT products_timestamp_order",
+		"CHECK (updated_at >= created_at)",
+		"CREATE INDEX products_published_order_idx",
+		"ON public.products (sort_order, id)",
+		"WHERE publication_status = 'published'",
+	}
+	for _, expectedSQL := range expectedProductUpSQL {
+		if !strings.Contains(productDefinition.UpSQL, expectedSQL) {
+			t.Errorf("products up SQL does not contain %q", expectedSQL)
+		}
+	}
+
+	// Schema migrations establish structure only. Product records will enter
+	// through a later administrator workflow rather than embedded sample data.
+	upperProductUpSQL := strings.ToUpper(productDefinition.UpSQL)
+	for _, forbiddenSQL := range []string{
+		"INSERT INTO",
+		"UPDATE PUBLIC.PRODUCTS",
+		"DELETE FROM",
+		"CREATE EXTENSION",
+	} {
+		if strings.Contains(upperProductUpSQL, forbiddenSQL) {
+			t.Errorf("products up SQL contains forbidden %q", forbiddenSQL)
+		}
+	}
+
+	expectedProductDownSQL := `-- Reverse only the Product table introduced by version 000004. A strict drop
+-- makes unexpected dependencies or schema drift fail visibly.
+DROP TABLE public.products;
+`
+	if productDefinition.DownSQL != expectedProductDownSQL {
+		t.Errorf(
+			"products down SQL: got %q, want exact strict Product drop",
+			productDefinition.DownSQL,
+		)
+	}
+	upperProductDownSQL := strings.ToUpper(productDefinition.DownSQL)
+	for _, forbiddenSQL := range []string{
+		"CASCADE",
+		"IF EXISTS",
+		"INQUIRIES",
+		"ADMIN_USERS",
+		"ADMIN_SESSIONS",
+	} {
+		if strings.Contains(upperProductDownSQL, forbiddenSQL) {
+			t.Errorf("products down SQL contains forbidden %q", forbiddenSQL)
 		}
 	}
 }

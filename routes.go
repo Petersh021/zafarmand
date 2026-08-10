@@ -115,7 +115,7 @@ func (app *application) routes() http.Handler {
 
 	// Status changes are explicit POST mutations. Repeating the role allowlist
 	// here makes write permission a separate decision from read permission, even
-	// while both current roles are intentionally allowed during Stage 17.
+	// while both current roles remain allowed in the workflow introduced then.
 	inquiryStatusWriterRoles := requireAdminRoles(
 		adminRoleOwner,
 		adminRoleEditor,

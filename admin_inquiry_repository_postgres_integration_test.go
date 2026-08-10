@@ -36,8 +36,9 @@ func TestPostgresAdminInquiryReaderIntegration(t *testing.T) {
 	})
 
 	// Stage 16 is deliberately read-only and adds no migration. Applying the
-	// existing v1-v3 catalog proves the reader works against the committed schema.
-	applyInquiryIntegrationMigrations(t, database)
+	// complete catalog proves the reader remains compatible after the independent
+	// Stage 18 Product table becomes version 000004.
+	applyRepositoryIntegrationMigrations(t, database)
 
 	reader, err := newPostgresAdminInquiryReader(database)
 	if err != nil {

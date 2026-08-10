@@ -10,20 +10,20 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// PostgreSQL inquiry integration constants describe the exact database
-// defaults and constraint diagnostics expected from the Stage 14 schema.
+// PostgreSQL integration constants describe the inquiry default and the stable
+// constraint diagnostics shared by the real inquiry and migration-cycle tests.
 const (
 	// postgresInquiryDefaultStatus is the initial review-queue state supplied by
 	// PostgreSQL when the repository deliberately omits the status column.
 	postgresInquiryDefaultStatus = "new"
-	// postgresCheckViolationCode is PostgreSQL's stable SQLSTATE for a failed
-	// CHECK constraint, including the fixed-width submission-key rule.
+	// postgresCheckViolationCode is PostgreSQL's stable SQLSTATE for any failed
+	// CHECK constraint owned by the embedded migration catalog.
 	postgresCheckViolationCode = "23514"
 	// postgresNotNullViolationCode is PostgreSQL's stable SQLSTATE for a missing
 	// value in the required submission-key column.
 	postgresNotNullViolationCode = "23502"
 	// postgresUniqueViolationCode is PostgreSQL's stable SQLSTATE for a duplicate
-	// value protected by the submission-key uniqueness constraint.
+	// value protected by a named migration-owned uniqueness constraint.
 	postgresUniqueViolationCode = "23505"
 	// postgresInquiryKeyLengthConstraint names the migration-owned key-width
 	// constraint whose diagnostics are asserted below.
@@ -83,7 +83,7 @@ func TestPostgresInquiryRepositoryIntegration(t *testing.T) {
 		cleanupMigrationIntegrationSchema(t, database)
 	})
 
-	applyInquiryIntegrationMigrations(t, database)
+	applyRepositoryIntegrationMigrations(t, database)
 
 	repository, err := newPostgresInquiryRepository(database)
 	if err != nil {
@@ -228,32 +228,33 @@ func TestPostgresInquiryRepositoryIntegration(t *testing.T) {
 	}
 }
 
-// applyInquiryIntegrationMigrations applies the complete embedded catalog and
+// applyRepositoryIntegrationMigrations applies the complete embedded catalog and
 // proves a repeated run is idempotent before repository behavior is exercised.
-func applyInquiryIntegrationMigrations(t *testing.T, database *sql.DB) {
+func applyRepositoryIntegrationMigrations(t *testing.T, database *sql.DB) {
 	t.Helper()
 
 	catalog, err := loadEmbeddedMigrationCatalog()
 	if err != nil {
-		t.Fatalf("load inquiry integration migration catalog: %v", err)
+		t.Fatalf("load repository integration migration catalog: %v", err)
 	}
-	if len(catalog) != 3 ||
+	if len(catalog) != 4 ||
 		catalog[0].Version != 1 ||
 		catalog[1].Version != 2 ||
-		catalog[2].Version != 3 {
+		catalog[2].Version != 3 ||
+		catalog[3].Version != 4 {
 		t.Fatalf(
-			"migration catalog: got %#v, want versions 1, 2, and 3",
+			"migration catalog: got %#v, want versions 1 through 4",
 			catalog,
 		)
 	}
 
 	runner, err := newMigrationRunner(database, catalog)
 	if err != nil {
-		t.Fatalf("create inquiry integration migration runner: %v", err)
+		t.Fatalf("create repository integration migration runner: %v", err)
 	}
 	applied, err := runner.Up(t.Context())
 	if err != nil {
-		t.Fatalf("apply inquiry integration migrations: %v", err)
+		t.Fatalf("apply repository integration migrations: %v", err)
 	}
 	if len(applied) != len(catalog) {
 		t.Fatalf(
@@ -278,7 +279,7 @@ func applyInquiryIntegrationMigrations(t *testing.T, database *sql.DB) {
 
 	applied, err = runner.Up(t.Context())
 	if err != nil {
-		t.Fatalf("repeat inquiry integration migrations: %v", err)
+		t.Fatalf("repeat repository integration migrations: %v", err)
 	}
 	if len(applied) != 0 {
 		t.Errorf(

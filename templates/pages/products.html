@@ -1,8 +1,8 @@
 {{/*
 The Products page remains a separate cache entry and composes the shared
-discipline shell with the Stage 6 catalogue foundation and Stage 7 detail
-entrances. Interior and Architecture use their own separately parsed overrides,
-so none of those discipline-specific work sections can leak into Products.
+discipline shell with the Stage 18 PostgreSQL-backed public catalogue.
+Interior and Architecture use their own separately parsed overrides, so none
+of those discipline-specific work sections can leak into Products.
 */}}
 
 {{/*
@@ -35,7 +35,9 @@ leak into Interior Design, Architecture Design, or the homepage.
 
 The block receives root pageData because discipline-page.html calls it with $.
 ProductListing is therefore available even though the shared outer template is
-currently inside "with .DisciplinePage".
+currently inside "with .DisciplinePage". The handler prepares this presentation
+model from repository-validated published rows; the template never queries
+PostgreSQL or decides whether a stored record is public.
 */}}
 {{define "disciplineWorkContent"}}
 	{{with .ProductListing}}
@@ -58,10 +60,11 @@ currently inside "with .DisciplinePage".
 
 	{{/*
 	A nonempty []productPreviewData slice becomes one semantic ordered list.
-	The slice order comes directly from Go and remains meaningful without
-	JavaScript. Each article contains one native anchor supplied by Go, so opening
-	a detail in the same tab, a new tab, or browser history follows normal web
-	behavior without href="#" placeholders or JavaScript navigation.
+	Its order and consecutive catalogue numbers come from the validated Stage 18
+	repository result and remain meaningful without JavaScript. Each article
+	contains one native canonical anchor supplied by Go, so opening a detail in
+	the same tab, a new tab, or browser history follows normal web behavior
+	without href="#" placeholders or JavaScript navigation.
 	*/}}
 	{{if .Items}}
 	<ol
@@ -78,9 +81,10 @@ currently inside "with .DisciplinePage".
 				>
 					{{/*
 					The media field is an honest CSS-only structural placeholder.
-					It reserves the future image area without displaying or cropping
-					the reference screenshot. aria-hidden prevents its repeated
-					number from adding noise for assistive-technology users.
+					Stage 18 stores no media, so this area reserves the later image
+					composition without inventing or cropping product photography.
+					aria-hidden prevents its repeated catalogue number from adding
+					noise for assistive-technology users.
 					*/}}
 					<div
 						class="product-preview__media"
@@ -93,7 +97,7 @@ currently inside "with .DisciplinePage".
 
 					<div class="product-preview__body">
 						<p class="product-preview__label">
-							{{.Category}} / Catalogue slot {{.Number}}
+							{{.Category}} / Catalogue entry {{.Number}}
 						</p>
 
 						<h3 class="product-preview__title">
@@ -111,8 +115,10 @@ currently inside "with .DisciplinePage".
 	</ol>
 	{{else}}
 	{{/*
-	The empty branch makes a future zero-row database result truthful and usable
-	instead of silently removing the section that its aria-labelledby points to.
+	The empty branch makes the current zero-published-row database result truthful
+	and usable instead of silently removing the section referenced by its
+	aria-labelledby relationship. Migration 4 deliberately inserts no sample
+	products, so this is the expected first-run presentation.
 	*/}}
 	<p class="products-catalogue__empty">
 		{{.EmptyMessage}}
@@ -120,9 +126,10 @@ currently inside "with .DisciplinePage".
 	{{end}}
 	{{else}}
 	{{/*
-	A missing Products view model is a defensive rendering fallback. The normal
-	handler always supplies ProductListing, but preserving a visible h2 keeps the
-	shared section label valid if future code accidentally omits it.
+	A missing Products view model is a defensive rendering fallback. After a
+	successful repository read, the normal handler always supplies ProductListing.
+	Preserving a visible h2 keeps the shared section label valid if later handler
+	code accidentally omits that presentation value.
 	*/}}
 	<header class="discipline-work__header products-catalogue__header">
 		<p class="discipline-work__eyebrow">

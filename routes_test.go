@@ -101,10 +101,46 @@ func newTestApplicationWithInquiryRepository(
 ) *application {
 	t.Helper()
 
+	return newTestApplicationWithRepositories(
+		t,
+		newRecordingProductCatalogueReader(),
+		repository,
+	)
+}
+
+// newTestApplicationWithProductCatalogueReader lets Product HTTP tests replace
+// only the published-catalogue dependency while keeping every other production
+// route and template dependency intact.
+func newTestApplicationWithProductCatalogueReader(
+	t *testing.T,
+	products productCatalogueReader,
+) *application {
+	t.Helper()
+
+	return newTestApplicationWithRepositories(
+		t,
+		products,
+		&recordingInquiryRepository{
+			result: inquiryCreateResultCreated,
+		},
+	)
+}
+
+// newTestApplicationWithRepositories is the common construction seam behind
+// the narrower Product and Contact helpers. Keeping the full dependency list in
+// one place reduces constructor-drift noise as later vertical slices are added.
+func newTestApplicationWithRepositories(
+	t *testing.T,
+	products productCatalogueReader,
+	inquiries inquiryRepository,
+) *application {
+	t.Helper()
+
 	adminRepository := newRecordingAdminRepository()
 	passwords := newTestAdminPasswordManager(t)
 	app, err := newApplication(
-		repository,
+		products,
+		inquiries,
 		adminRepository,
 		newRecordingAdminInquiryReader(),
 		newRecordingAdminInquiryStatusUpdater(),
@@ -117,11 +153,37 @@ func newTestApplicationWithInquiryRepository(
 	return app
 }
 
+// TestNewApplicationRequiresProductCatalogueReader protects the public read
+// boundary: the server cannot start when Product routes have no catalogue
+// dependency and therefore cannot answer truthfully from durable state.
+func TestNewApplicationRequiresProductCatalogueReader(t *testing.T) {
+	app, err := newApplication(
+		nil,
+		&recordingInquiryRepository{
+			result: inquiryCreateResultCreated,
+		},
+		newRecordingAdminRepository(),
+		newRecordingAdminInquiryReader(),
+		newRecordingAdminInquiryStatusUpdater(),
+		newTestAdminPasswordManager(t),
+	)
+	if !errors.Is(err, errProductCatalogueReaderRequired) {
+		t.Fatalf(
+			"nil Product reader error: got %v, want required sentinel",
+			err,
+		)
+	}
+	if app != nil {
+		t.Error("nil Product reader returned a usable application")
+	}
+}
+
 // TestNewApplicationRequiresInquiryRepository protects the production
 // composition boundary: a server cannot start with a Contact form that has no
 // persistence dependency.
 func TestNewApplicationRequiresInquiryRepository(t *testing.T) {
 	app, err := newApplication(
+		newRecordingProductCatalogueReader(),
 		nil,
 		newRecordingAdminRepository(),
 		newRecordingAdminInquiryReader(),

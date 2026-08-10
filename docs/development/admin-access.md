@@ -12,9 +12,9 @@ authorization, pagination, mutation, privacy, and verification contract.
 
 Stage 15 itself deliberately added no management feature; its first dashboard
 was only an authenticated shell. Stage 17 adds only manual inquiry status
-changes. The current project still has no product, project, media, publishing,
-account-management, password change or recovery, multi-factor authentication,
-or audit-reporting workflow.
+changes. The current project still has no Product administration, project or
+media management, publishing controls, account management, password change or
+recovery, multi-factor authentication, or audit-reporting workflow.
 
 Expired rows are rejected during authentication but Stage 15 does not yet run
 a scheduled session-pruning job. The expiry index prepares for that later
@@ -54,13 +54,17 @@ go run . migrate up
 go run . migrate status
 ```
 
-The final status should report versions 1, 2, and 3 as applied. Do not edit an
-applied migration. Add a new version for any later schema correction.
+The current Stage 18 catalog should report versions 1, 2, 3, and 4 as applied.
+Migration 4 creates the separate public Product storage described in
+[products.md](products.md); it does not expand administrator permissions. Do
+not edit an applied migration. Add a new version for any later schema
+correction.
 
-`go run . migrate down --confirm` reverses only the newest applied version and
-drops the Stage 15 session and user tables. That destroys administrator access
-records. Use it only in a verified disposable database, never as a production
-cleanup technique.
+`go run . migrate down --confirm` reverses only the newest applied version. On
+the complete Stage 18 catalog, the first rollback removes migration 4's Product
+table and all its rows; a second rollback would remove the Stage 15 session and
+user tables and destroy administrator access records. Use rollback only in a
+verified disposable database, never as a production cleanup technique.
 
 ## Creating the first administrator safely
 
@@ -320,8 +324,10 @@ Use separate credentials for these responsibilities:
 - The server runtime role needs `INSERT` and `SELECT` on inquiries: Stage 14
   inserts and checks an idempotent replay, while Stage 16 reads protected list
   and detail fields. Stage 17 additionally needs column-level `UPDATE` on only
-  inquiry `status` and `updated_at`. It also needs read access to active admin
-  users (including the verifier needed for login) and narrow
+  inquiry `status` and `updated_at`. Stage 18 adds `SELECT` on only Product
+  `id`, `slug`, `name`, `category`, `sort_order`, and `publication_status`; it
+  adds no Product mutation permission. The runtime also needs read access to
+  active admin users (including the verifier needed for login) and narrow
   insert/select/update access for admin sessions. Logout updates `revoked_at`;
   it does not require table deletion. The server does not need permission to
   update visitor content, create admin users, or modify their roles.
@@ -334,9 +340,9 @@ deployment.
 
 ## Manual verification without exposing secrets
 
-After migration 3 is applied and a placeholder test administrator has been
-created locally, start the server in the same process environment that contains
-the runtime `DATABASE_URL`:
+After the current migrations through version 4 are applied and a placeholder
+test administrator has been created locally, start the server in the same
+process environment that contains the runtime `DATABASE_URL`:
 
 ```powershell
 go run .
@@ -427,10 +433,11 @@ Remove-Item Env:ZAFARMAND_TEST_DATABASE_CONFIRM -ErrorAction SilentlyContinue
 ```
 
 `Set-SecretProcessVariable` is the history-safe helper defined earlier in this
-guide. The live suite covers the complete v1-to-v3 migration cycle, rollback
+guide. The live suite covers the complete v1-to-v4 migration cycle, rollback
 and reapplication, real PostgreSQL constraints, duplicate normalized email,
 session byte mapping, active-user filtering, expiry, revocation, the Stage 16
-inquiry list/detail reader, and the Stage 17 status writer. Stage 17 adds no
-fourth migration. The suite never falls back to `DATABASE_URL` and skips only
-when its explicit opt-in variables are absent. Ensure cleanup succeeds before
-reusing or removing the disposable database.
+inquiry list/detail reader, the Stage 17 status writer, and the Stage 18
+unseeded published-Product reader. Stage 17 itself added no schema version;
+migration 4 belongs to Products. The suite never falls back to `DATABASE_URL`
+and skips only when its explicit opt-in variables are absent. Ensure cleanup
+succeeds before reusing or removing the disposable database.

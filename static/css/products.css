@@ -1,11 +1,11 @@
 /* --------------------------------------------------
-   Stage 6–7: Products catalogue and detail entrances
+   Stage 18: PostgreSQL-backed Products catalogue entrances
 
    This stylesheet specializes only the warm selected-work region on
    /products. The shared discipline hero remains owned by discipline.css.
    Every new selector is namespaced with "products-" or "product-preview" so
-   the catalogue cannot alter the other public routes. Stage 7 adds real native
-   anchors while the detail page keeps its presentation in product-detail.css.
+   the catalogue cannot alter the other public routes. Native links expose only
+   published records while the detail page stays in product-detail.css.
 -------------------------------------------------- */
 
 /*
@@ -135,7 +135,7 @@
 /*
  * Alternating positions keep repeated structural fields from looking like one
  * copied bitmap. nth-child changes presentation only; DOM and reading order
- * continue to come directly from the Go slice.
+ * continue to come directly from the repository-ordered result.
  */
 .products-catalogue__item:nth-child(even) .product-preview__media::before {
 	inset: 12% 30% 18% 14%;
@@ -184,8 +184,8 @@
 }
 
 /*
- * The neutral temporary product name is the article heading. Fluid sizing and
- * overflow-wrap protect future localized or user-managed content.
+ * The repository-backed product name is the article heading. Fluid sizing and
+ * overflow-wrap protect localized or future administrator-managed content.
  */
 .product-preview__title {
 	min-width: 0;

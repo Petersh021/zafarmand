@@ -7,12 +7,12 @@ import (
 	"testing"
 )
 
-// TestProductDetailRoutes verifies every public temporary product slug through
+// TestProductDetailRoutes verifies every fictional published product slug through
 // the real ServeMux.
 //
 // The table proves that path selection, document metadata, canonical route
 // state, active parent navigation, semantic detail structure, and record fields
-// all stay associated with the same temporary product.
+// all stay associated with the same repository record.
 func TestProductDetailRoutes(t *testing.T) {
 	app := newTestApplication(t)
 	handler := app.routes()
@@ -26,7 +26,7 @@ func TestProductDetailRoutes(t *testing.T) {
 		name string
 		// category is the broad family shown in the facts list.
 		category string
-		// status is the truthful temporary publication state.
+		// status is the trusted label implied by the published-only query.
 		status string
 	}{
 		{
@@ -34,28 +34,28 @@ func TestProductDetailRoutes(t *testing.T) {
 			number:   "01",
 			name:     "Furniture Study 01",
 			category: "Furniture",
-			status:   "Catalogue preview",
+			status:   "Published",
 		},
 		{
 			path:     "/products/lighting-study-01",
 			number:   "02",
 			name:     "Lighting Study 01",
 			category: "Lighting",
-			status:   "Catalogue preview",
+			status:   "Published",
 		},
 		{
 			path:     "/products/object-study-01",
 			number:   "03",
 			name:     "Object Study 01",
 			category: "Objects",
-			status:   "Catalogue preview",
+			status:   "Published",
 		},
 		{
 			path:     "/products/material-study-01",
 			number:   "04",
 			name:     "Material Study 01",
 			category: "Materials",
-			status:   "Catalogue preview",
+			status:   "Published",
 		},
 	}
 
