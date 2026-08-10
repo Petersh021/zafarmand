@@ -61,6 +61,16 @@ from the response sent to the browser.
 
 					<li>
 						<a
+							class="admin-nav__link{{if eq $.NavigationPath "/admin/products"}} admin-nav__link--active{{end}}"
+							href="/admin/products"
+							{{if eq $.NavigationPath "/admin/products"}}aria-current="page"{{end}}
+						>
+							Products
+						</a>
+					</li>
+
+					<li>
+						<a
 							class="admin-nav__link{{if eq $.NavigationPath "/admin/inquiries"}} admin-nav__link--active{{end}}"
 							href="/admin/inquiries"
 							{{if eq $.NavigationPath "/admin/inquiries"}}aria-current="page"{{end}}

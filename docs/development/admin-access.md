@@ -5,27 +5,30 @@ grow a private content-management area. It creates administrator and session
 storage, provides an operator-only first-user command, and adds login,
 dashboard, and logout routes.
 
-Stages 16 and 17 build one bounded feature on that foundation: both current
-roles can read saved Contact inquiries and manually set one inquiry's workflow
-status. See the [administrator inquiry guide](admin-inquiries.md) for the exact
-authorization, pagination, mutation, privacy, and verification contract.
+Stages 16 and 17 build one bounded inquiry feature on that foundation: both
+current roles can read saved Contact inquiries and manually set one inquiry's
+workflow status. Stage 19 adds protected, read-only Product catalogue review.
+See the [administrator inquiry guide](admin-inquiries.md) and
+[administrator Product guide](admin-products.md) for their exact authorization,
+privacy, and verification contracts.
 
 Stage 15 itself deliberately added no management feature; its first dashboard
 was only an authenticated shell. Stage 17 adds only manual inquiry status
-changes. The current project still has no Product administration, project or
-media management, publishing controls, account management, password change or
-recovery, multi-factor authentication, or audit-reporting workflow.
+changes, and Stage 19 adds only Product reads. The current project still has no
+Product mutation, project or media management, publishing controls, account
+management, password change or recovery, multi-factor authentication, or
+audit-reporting workflow.
 
 Expired rows are rejected during authentication but Stage 15 does not yet run
 a scheduled session-pruning job. The expiry index prepares for that later
 maintenance without making it part of an HTTP request.
 
 The two current roles are `owner` and `editor`. Stage 15 validates and displays
-those labels. Stages 16 and 17 explicitly authorize both roles to read
-inquiries and manually set their status, but do not give either role broader
-management permission. Do not describe an owner as having working
-user-management powers or an editor as having general content permissions
-until later handlers enforce those rules.
+those labels. Stages 16, 17, and 19 explicitly authorize both roles for their
+separate inquiry-read, inquiry-status, and Product-read operations, but do not
+give either role broader management permission. Do not describe an owner as
+having working user-management powers or an editor as having general content
+mutation permission until later handlers enforce those rules.
 
 ## What migration 000003 adds
 
@@ -54,14 +57,14 @@ go run . migrate up
 go run . migrate status
 ```
 
-The current Stage 18 catalog should report versions 1, 2, 3, and 4 as applied.
+The current Stage 19 application still reports versions 1, 2, 3, and 4 applied.
 Migration 4 creates the separate public Product storage described in
 [products.md](products.md); it does not expand administrator permissions. Do
 not edit an applied migration. Add a new version for any later schema
 correction.
 
 `go run . migrate down --confirm` reverses only the newest applied version. On
-the complete Stage 18 catalog, the first rollback removes migration 4's Product
+the complete current catalog, the first rollback removes migration 4's Product
 table and all its rows; a second rollback would remove the Stage 15 session and
 user tables and destroy administrator access records. Use rollback only in a
 verified disposable database, never as a production cleanup technique.
@@ -175,10 +178,18 @@ GET /admin/inquiries/{id}  show one inquiry detail
 POST /admin/inquiries/{id}/status  set one explicit inquiry status
 ```
 
+Stage 19 adds a separate read-only Product allowlist and these routes:
+
+```text
+GET /admin/products       list Draft, Published, and Archived Products
+GET /admin/products/{id}  show one protected Product detail
+```
+
 Both `owner` and `editor` are explicitly present on the separate inquiry-reader
-and status-writer allowlists. A future role is denied unless route composition
-deliberately adds it to the relevant operation. Viewing or refreshing a detail
-does not change its status; only the protected POST form can do so.
+status-writer, and Product-reader allowlists. A future role is denied unless
+route composition deliberately adds it to the relevant operation. Viewing or
+refreshing an inquiry or Product detail performs no hidden update; only the
+protected inquiry POST form currently changes state.
 
 There is intentionally no `GET /admin/logout`: logout changes server state and
 therefore requires a protected POST. An unauthenticated visit to `/admin`
@@ -191,10 +202,10 @@ expensive dummy password verification, reducing account-enumeration timing
 differences. Database or entropy failures return a generic unavailable response
 and do not include credentials or driver detail.
 
-The dashboard displays the authenticated email and trusted role label and
-links to the inquiry workspace. It provides logout and manual inquiry-status
-forms but no product, project, media, user, publishing, deletion, bulk, or
-automatic workflow controls.
+The dashboard displays the authenticated email and trusted role label and links
+to both current workspaces. It provides logout and manual inquiry-status forms,
+plus read-only Product list/detail views, but no Product mutation, project,
+media, user, publishing, deletion, bulk, or automatic workflow controls.
 
 ## How password storage works
 
@@ -324,9 +335,11 @@ Use separate credentials for these responsibilities:
 - The server runtime role needs `INSERT` and `SELECT` on inquiries: Stage 14
   inserts and checks an idempotent replay, while Stage 16 reads protected list
   and detail fields. Stage 17 additionally needs column-level `UPDATE` on only
-  inquiry `status` and `updated_at`. Stage 18 adds `SELECT` on only Product
-  `id`, `slug`, `name`, `category`, `sort_order`, and `publication_status`; it
-  adds no Product mutation permission. The runtime also needs read access to
+  inquiry `status` and `updated_at`. Stages 18-19 add `SELECT` on only Product
+  `id`, `slug`, `name`, `category`, `sort_order`, `publication_status`,
+  `created_at`, and `updated_at`; they add no Product mutation permission. The
+  protected reader needs the timestamps while the public reader selects the
+  smaller published projection. The runtime also needs read access to
   active admin users (including the verifier needed for login) and narrow
   insert/select/update access for admin sessions. Logout updates `revoked_at`;
   it does not require table deletion. The server does not need permission to
@@ -354,9 +367,11 @@ Then verify in a private browser window:
 2. Submit a deliberately wrong password. The page should show one generic
    authentication failure, without confirming whether the address exists.
 3. Sign in with the local test account. The browser should reach `/admin`,
-   display the expected role label, and offer the Inquiries link. With only
-   fictional data, confirm the detail page changes status through a POST and
-   returns with HTTP 303; opening or refreshing the detail must not mutate it.
+   display the expected role label, and offer Products and Inquiries links.
+   With only fictional data, confirm an inquiry detail changes status through a
+   POST and returns with HTTP 303; opening or refreshing either kind of detail
+   must not mutate it. Follow [admin-products.md](admin-products.md) to compare
+   protected all-state Products with the published-only public catalogue.
 4. In browser developer tools, inspect cookie **names and attributes only**.
    Confirm `HttpOnly`, `SameSite=Strict`, expiry, and paths; do not copy, log,
    screenshot, or paste cookie values. `Secure` is expected to be absent only
@@ -412,7 +427,8 @@ CSRF handling, cookie attributes, security headers, route methods, dashboard
 protection, explicit owner/editor inquiry read and mutation authorization,
 strict manual status updates, Post/Redirect/Get, logout, and expiry. Production
 continues to use the fixed 600,000 iteration manager; only tests can inject the
-inexpensive manager.
+inexpensive manager. Stage 19 additionally covers explicit Owner/Editor Product
+reads, strict protected URLs, all-state mapping, and generic dependency errors.
 
 The PostgreSQL tests are destructive and opt-in. Supply only a dedicated empty
 database whose name ends in `_test`; never use a development, shared, or
@@ -437,7 +453,8 @@ guide. The live suite covers the complete v1-to-v4 migration cycle, rollback
 and reapplication, real PostgreSQL constraints, duplicate normalized email,
 session byte mapping, active-user filtering, expiry, revocation, the Stage 16
 inquiry list/detail reader, the Stage 17 status writer, and the Stage 18
-unseeded published-Product reader. Stage 17 itself added no schema version;
+unseeded published-Product reader. Stage 19 adds the separate all-state Product
+reader and still adds no schema version. Stage 17 also added no schema version;
 migration 4 belongs to Products. The suite never falls back to `DATABASE_URL`
 and skips only when its explicit opt-in variables are absent. Ensure cleanup
 succeeds before reusing or removing the disposable database.

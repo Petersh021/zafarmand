@@ -79,6 +79,7 @@ func TestNewApplicationRejectsInvalidDummyVerifier(t *testing.T) {
 					result: inquiryCreateResultCreated,
 				},
 				newRecordingAdminRepository(),
+				newRecordingAdminProductReader(),
 				newRecordingAdminInquiryReader(),
 				newRecordingAdminInquiryStatusUpdater(),
 				test.manager,

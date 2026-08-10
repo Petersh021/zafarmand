@@ -1,0 +1,85 @@
+{{/*
+The protected Product catalogue renders all lifecycle states supplied by the
+Stage 19 reader. The public catalogue remains a separate published-only query,
+so seeing Draft or Archived here does not make either state publicly reachable.
+
+Go validates and formats every reference, status modifier, timestamp, and path
+before this template runs. html/template still contextually escapes stored
+names, slugs, and categories at the final output boundary.
+*/}}
+{{define "admin-content"}}
+<main class="admin-products" id="admin-main-content">
+	<header class="admin-page-header">
+		<a class="admin-back-link" href="/admin">
+			<span aria-hidden="true">&larr;</span>
+			Overview
+		</a>
+
+		<p class="admin-eyebrow">Catalogue workspace</p>
+
+		<h1>Product catalogue</h1>
+
+		<p class="admin-page-header__lede">
+			Review the durable identity, ordering, and publication state used by the public Product catalogue.
+		</p>
+	</header>
+
+	{{/*
+	An empty successful read is normal for a new database. The interface never
+	creates sample business content or disguises an empty catalogue as an error.
+	*/}}
+	{{if .ProductList.Items}}
+	<ol class="admin-product-list" role="list">
+		{{range .ProductList.Items}}
+		<li class="admin-product-list__item">
+			<article class="admin-product-card">
+				<div class="admin-product-card__heading">
+					<p class="admin-product-reference">Product {{.Reference}}</p>
+
+					<p class="admin-product-status admin-product-status--{{.StatusClass}}">
+						{{.StatusLabel}}
+					</p>
+				</div>
+
+				<h2>
+					<a href="{{.Path}}">{{.Name}}</a>
+				</h2>
+
+				<dl class="admin-product-card__facts">
+					<div>
+						<dt>Slug</dt>
+						<dd>{{.Slug}}</dd>
+					</div>
+
+					<div>
+						<dt>Category</dt>
+						<dd>{{.Category}}</dd>
+					</div>
+
+					<div>
+						<dt>Sort order</dt>
+						<dd>{{.SortOrder}}</dd>
+					</div>
+
+					<div>
+						<dt>Last stored update</dt>
+						<dd>
+							<time datetime="{{.UpdatedAtISO}}">
+								{{.UpdatedAtLabel}}
+							</time>
+						</dd>
+					</div>
+				</dl>
+			</article>
+		</li>
+		{{end}}
+	</ol>
+	{{else}}
+	<section class="admin-empty-state" aria-labelledby="admin-products-empty-title">
+		<h2 id="admin-products-empty-title">No Products to display</h2>
+
+		<p>{{.ProductList.EmptyMessage}}</p>
+	</section>
+	{{end}}
+</main>
+{{end}}

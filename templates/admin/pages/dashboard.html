@@ -1,8 +1,7 @@
 {{/*
-The overview intentionally presents navigation into the current inquiry review
-and status workflow. It does not request or imply inquiry counts, because
-summary queries and operational metrics belong to a later stage with explicit
-data and performance requirements.
+The overview links to the current Product-review and inquiry workflows. It does
+not request or imply summary counts, because operational metrics belong to a
+later stage with explicit data and performance requirements.
 */}}
 {{define "admin-content"}}
 <main class="admin-dashboard" id="admin-main-content">
@@ -15,12 +14,18 @@ data and performance requirements.
 		<h1 id="admin-dashboard-title">Administration overview</h1>
 
 		<p class="admin-dashboard__lede">
-			Review messages received through the public Contact form and manage their explicit workflow status.
+			Review Product publication records and messages received through the public Contact form.
 		</p>
 
-		<a class="admin-primary-link" href="/admin/inquiries">
-			Open inquiry inbox
-		</a>
+		<div class="admin-dashboard__actions">
+			<a class="admin-primary-link" href="/admin/products">
+				Open Product catalogue
+			</a>
+
+			<a class="admin-secondary-link" href="/admin/inquiries">
+				Open inquiry inbox
+			</a>
+		</div>
 	</section>
 
 	<section
@@ -42,7 +47,7 @@ data and performance requirements.
 
 			<div>
 				<dt>Available tools</dt>
-				<dd>Inquiry review and status management</dd>
+				<dd>Product catalogue review; inquiry review and status management</dd>
 			</div>
 		</dl>
 	</section>

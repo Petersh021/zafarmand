@@ -13,10 +13,11 @@ read-only slice:
 - a fresh database truthfully renders an empty catalogue because the migration
   inserts no sample business content.
 
-This stage does not add Product administration. Owners and editors still have
-only the inquiry tools documented in
-[admin-inquiries.md](admin-inquiries.md). Product creation, editing, publishing,
-media, and final Zafarmand content remain future reviewed stages.
+Stage 19 now adds protected, read-only review of every Product lifecycle state
+without changing this public contract or adding a migration. Its exact routes,
+authorization, privacy boundary, and verification steps are documented in
+[admin-products.md](admin-products.md). Product creation, editing, publication
+changes, media, and final Zafarmand content remain future reviewed stages.
 
 ## Migration 4 schema
 
@@ -230,10 +231,11 @@ publication_status
 ```
 
 The runtime does not need Product `INSERT`, `UPDATE`, `DELETE`, table ownership,
-migration-ledger access, or Product identity-sequence privileges. It does not
-select `created_at` or `updated_at` in this stage. Define grants in deployment
-automation or provider configuration rather than hard-coding a role name in
-the application or migration.
+migration-ledger access, or Product identity-sequence privileges. The Stage 18
+public reader does not select `created_at` or `updated_at`; the Stage 19
+protected reader does, so the shared runtime SELECT grant includes both. Define
+grants in deployment automation or provider configuration rather than
+hard-coding a role name in the application or migration.
 
 An illustrative grant for a role chosen by the operator is:
 
@@ -244,7 +246,9 @@ GRANT SELECT (
     name,
     category,
     sort_order,
-    publication_status
+    publication_status,
+    created_at,
+    updated_at
 ) ON TABLE public.products TO chosen_runtime_role;
 ```
 
@@ -380,12 +384,16 @@ It covers:
 - the rule that no temporary Product collection or unpublished state reaches a
   public response.
 
+Stage 19 extends that suite with the separate all-state administrator reader,
+strict protected routes, Owner/Editor authorization, read-only templates, and
+public-link separation described in [admin-products.md](admin-products.md).
+
 The opt-in PostgreSQL suite additionally proves the real migration and window
 queries against a guarded disposable database. It confirms that migration 4
 seeds zero rows, inserts synthetic rows out of editorial order, produces
 consecutive published-only numbers, uses ID to break equal sort positions,
-keeps detail numbering consistent with the list, and hides draft, archived,
-and missing slugs.
+keeps detail numbering consistent with the list, hides draft, archived, and
+missing public slugs, and separately verifies protected all-state ID reads.
 
 Follow the two-variable destructive opt-in in [database.md](database.md), then
 run:
@@ -398,8 +406,8 @@ The live suite never falls back to `DATABASE_URL`. It must use a separately
 confirmed database whose name ends in `_test`, and it cleans only its named
 schema relations.
 
-Before a focused commit, review the exact Stage 18 files and migration line
-endings:
+Before a focused commit, review the exact current Product-stage files and the
+unchanged migration line endings:
 
 ```powershell
 git status --short
@@ -411,9 +419,9 @@ git check-attr eol -- migrations/000004_create_products.down.sql
 
 ## Explicitly deferred to future Product stages
 
-Stage 18 does not implement:
+Stages 18 and 19 do not implement:
 
-- administrator Product listing, creation, editing, or deletion;
+- administrator Product creation, editing, or deletion;
 - administrator publication-status changes or preview-before-publishing;
 - optimistic concurrency, change history, or actor attribution;
 - descriptions, materials, dimensions, designers, prices, purchasing, or stock;

@@ -1,0 +1,85 @@
+{{/*
+The Stage 19 detail view is deliberately read-only. Stored Product text remains
+ordinary template data, so html/template escapes it; publication state is
+converted by Go into a trusted label, class suffix, and visibility explanation.
+
+Only Published records receive a public link. Draft and Archived rows therefore
+cannot accidentally turn their stored slug into a discoverable public route.
+*/}}
+{{define "admin-content"}}
+<main class="admin-product-detail" id="admin-main-content">
+	<a class="admin-back-link" href="/admin/products">
+		<span aria-hidden="true">&larr;</span>
+		Product catalogue
+	</a>
+
+	<article class="admin-product-record" aria-labelledby="admin-product-title">
+		<header class="admin-product-record__header">
+			<div>
+				<p class="admin-eyebrow">Product {{.ProductDetail.Reference}}</p>
+
+				<h1 id="admin-product-title">{{.ProductDetail.Name}}</h1>
+			</div>
+
+			<p class="admin-product-status admin-product-status--{{.ProductDetail.StatusClass}}">
+				Current status: {{.ProductDetail.StatusLabel}}
+			</p>
+		</header>
+
+		<dl class="admin-product-facts">
+			<div>
+				<dt>Slug</dt>
+				<dd>{{.ProductDetail.Slug}}</dd>
+			</div>
+
+			<div>
+				<dt>Category</dt>
+				<dd>{{.ProductDetail.Category}}</dd>
+			</div>
+
+			<div>
+				<dt>Sort order</dt>
+				<dd>{{.ProductDetail.SortOrder}}</dd>
+			</div>
+
+			<div>
+				<dt>Created</dt>
+				<dd>
+					<time datetime="{{.ProductDetail.CreatedAtISO}}">
+						{{.ProductDetail.CreatedAtLabel}}
+					</time>
+				</dd>
+			</div>
+
+			<div>
+				<dt>Last stored update</dt>
+				<dd>
+					<time datetime="{{.ProductDetail.UpdatedAtISO}}">
+						{{.ProductDetail.UpdatedAtLabel}}
+					</time>
+				</dd>
+			</div>
+		</dl>
+
+		<section class="admin-product-visibility" aria-labelledby="admin-product-visibility-title">
+			<h2 id="admin-product-visibility-title">Public visibility</h2>
+
+			<p>{{.ProductDetail.VisibilityMessage}}</p>
+
+			{{if .ProductDetail.PublicPath}}
+			<a class="admin-primary-link" href="{{.ProductDetail.PublicPath}}">
+				Open published Product
+			</a>
+			{{end}}
+		</section>
+
+		<aside class="admin-read-only-note" aria-labelledby="admin-product-stage-title">
+			<h2 id="admin-product-stage-title">Read-only catalogue stage</h2>
+
+			<p>
+				Product creation, editing, and publication controls will be designed as a separate protected workflow.
+			</p>
+		</aside>
+	</article>
+</main>
+{{end}}

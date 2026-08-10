@@ -67,6 +67,7 @@ func newAdminHTTPTestApplicationWithInquiryReader(
 		newRecordingProductCatalogueReader(),
 		inquiries,
 		repository,
+		newRecordingAdminProductReader(),
 		adminInquiries,
 		newRecordingAdminInquiryStatusUpdater(),
 		passwords,
@@ -1509,8 +1510,8 @@ func TestAdminTokenHelpers(t *testing.T) {
 }
 
 // TestNewApplicationRequiresAdminDependencies protects authentication and
-// private inquiry dependencies at construction so no protected route can start
-// in a bypassable or partially wired state.
+// private Product/inquiry dependencies at construction so no protected route
+// can start in a bypassable or partially wired state.
 func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 	inquiries := &recordingInquiryRepository{
 		result: inquiryCreateResultCreated,
@@ -1521,6 +1522,7 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 			newRecordingProductCatalogueReader(),
 			inquiries,
 			nil,
+			newRecordingAdminProductReader(),
 			newRecordingAdminInquiryReader(),
 			newRecordingAdminInquiryStatusUpdater(),
 			newTestAdminPasswordManager(t),
@@ -1531,11 +1533,28 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 		}
 	})
 
+	t.Run("nil admin product reader", func(t *testing.T) {
+		app, err := newApplication(
+			newRecordingProductCatalogueReader(),
+			inquiries,
+			newRecordingAdminRepository(),
+			nil,
+			newRecordingAdminInquiryReader(),
+			newRecordingAdminInquiryStatusUpdater(),
+			newTestAdminPasswordManager(t),
+		)
+		requireErrorIs(t, err, errAdminProductReaderRequired)
+		if app != nil {
+			t.Error("nil admin product reader returned a usable application")
+		}
+	})
+
 	t.Run("nil admin inquiry reader", func(t *testing.T) {
 		app, err := newApplication(
 			newRecordingProductCatalogueReader(),
 			inquiries,
 			newRecordingAdminRepository(),
+			newRecordingAdminProductReader(),
 			nil,
 			newRecordingAdminInquiryStatusUpdater(),
 			newTestAdminPasswordManager(t),
@@ -1551,6 +1570,7 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 			newRecordingProductCatalogueReader(),
 			inquiries,
 			newRecordingAdminRepository(),
+			newRecordingAdminProductReader(),
 			newRecordingAdminInquiryReader(),
 			nil,
 			newTestAdminPasswordManager(t),
@@ -1566,6 +1586,7 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 			newRecordingProductCatalogueReader(),
 			inquiries,
 			newRecordingAdminRepository(),
+			newRecordingAdminProductReader(),
 			newRecordingAdminInquiryReader(),
 			newRecordingAdminInquiryStatusUpdater(),
 			nil,

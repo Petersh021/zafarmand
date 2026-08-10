@@ -86,9 +86,9 @@ func main() {
 }
 
 // runServer composes the long-lived PostgreSQL pool, public Product reader and
-// Contact writer, private inquiry reader and status updater, administrator
-// authentication repository, password manager, templates, routes, and
-// interrupt-aware server.
+// Contact writer, private Product and inquiry readers, inquiry status updater,
+// administrator authentication repository, password manager, templates,
+// routes, and interrupt-aware server.
 //
 // Opening and pinging PostgreSQL before ListenAndServe prevents the site from
 // starting when its configured persistence dependency is unreachable. Schema
@@ -128,6 +128,10 @@ func runServer(
 	if err != nil {
 		return err
 	}
+	adminProducts, err := newPostgresAdminProductReader(database)
+	if err != nil {
+		return err
+	}
 	adminInquiries, err := newPostgresAdminInquiryReader(database)
 	if err != nil {
 		return err
@@ -141,6 +145,7 @@ func runServer(
 		products,
 		inquiries,
 		admins,
+		adminProducts,
 		adminInquiries,
 		adminInquiryStatuses,
 		newAdminPasswordManager(),

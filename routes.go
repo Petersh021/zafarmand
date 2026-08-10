@@ -89,6 +89,30 @@ func (app *application) routes() http.Handler {
 		app.requireAdmin(http.HandlerFunc(app.adminLogoutHandler)),
 	)
 
+	// Product administration is read-only in Stage 19. Both current roles can
+	// inspect every lifecycle state, while future roles receive no access unless
+	// they are added explicitly to this independent allowlist.
+	productReaderRoles := requireAdminRoles(
+		adminRoleOwner,
+		adminRoleEditor,
+	)
+	mux.Handle(
+		"GET /admin/products",
+		app.requireAdmin(
+			productReaderRoles(
+				http.HandlerFunc(app.adminProductListHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"GET /admin/products/{id}",
+		app.requireAdmin(
+			productReaderRoles(
+				http.HandlerFunc(app.adminProductDetailHandler),
+			),
+		),
+	)
+
 	// Inquiry content contains visitor personal data, so every list and detail
 	// request passes through authentication and an explicit role allowlist. Both
 	// current roles may read; future roles receive no access automatically.

@@ -46,6 +46,9 @@ type application struct {
 	// creation, login, session lookup, and revocation. HTTP handlers never issue
 	// authentication SQL directly.
 	admins adminRepository
+	// adminProducts is the read-only all-status Product boundary used only by
+	// protected catalogue and detail pages.
+	adminProducts adminProductReader
 	// adminInquiries is the read-only personal-data boundary used by the private
 	// inquiry inbox. It remains separate from the public Contact write interface.
 	adminInquiries adminInquiryReader
@@ -434,6 +437,7 @@ func newApplication(
 	products productCatalogueReader,
 	inquiries inquiryRepository,
 	admins adminRepository,
+	adminProducts adminProductReader,
 	adminInquiries adminInquiryReader,
 	adminInquiryStatuses adminInquiryStatusUpdater,
 	passwords adminPasswordManager,
@@ -446,6 +450,9 @@ func newApplication(
 	}
 	if admins == nil {
 		return nil, errAdminRepositoryRequired
+	}
+	if adminProducts == nil {
+		return nil, errAdminProductReaderRequired
 	}
 	if adminInquiries == nil {
 		return nil, errAdminInquiryReaderRequired
@@ -503,6 +510,7 @@ func newApplication(
 		inquiries:              inquiries,
 		inquirySuccess:         inquirySuccess,
 		admins:                 admins,
+		adminProducts:          adminProducts,
 		adminInquiries:         adminInquiries,
 		adminInquiryStatuses:   adminInquiryStatuses,
 		adminPasswords:         passwords,

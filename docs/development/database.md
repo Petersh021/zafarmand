@@ -1,4 +1,4 @@
-# Stage 13-18 database development on Windows
+# Stage 13-19 database development on Windows
 
 Stage 13 establishes an explicit PostgreSQL migration workflow. Stage 14 uses
 that foundation for the first database-backed public feature: Contact inquiry
@@ -15,6 +15,9 @@ new `public.products` table stores minimal durable identity, public text,
 ordering, publication-state, and timestamp data for the catalogue; the
 complete Stage 18 behavior is documented in the
 [Products development guide](products.md).
+Stage 19 reuses migration 4 for protected, read-only review of every Product
+lifecycle state. It adds no migration 5; see the
+[administrator Product guide](admin-products.md).
 
 The boundary is intentional:
 
@@ -37,6 +40,8 @@ The boundary is intentional:
 - The public Products repository can select only published catalogue fields.
   Migration 4 inserts no sample products, and draft or archived records remain
   indistinguishable from missing records on public detail routes.
+- A separate authenticated Product reader can inspect every migration-4 field
+  and lifecycle state without receiving any write method.
 - The success page claims only that the inquiry was saved for studio review. It
   does not claim email delivery or guarantee a response time.
 
@@ -118,13 +123,13 @@ After migrations finish, replace `DATABASE_URL` in the server's environment
 with a least-privilege runtime role. The current server needs database/schema
 connection privileges; `INSERT` and `SELECT` on `public.inquiries` plus
 column-level `UPDATE` on only its `status` and `updated_at`; `SELECT` on
-the `id`, `slug`, `name`, `category`, `sort_order`, and `publication_status`
-columns of `public.products`; `SELECT` on
+the `id`, `slug`, `name`, `category`, `sort_order`, `publication_status`,
+`created_at`, and `updated_at` columns of `public.products`; `SELECT` on
 `public.admin_users`; and `SELECT`, `INSERT`, and `UPDATE` on
 `public.admin_sessions`. The broader inquiry read is required by Stage 16's
 protected list and detail statements, while the narrow column update is
-required by Stage 17's status statement. Stage 18 needs no Product insert,
-update, delete, or identity-sequence permission because its repository is
+required by Stage 17's status statement. Stages 18-19 need no Product insert,
+update, delete, or identity-sequence permission because both repositories are
 read-only. Separate application-level interfaces keep administrative inquiry
 capabilities unavailable to the public Contact handler and keep unpublished
 Product state outside public templates. Inquiry and administrator identity
@@ -162,7 +167,7 @@ produce no match because `.env.example` is explicitly allowed.
 
 ## Understanding the Go connection lifecycle
 
-Stages 13-18 use `database/sql` with pgx as the PostgreSQL driver. A `*sql.DB` is
+Stages 13-19 use `database/sql` with pgx as the PostgreSQL driver. A `*sql.DB` is
 a concurrency-safe database handle and connection pool, not one permanently
 open socket.
 
@@ -190,10 +195,10 @@ migration code, and closes it once. Individual migration functions do not own
 or close the pool. Opening a new pool for each statement would hide ownership,
 waste connections, and teach the wrong request lifecycle.
 
-In Stages 14-18, the long-running application—not an HTTP handler—owns the
-shared pool. The public inquiry writer, public Product reader, private inquiry
-reader, private inquiry status updater, and administrator authentication
-repository borrow it and accept request contexts.
+In Stages 14-19, the long-running application—not an HTTP handler—owns the
+shared pool. The public inquiry writer, public Product reader, private Product
+reader, private inquiry reader, private inquiry status updater, and
+administrator authentication repository borrow it and accept request contexts.
 The server opens and pings the pool before listening, stops accepting requests
 on Ctrl+C, waits for active handlers, and then closes the pool.
 
@@ -381,7 +386,9 @@ so `SELECT COUNT(*) FROM public.products` must return zero immediately after a
 fresh migration. The public reader selects only published rows and does not
 receive draft or archived state as display data. Use the [Products development
 guide](products.md) for schema details, fictional local verification data, and
-the public list/detail behavior.
+the public list/detail behavior. The separate Stage 19 reader selects every
+state by protected positive ID; its read-only interface is documented in
+[admin-products.md](admin-products.md).
 
 To exercise rollback, first switch `DATABASE_URL` to a separate disposable
 database. Reconfirm the connection before doing anything destructive:
@@ -413,7 +420,8 @@ the advisory lock, real DDL, multi-statement rollback, ledger, status,
 idempotent up/down/reapply, the public inquiry repository's name/email mapping
 and retry behavior, the private Stage 16 list/detail reader, and the Stage 17
 status writer's transition, no-op, and safe-failure behavior. Stage 18 adds the
-real Product schema plus published-list and published-detail repository checks.
+real Product schema plus published-list and published-detail repository checks;
+Stage 19 adds protected all-state ordering and ID-detail checks.
 
 On the verified local Windows PostgreSQL 18 installation, the guarded helper
 can run the same acceptance cycle without persisting or printing a password:
@@ -426,7 +434,8 @@ The helper keeps its historical Stage 14 filename and disposable database name,
 but its `Postgres` test selection runs the complete current v1-to-v4 suite,
 including Stage 15 admin schema/repository checks and Stage 16 inquiry reads.
 It also checks Stage 17 status updates and Stage 18's unseeded Product schema,
-published ordering, numbering, detail mapping, and non-public exclusion.
+published ordering, numbering, detail mapping, and non-public exclusion. Stage
+19 additionally checks the all-state administrator projection and missing ID.
 
 The helper uses a visible secure password prompt, refuses to reuse a database,
 creates only `zafarmand_stage14_codex_test`, runs the opt-in integration tests
@@ -473,9 +482,9 @@ result before treating the local database runtime as verified.
 ## Normal development checks
 
 The ordinary automated suite, including Stage 16 reads, Stage 17 status
-authorization, and Stage 18 Product migration, repository, handler, and
-template checks, must remain database-independent. It should pass even when
-PostgreSQL is stopped or absent:
+authorization, Stage 18 public Products, and Stage 19 protected Product
+repository, route, and template checks, must remain database-independent. It
+should pass even when PostgreSQL is stopped or absent:
 
 ```powershell
 go fmt ./...

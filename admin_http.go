@@ -86,6 +86,10 @@ type adminPageData struct {
 	InquiryList *adminInquiryListPageData
 	// InquiryDetail contains one protected inquiry presentation contract.
 	InquiryDetail *adminInquiryDetailPageData
+	// ProductList contains the protected all-status Product catalogue contract.
+	ProductList *adminProductListPageData
+	// ProductDetail contains one protected read-only Product contract.
+	ProductDetail *adminProductDetailPageData
 }
 
 // adminIdentityPageData keeps persistence and authorization records out of the
@@ -415,8 +419,9 @@ func requireAdminRoles(
 	}
 }
 
-// adminDashboardHandler renders the authenticated overview. It advertises the
-// Stage 16 inquiry reader without querying personal data merely to show a count.
+// adminDashboardHandler renders the authenticated overview. It links to the
+// Product and inquiry workflows without querying either table merely to show
+// counts or other dashboard metrics.
 func (app *application) adminDashboardHandler(
 	w http.ResponseWriter,
 	r *http.Request,
