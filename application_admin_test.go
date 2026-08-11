@@ -75,12 +75,15 @@ func TestNewApplicationRejectsInvalidDummyVerifier(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			app, err := newApplication(
 				newRecordingProductCatalogueReader(),
+				newRecordingInteriorProjectCatalogueReader(),
 				&recordingInquiryRepository{
 					result: inquiryCreateResultCreated,
 				},
 				newRecordingAdminRepository(),
 				newRecordingAdminProductReader(),
 				newRecordingAdminProductWriter(),
+				newRecordingAdminInteriorProjectReader(),
+				newRecordingAdminInteriorProjectWriter(),
 				newRecordingAdminInquiryReader(),
 				newRecordingAdminInquiryStatusUpdater(),
 				test.manager,

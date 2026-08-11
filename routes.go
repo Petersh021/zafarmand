@@ -43,6 +43,13 @@ func (app *application) routes() http.Handler {
 		"GET /interior-design",
 		app.interiorDesignHandler,
 	)
+	// The revisioned cover route is more specific than the one-segment detail
+	// route. Its handler independently rechecks that the owning project remains
+	// Published before returning any image bytes.
+	mux.HandleFunc(
+		"GET /interior-design/{slug}/cover/{version}",
+		app.interiorProjectCoverHandler,
+	)
 	// The Interior wildcard follows the same real server-rendered routing
 	// contract as Products. The exact listing route above remains the more
 	// specific match, while the detail handler validates one captured slug.
@@ -178,6 +185,95 @@ func (app *application) routes() http.Handler {
 		app.requireAdmin(
 			productWriterRoles(
 				http.HandlerFunc(app.adminProductCoverUploadHandler),
+			),
+		),
+	)
+
+	// Interior-project reads deliberately repeat the Product authorization
+	// boundary instead of sharing a broad "content" permission implicitly. Both
+	// current roles may inspect every lifecycle state and exact protected cover;
+	// any future role remains denied until it is reviewed here explicitly.
+	interiorProjectReaderRoles := requireAdminRoles(
+		adminRoleOwner,
+		adminRoleEditor,
+	)
+	mux.Handle(
+		"GET /admin/interior-projects",
+		app.requireAdmin(
+			interiorProjectReaderRoles(
+				http.HandlerFunc(app.adminInteriorProjectListHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"GET /admin/interior-projects/{id}",
+		app.requireAdmin(
+			interiorProjectReaderRoles(
+				http.HandlerFunc(app.adminInteriorProjectDetailHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"GET /admin/interior-projects/{id}/cover/{version}",
+		app.requireAdmin(
+			interiorProjectReaderRoles(
+				http.HandlerFunc(app.adminInteriorProjectCoverAssetHandler),
+			),
+		),
+	)
+
+	// Interior create/update and cover replacement use explicit mutation routes;
+	// publication is a validated create/update field. GET only presents a form,
+	// while POST mutates then redirects using Post/Redirect/Get.
+	interiorProjectWriterRoles := requireAdminRoles(
+		adminRoleOwner,
+		adminRoleEditor,
+	)
+	mux.Handle(
+		"GET /admin/interior-projects/new",
+		app.requireAdmin(
+			interiorProjectWriterRoles(
+				http.HandlerFunc(app.adminInteriorProjectNewHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"POST /admin/interior-projects",
+		app.requireAdmin(
+			interiorProjectWriterRoles(
+				http.HandlerFunc(app.adminInteriorProjectCreateHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"GET /admin/interior-projects/{id}/edit",
+		app.requireAdmin(
+			interiorProjectWriterRoles(
+				http.HandlerFunc(app.adminInteriorProjectEditHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"POST /admin/interior-projects/{id}",
+		app.requireAdmin(
+			interiorProjectWriterRoles(
+				http.HandlerFunc(app.adminInteriorProjectUpdateHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"GET /admin/interior-projects/{id}/cover",
+		app.requireAdmin(
+			interiorProjectWriterRoles(
+				http.HandlerFunc(app.adminInteriorProjectCoverFormHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"POST /admin/interior-projects/{id}/cover",
+		app.requireAdmin(
+			interiorProjectWriterRoles(
+				http.HandlerFunc(app.adminInteriorProjectCoverUploadHandler),
 			),
 		),
 	)

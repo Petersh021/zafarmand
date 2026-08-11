@@ -1,10 +1,10 @@
 /* --------------------------------------------------
-   Stage 9: Structural Interior project detail page
+   Stage 22: PostgreSQL-backed Interior project detail page
 
    This stylesheet is loaded only by interior-project-detail.html. It extends
    the established warm editorial surface and dark fixed header while giving
-   spatial projects a distinct full-width landscape composition. No rule
-   depends on final photography or on the reference composite.
+   spatial projects a distinct full-width landscape composition. Reviewed
+   photography and an honest fallback share one stable media region.
 -------------------------------------------------- */
 
 /*
@@ -33,7 +33,7 @@
 }
 
 /*
- * Route-specific tokens keep the temporary detail palette local. The warm
+ * Route-specific tokens keep the Interior detail palette local. The warm
  * surface connects this page to the discipline index, while min-width:0 guards
  * the complete landmark against long future managed content.
  */
@@ -153,9 +153,8 @@
 }
 
 /*
- * The one h1 gives the temporary study an architectural scale. Its bounded
- * measure and aggressive wrapping protect the layout when future approved
- * titles are longer or contain an unbroken managed value.
+ * The one h1 gives the published project an architectural scale. Its bounded
+ * measure and aggressive wrapping protect longer managed titles.
  */
 .interior-project-detail__title {
 	max-width: 12ch;
@@ -171,7 +170,7 @@
 }
 
 /*
- * The summary groups metadata and the temporary publication notice in one
+ * The summary groups metadata and reviewed description or empty-state copy in one
  * readable column. A maximum measure prevents the quieter text from spreading
  * too widely when this column moves below the title on smaller viewports.
  */
@@ -246,9 +245,24 @@
 }
 
 /*
+ * Managed descriptions share the restrained reading measure but preserve
+ * intentional line breaks. overflow-wrap contains long unbroken text without
+ * interpreting administrator content as HTML.
+ */
+.interior-project-detail__description {
+	max-width: 34rem;
+	margin: 0;
+	font-family: var(--font-interface);
+	font-size: clamp(0.95rem, 0.9rem + 0.2vw, 1.1rem);
+	line-height: 1.75;
+	overflow-wrap: anywhere;
+	white-space: pre-wrap;
+}
+
+/*
  * A dominant landscape field follows the semantic intro in both source and
- * visual order. Its viewport-aware minimum height creates spatial presence on
- * wide screens without requiring a real image or a fixed full-screen canvas.
+ * visual order. Its viewport-aware minimum height gives reviewed imagery a
+ * stable frame and lets the fallback retain presence without a real image.
  */
 .interior-project-detail__media {
 	position: relative;
@@ -259,6 +273,9 @@
 	overflow: hidden;
 	grid-template-rows: auto 1fr;
 	margin-top: clamp(2rem, 4vw, 4rem);
+	margin-right: 0;
+	margin-bottom: 0;
+	margin-left: 0;
 	padding: clamp(1rem, 2vw, 1.75rem);
 	border: 1px solid var(--interior-detail-rule);
 	background:
@@ -277,8 +294,8 @@
 
 /*
  * The first generated plane suggests an interior wall and framed opening using
- * geometry alone. It remains inside the aria-hidden parent and therefore does
- * not carry content or alternative-text responsibility.
+ * geometry alone. The image modifier suppresses it; in the fallback it remains
+ * inside an aria-hidden parent with no alternative-text responsibility.
  */
 .interior-project-detail__media::before {
 	position: absolute;
@@ -297,9 +314,9 @@
 }
 
 /*
- * A low clipped plane establishes depth beneath the wall. Negative stacking
- * remains contained by isolation:isolate, so it cannot disappear behind the
- * page or cover real text outside the decorative field.
+ * A low clipped plane establishes depth beneath the fallback wall. The image
+ * modifier suppresses it, while isolation:isolate contains its negative stack
+ * so it cannot disappear behind the page or cover content outside the field.
  */
 .interior-project-detail__media::after {
 	position: absolute;
@@ -319,8 +336,45 @@
 }
 
 /*
- * The small media label provides visual context only. The containing field is
- * aria-hidden because this identity is already expressed by the h1 and facts.
+ * A reviewed cover replaces the decorative planes without changing the
+ * responsive media footprint. The normalized image fills the flexible first
+ * row, while an optional caption remains in normal flow below it.
+ */
+.interior-project-detail__media--image {
+	display: grid;
+	grid-template-rows: minmax(0, 1fr) auto;
+	padding: 0;
+	background: var(--interior-detail-dark);
+}
+
+.interior-project-detail__media--image::before,
+.interior-project-detail__media--image::after {
+	content: none;
+}
+
+.interior-project-detail__image {
+	display: block;
+	width: 100%;
+	height: 100%;
+	min-height: 0;
+	object-fit: cover;
+}
+
+.interior-project-detail__caption {
+	margin: 0;
+	padding: 0.9rem 1rem;
+	border-top: 1px solid var(--interior-detail-rule);
+	background: var(--interior-detail-dark);
+	color: var(--interior-detail-light);
+	font-family: var(--font-interface);
+	font-size: 0.8rem;
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+}
+
+/*
+ * The fallback-only media label provides visual context. Its containing field
+ * is aria-hidden because the h1 and facts already express the same identity.
  */
 .interior-project-detail__media-label {
 	color: rgba(243, 240, 233, 0.7);
@@ -396,8 +450,8 @@
 
 /*
  * Short landscape screens receive tighter outer spacing and a bounded media
- * height. The page remains naturally scrollable, and all real text and controls
- * stay in document flow above the decorative field.
+ * height. The page remains naturally scrollable, and all text and controls stay
+ * in document flow above either reviewed imagery or the decorative fallback.
  */
 @media
 	(max-height: 32rem) and
@@ -471,7 +525,7 @@
 }
 
 /*
- * Stage 9 introduces no animation, transition, parallax, or smooth scrolling.
+ * Stage 22 introduces no animation, transition, parallax, or smooth scrolling.
  * The page therefore respects reduced-motion preference without a separate
  * state override; hover and focus feedback appears immediately.
  */

@@ -1,11 +1,12 @@
 /* --------------------------------------------------
-   Stages 15–21: Secure administration and focused private workflows
+   Stages 15–22: Secure administration and focused private workflows
 
    The admin interface has its own restrained document shell and does not load
    public navigation or route-specific presentation. Stages 16–17 add inquiry
    review and explicit status changes; Stages 19–21 add Product review, a
-   concurrency-aware editor, and single-cover management while retaining login
-   presentation.
+   concurrency-aware editor, and single-cover management. Stage 22 applies the
+   same explicit read/write/media boundaries to Interior projects while
+   retaining the isolated login presentation.
 -------------------------------------------------- */
 
 :root {
@@ -330,7 +331,7 @@ a {
 	font-size: clamp(1rem, 1.4vw, 1.25rem);
 }
 
-/* The overview keeps both real tools visible without making either a metric. */
+/* The overview keeps all current tools visible without presenting them as metrics. */
 .admin-dashboard__actions {
 	display: flex;
 	flex-wrap: wrap;
@@ -557,9 +558,9 @@ a {
 }
 
 /*
-   Product cards retain the database's editorial order and show only the fields
-   needed to review that order and publication state. The ordered list remains
-   meaningful when CSS is unavailable.
+   Managed Product and Interior-project cards retain database editorial order
+   and show only the fields needed to review order and publication state. The
+   ordered list remains meaningful when CSS is unavailable.
 */
 .admin-product-list {
 	margin: clamp(2.5rem, 6vw, 5rem) 0 0;
@@ -804,8 +805,9 @@ a {
 }
 
 /*
-   The Product detail stays a quiet reading surface. Editing begins at a
-   separate GET form, so opening or refreshing this record cannot mutate data.
+   Managed record details stay quiet reading surfaces. Editing begins at a
+   separate GET form, so opening or refreshing a Product or Interior project
+   cannot mutate data.
 */
 .admin-product-record {
 	min-width: 0;
@@ -877,7 +879,7 @@ a {
 	color: var(--admin-ink-soft);
 }
 
-/* Stored line breaks remain readable without interpreting Product copy as HTML. */
+/* Stored line breaks remain readable without interpreting managed copy as HTML. */
 .admin-product-editorial__description p {
 	max-width: 70ch;
 	margin: 1rem 0 0;
@@ -925,9 +927,9 @@ a {
 }
 
 /*
-   Product create/edit uses one native no-JavaScript form. The bounded cream
-   surface separates editable values from the dark private shell, while every
-   label and error remains adjacent in semantic source order.
+   Product and Interior create/edit pages use native no-JavaScript forms. The
+   bounded cream surface separates editable values from the dark private shell,
+   while every label and error remains adjacent in semantic source order.
 */
 .admin-product-form,
 .admin-conflict-panel {
@@ -1292,3 +1294,67 @@ a {
 }
 
 /* These admin stages introduce no animation requiring a reduced-motion rule. */
+
+/*
+   Interior project pages reuse the established protected record, lifecycle,
+   form, and reviewed-cover primitives. These additions describe only the
+   Interior-specific field density; they do not create a second admin visual
+   system or leak private rules into the public portfolio.
+*/
+.admin-interior-projects,
+.admin-interior-project-detail,
+.admin-interior-project-form-page,
+.admin-interior-project-cover-form-page,
+.admin-interior-project-conflict,
+.admin-interior-project-card,
+.admin-interior-project-record {
+	min-width: 0;
+}
+
+/* Nine durable facts remain scannable as three balanced rows on wide screens. */
+.admin-interior-project-facts {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/*
+   Compact project facts pair naturally at desktop widths. DOM order remains
+   linear, and the long editorial field plus actions span both columns.
+*/
+.admin-interior-project-form {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-interior-project-form .admin-product-form__field--wide,
+.admin-interior-project-form .admin-product-form__actions {
+	grid-column: 1 / -1;
+}
+
+@media (max-width: 52rem) {
+	/* Two columns keep the nine facts readable on tablets and at moderate zoom. */
+	.admin-interior-project-facts {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.admin-interior-project-form {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.admin-interior-project-form .admin-product-form__field--wide,
+	.admin-interior-project-form .admin-product-form__actions {
+		grid-column: auto;
+	}
+}
+
+@media (max-width: 36rem) {
+	/* Phone-width facts become one source-order column with no squeezed labels. */
+	.admin-interior-project-facts {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+@media (forced-colors: active) {
+	.admin-interior-project-record,
+	.admin-interior-project-form {
+		border: 2px solid CanvasText;
+	}
+}

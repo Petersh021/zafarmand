@@ -1,135 +1,154 @@
 package main
 
-// interiorProject is the temporary application-level source record used by
-// the Interior Design portfolio listing and detail routes.
-//
-// The source is deliberately smaller than the future database Project model.
-// Stage 9 adds only the trusted slug needed for real detail URLs; locations,
-// years, descriptions, images, publication controls, and database identifiers
-// remain deferred. application.interiorProjects owns the ordered slice and
-// handlers treat it as read-only.
-type interiorProject struct {
-	// Number is the zero-padded editorial order shared with the preview card.
-	Number string
-	// Slug is the exact case-sensitive path value accepted after /interior-design/.
-	Slug string
-	// Title is an explicitly temporary study name rather than final project copy.
-	Title string
-	// Typology identifies the broad interior category represented by the slot.
-	Typology string
-	// Status communicates that approved project material is still pending.
-	Status string
-}
+import (
+	"errors"
+	"fmt"
+	"strconv"
+	"time"
+)
 
-// temporaryInteriorProjects returns the ordered Interior Design source records
-// used until PostgreSQL and the admin publishing workflow are introduced.
-//
-// Returning a fresh slice during application construction prevents mutable
-// package-level state. Neutral "Study" titles make the distinction between
-// structural learning data and published Zafarmand projects explicit.
-func temporaryInteriorProjects() []interiorProject {
-	return []interiorProject{
-		{
-			Number:   "01",
-			Slug:     "interior-study-01",
-			Title:    "Interior Study 01",
-			Typology: "Residential",
-			Status:   "Portfolio preview",
-		},
-		{
-			Number:   "02",
-			Slug:     "interior-study-02",
-			Title:    "Interior Study 02",
-			Typology: "Hospitality",
-			Status:   "Portfolio preview",
-		},
-		{
-			Number:   "03",
-			Slug:     "interior-study-03",
-			Title:    "Interior Study 03",
-			Typology: "Workplace",
-			Status:   "Portfolio preview",
-		},
-		{
-			Number:   "04",
-			Slug:     "interior-study-04",
-			Title:    "Interior Study 04",
-			Typology: "Cultural",
-			Status:   "Portfolio preview",
-		},
-	}
-}
+const (
+	// interiorProjectCatalogueReadTimeout prevents an unavailable public
+	// repository from holding an Interior HTML or cover request indefinitely.
+	interiorProjectCatalogueReadTimeout = 5 * time.Second
+)
 
-// interiorProjectDetailPath builds the canonical public URL for one trusted
-// Interior Design project slug.
+// errInteriorProjectCatalogueReaderRequired prevents server construction with
+// public Interior routes that cannot answer from durable published state.
+var errInteriorProjectCatalogueReaderRequired = errors.New(
+	"create application: interior project catalogue reader is required",
+)
+
+// interiorProjectDetailPath builds the canonical public HTML path for one
+// validated Interior Design project slug.
 //
-// Slugs originate from temporaryInteriorProjects rather than visitor input.
-// Centralizing the prefix prevents listing links and the detail handler from
-// accidentally constructing different routes.
+// Keeping this prefix in Go prevents list cards and detail handlers from
+// drifting to different route shapes. Callers must validate visitor-controlled
+// slugs before using the returned path as a canonical destination.
 func interiorProjectDetailPath(slug string) string {
 	return "/interior-design/" + slug
 }
 
-// interiorProjectPreviews maps ordered source records into the narrower view
-// model required by interior-design.html.
+// interiorProjectCoverPath builds the revision-specific public cover URL for
+// one canonical Interior project slug and positive cover version.
+func interiorProjectCoverPath(slug string, version int64) string {
+	return interiorProjectDetailPath(slug) +
+		"/cover/" + strconv.FormatInt(version, 10)
+}
+
+// formatInteriorProjectNumber converts PostgreSQL's one-based published window
+// position into the editorial label shared by list and detail pages. Two digits
+// are a minimum width, so a real catalogue larger than 99 is never truncated.
+func formatInteriorProjectNumber(number int64) string {
+	return fmt.Sprintf("%02d", number)
+}
+
+// formatInteriorProjectYear turns the repository's zero representation of SQL
+// NULL into an omitted template value and formats a real four-digit year.
+func formatInteriorProjectYear(year int) string {
+	if year == 0 {
+		return ""
+	}
+
+	return strconv.Itoa(year)
+}
+
+// newPublicInteriorProjectCoverPageData maps reviewed metadata to one current
+// public URL. A nil cover remains nil so templates can render an honest
+// decorative fallback without constructing a nonexistent image request.
+func newPublicInteriorProjectCoverPageData(
+	slug string,
+	cover *interiorProjectCoverMetadata,
+) *publicInteriorProjectCoverPageData {
+	if cover == nil {
+		return nil
+	}
+
+	return &publicInteriorProjectCoverPageData{
+		Path:    interiorProjectCoverPath(slug, cover.Version),
+		Width:   cover.Width,
+		Height:  cover.Height,
+		AltText: cover.AltText,
+		Caption: cover.Caption,
+	}
+}
+
+// isValidPublishedInteriorProjectCatalogue verifies the complete result from
+// any injected public reader before a handler maps it into HTML. PostgreSQL
+// performs the same checks while scanning, but this application boundary also
+// makes substituted and future implementations fail closed.
+func isValidPublishedInteriorProjectCatalogue(
+	projects []catalogueInteriorProject,
+) bool {
+	seenIDs := make(map[int64]struct{}, len(projects))
+	seenSlugs := make(map[string]struct{}, len(projects))
+
+	for index, project := range projects {
+		if !isValidCatalogueInteriorProject(project) ||
+			project.PortfolioNumber != int64(index+1) {
+			return false
+		}
+		if _, exists := seenIDs[project.ID]; exists {
+			return false
+		}
+		if _, exists := seenSlugs[project.Slug]; exists {
+			return false
+		}
+
+		seenIDs[project.ID] = struct{}{}
+		seenSlugs[project.Slug] = struct{}{}
+	}
+
+	return true
+}
+
+// interiorProjectPreviews maps ordered public repository records into the
+// smaller presentation contract consumed by interior-design.html.
 //
-// Allocating the result at the source length preserves editorial order and
-// makes nil or empty input naturally activate the template's truthful empty
-// state. The mapping seam can later accept database records without exposing
-// persistence fields directly to html/template.
+// The repository has already filtered lifecycle state and established each
+// consecutive PortfolioNumber. This mapper formats that number and derives the
+// trusted path without exposing database identity or publication controls.
 func interiorProjectPreviews(
-	projects []interiorProject,
+	projects []catalogueInteriorProject,
 ) []interiorProjectPreviewData {
-	previews := make(
-		[]interiorProjectPreviewData,
-		len(projects),
-	)
+	previews := make([]interiorProjectPreviewData, len(projects))
 
 	for index, project := range projects {
 		previews[index] = interiorProjectPreviewData{
-			Number:   project.Number,
-			Title:    project.Title,
-			Typology: project.Typology,
-			Status:   project.Status,
-			Path:     interiorProjectDetailPath(project.Slug),
+			Number:        formatInteriorProjectNumber(project.PortfolioNumber),
+			Title:         project.Title,
+			Typology:      project.Typology,
+			Location:      project.Location,
+			YearLabel:     formatInteriorProjectYear(project.ProjectYear),
+			ProjectStatus: project.ProjectStatus,
+			Path:          interiorProjectDetailPath(project.Slug),
+			Cover: newPublicInteriorProjectCoverPageData(
+				project.Slug,
+				project.Cover,
+			),
 		}
 	}
 
 	return previews
 }
 
-// findInteriorProjectBySlug performs an exact, case-sensitive lookup in the
-// ordered temporary Interior Design source.
-//
-// A linear scan is clear and sufficient for four in-memory records. Returning a
-// boolean separately from the record distinguishes a real zero-value project
-// from a missing slug so the HTTP handler can respond with 404.
-func findInteriorProjectBySlug(
-	projects []interiorProject,
-	slug string,
-) (interiorProject, bool) {
-	for _, project := range projects {
-		if project.Slug == slug {
-			return project, true
-		}
-	}
-
-	return interiorProject{}, false
-}
-
-// newInteriorProjectDetailData maps an application source record to the narrow
-// view model consumed by interior-project-detail.html.
-//
-// The explicit conversion keeps routing-only fields such as Slug out of the
-// template contract and leaves a stable boundary for a future repository or
-// database record to populate.
+// newInteriorProjectDetailData maps one validated public repository record to
+// the narrow detail-template contract. Routing identity stays in the handler,
+// while this conversion makes every newly presented field an explicit choice.
 func newInteriorProjectDetailData(
-	project interiorProject,
+	project catalogueInteriorProject,
 ) interiorProjectDetailData {
 	return interiorProjectDetailData{
-		Number:   project.Number,
-		Title:    project.Title,
-		Typology: project.Typology,
-		Status:   project.Status,
+		Number:        formatInteriorProjectNumber(project.PortfolioNumber),
+		Title:         project.Title,
+		Typology:      project.Typology,
+		Location:      project.Location,
+		YearLabel:     formatInteriorProjectYear(project.ProjectYear),
+		ProjectStatus: project.ProjectStatus,
+		Description:   project.Description,
+		Cover: newPublicInteriorProjectCoverPageData(
+			project.Slug,
+			project.Cover,
+		),
 	}
 }

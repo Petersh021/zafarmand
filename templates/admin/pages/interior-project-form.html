@@ -1,0 +1,140 @@
+{{/*
+One native form serves Interior project creation and editing. Go supplies only
+trusted actions, lifecycle options, and the edit revision; administrator text
+remains ordinary data and html/template escapes it for each output context.
+
+The hidden revision is a concurrency token, not authorization evidence.
+Authentication, the Owner/Editor role allowlist, and session CSRF validation
+still precede every mutation.
+*/}}
+{{define "admin-content"}}
+<main class="admin-product-form-page admin-interior-project-form-page" id="admin-main-content">
+	<a class="admin-back-link" href="{{.InteriorProjectForm.CancelPath}}">
+		<span aria-hidden="true">&larr;</span>
+		Cancel and return
+	</a>
+
+	<header class="admin-page-header admin-product-form-header">
+		<p class="admin-eyebrow">{{.InteriorProjectForm.Eyebrow}}</p>
+		<h1>{{.InteriorProjectForm.Heading}}</h1>
+		<p class="admin-page-header__lede">{{.InteriorProjectForm.Introduction}}</p>
+	</header>
+
+	{{if .InteriorProjectForm.HasErrors}}
+	<section class="admin-alert admin-alert--error" aria-labelledby="admin-interior-project-errors-title">
+		<h2 id="admin-interior-project-errors-title">Check the Interior project fields</h2>
+		<p>No project was saved. Correct the marked fields and submit again.</p>
+		<ul>
+			{{with .InteriorProjectForm.Errors.Slug}}<li><a href="#interior-project-slug">{{.}}</a></li>{{end}}
+			{{with .InteriorProjectForm.Errors.Title}}<li><a href="#interior-project-title">{{.}}</a></li>{{end}}
+			{{with .InteriorProjectForm.Errors.Typology}}<li><a href="#interior-project-typology">{{.}}</a></li>{{end}}
+			{{with .InteriorProjectForm.Errors.Location}}<li><a href="#interior-project-location">{{.}}</a></li>{{end}}
+			{{with .InteriorProjectForm.Errors.ProjectYear}}<li><a href="#interior-project-year">{{.}}</a></li>{{end}}
+			{{with .InteriorProjectForm.Errors.ProjectStatus}}<li><a href="#interior-project-status">{{.}}</a></li>{{end}}
+			{{with .InteriorProjectForm.Errors.Description}}<li><a href="#interior-project-description">{{.}}</a></li>{{end}}
+			{{with .InteriorProjectForm.Errors.SortOrder}}<li><a href="#interior-project-sort-order">{{.}}</a></li>{{end}}
+			{{with .InteriorProjectForm.Errors.PublicationStatus}}<li><a href="#interior-project-publication-status">{{.}}</a></li>{{end}}
+		</ul>
+	</section>
+	{{end}}
+
+	<form class="admin-product-form admin-interior-project-form" action="{{.InteriorProjectForm.Action}}" method="post">
+		<input type="hidden" name="csrf_token" value="{{.SessionCSRFToken}}">
+		{{if .InteriorProjectForm.IsEdit}}
+		{{/* A concurrent successful mutation increments this exact revision. */}}
+		<input type="hidden" name="version" value="{{.InteriorProjectForm.Version}}">
+		{{end}}
+
+		<div class="admin-product-form__field">
+			<label for="interior-project-slug">Slug</label>
+			<p class="admin-product-form__hint" id="interior-project-slug-hint">
+				Lowercase letters and numbers with single hyphens; this becomes the public detail URL when Published.
+			</p>
+			<input id="interior-project-slug" name="slug" type="text" value="{{.InteriorProjectForm.Values.Slug}}"
+				maxlength="120" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocomplete="off"
+				aria-describedby="interior-project-slug-hint{{if .InteriorProjectForm.Errors.Slug}} interior-project-slug-error{{end}}"
+				{{if .InteriorProjectForm.Errors.Slug}}aria-invalid="true"{{end}} required>
+			{{with .InteriorProjectForm.Errors.Slug}}<p class="admin-product-form__error" id="interior-project-slug-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="interior-project-title">Title</label>
+			<input id="interior-project-title" name="title" type="text" value="{{.InteriorProjectForm.Values.Title}}"
+				maxlength="160" {{if .InteriorProjectForm.Errors.Title}}aria-describedby="interior-project-title-error" aria-invalid="true"{{end}} required>
+			{{with .InteriorProjectForm.Errors.Title}}<p class="admin-product-form__error" id="interior-project-title-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="interior-project-typology">Typology</label>
+			<p class="admin-product-form__hint" id="interior-project-typology-hint">A concise reviewed category, such as Residential or Hospitality.</p>
+			<input id="interior-project-typology" name="typology" type="text" value="{{.InteriorProjectForm.Values.Typology}}"
+				maxlength="80" aria-describedby="interior-project-typology-hint{{if .InteriorProjectForm.Errors.Typology}} interior-project-typology-error{{end}}"
+				{{if .InteriorProjectForm.Errors.Typology}}aria-invalid="true"{{end}} required>
+			{{with .InteriorProjectForm.Errors.Typology}}<p class="admin-product-form__error" id="interior-project-typology-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="interior-project-location">Location <span>(optional)</span></label>
+			<input id="interior-project-location" name="location" type="text" value="{{.InteriorProjectForm.Values.Location}}"
+				maxlength="160" {{if .InteriorProjectForm.Errors.Location}}aria-describedby="interior-project-location-error" aria-invalid="true"{{end}}>
+			{{with .InteriorProjectForm.Errors.Location}}<p class="admin-product-form__error" id="interior-project-location-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="interior-project-year">Project year <span>(optional)</span></label>
+			<p class="admin-product-form__hint" id="interior-project-year-hint">Enter a four-digit year from 1000 through 9999, or leave it empty.</p>
+			<input id="interior-project-year" name="project_year" type="number" value="{{.InteriorProjectForm.Values.ProjectYear}}"
+				min="1000" max="9999" step="1" inputmode="numeric"
+				aria-describedby="interior-project-year-hint{{if .InteriorProjectForm.Errors.ProjectYear}} interior-project-year-error{{end}}"
+				{{if .InteriorProjectForm.Errors.ProjectYear}}aria-invalid="true"{{end}}>
+			{{with .InteriorProjectForm.Errors.ProjectYear}}<p class="admin-product-form__error" id="interior-project-year-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="interior-project-status">Project status</label>
+			<p class="admin-product-form__hint" id="interior-project-status-hint">The real-world state, separate from website publication.</p>
+			<input id="interior-project-status" name="project_status" type="text" value="{{.InteriorProjectForm.Values.ProjectStatus}}"
+				maxlength="80" aria-describedby="interior-project-status-hint{{if .InteriorProjectForm.Errors.ProjectStatus}} interior-project-status-error{{end}}"
+				{{if .InteriorProjectForm.Errors.ProjectStatus}}aria-invalid="true"{{end}} required>
+			{{with .InteriorProjectForm.Errors.ProjectStatus}}<p class="admin-product-form__error" id="interior-project-status-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="interior-project-sort-order">Sort order</label>
+			<p class="admin-product-form__hint" id="interior-project-sort-order-hint">Smaller numbers appear earlier in the portfolio; project ID breaks ties.</p>
+			<input id="interior-project-sort-order" name="sort_order" type="number" value="{{.InteriorProjectForm.Values.SortOrder}}"
+				min="1" max="2147483647" step="1" inputmode="numeric"
+				aria-describedby="interior-project-sort-order-hint{{if .InteriorProjectForm.Errors.SortOrder}} interior-project-sort-order-error{{end}}"
+				{{if .InteriorProjectForm.Errors.SortOrder}}aria-invalid="true"{{end}} required>
+			{{with .InteriorProjectForm.Errors.SortOrder}}<p class="admin-product-form__error" id="interior-project-sort-order-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="interior-project-publication-status">Publication status</label>
+			<p class="admin-product-form__hint" id="interior-project-publication-status-hint">Draft and Archived stay private. Published appears immediately on the public Interior routes.</p>
+			<select id="interior-project-publication-status" name="publication_status"
+				aria-describedby="interior-project-publication-status-hint{{if .InteriorProjectForm.Errors.PublicationStatus}} interior-project-publication-status-error{{end}}"
+				{{if .InteriorProjectForm.Errors.PublicationStatus}}aria-invalid="true"{{end}} required>
+				<option value="" {{if not .InteriorProjectForm.HasValidStatus}}selected{{end}} disabled>Choose a status</option>
+				{{range .InteriorProjectForm.StatusOptions}}<option value="{{.Value}}" {{if .Selected}}selected{{end}}>{{.Label}}</option>{{end}}
+			</select>
+			{{with .InteriorProjectForm.Errors.PublicationStatus}}<p class="admin-product-form__error" id="interior-project-publication-status-error">{{.}}</p>{{end}}
+		</div>
+
+		{{/* The textarea preserves internal line breaks; Go rejects outer space and overlong text. */}}
+		<div class="admin-product-form__field admin-product-form__field--wide">
+			<label for="interior-project-description">Description <span>(optional)</span></label>
+			<p class="admin-product-form__hint" id="interior-project-description-hint">Reviewed public copy. Internal line breaks are preserved; maximum 6000 characters.</p>
+			<textarea id="interior-project-description" name="description" rows="10" maxlength="6000"
+				aria-describedby="interior-project-description-hint{{if .InteriorProjectForm.Errors.Description}} interior-project-description-error{{end}}"
+				{{if .InteriorProjectForm.Errors.Description}}aria-invalid="true"{{end}}>{{.InteriorProjectForm.Values.Description}}</textarea>
+			{{with .InteriorProjectForm.Errors.Description}}<p class="admin-product-form__error" id="interior-project-description-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__actions">
+			<button class="admin-status-button" type="submit">{{.InteriorProjectForm.SubmitLabel}}</button>
+			<a class="admin-secondary-link" href="{{.InteriorProjectForm.CancelPath}}">Cancel</a>
+		</div>
+	</form>
+</main>
+{{end}}

@@ -1,0 +1,28 @@
+{{/*
+The conflict response deliberately does not echo the submitted form or the
+newer stored row. A fresh GET retrieves current values and a current revision
+before the administrator decides whether to apply the change again.
+*/}}
+{{define "admin-content"}}
+<main class="admin-product-conflict admin-interior-project-conflict" id="admin-main-content">
+	<section class="admin-conflict-panel" aria-labelledby="admin-interior-project-conflict-title">
+		<p class="admin-eyebrow">Interior project was not saved</p>
+		<h1 id="admin-interior-project-conflict-title">This Interior project changed in another session</h1>
+		<p>Your form used an older revision, so Zafarmand did not overwrite the newer project data.</p>
+		<p>
+			{{if .InteriorProjectConflict.Guidance}}
+			{{.InteriorProjectConflict.Guidance}}
+			{{else}}
+			Open a fresh edit form, review the latest values, and apply your change again if it is still needed.
+			{{end}}
+		</p>
+
+		<div class="admin-product-form__actions">
+			<a class="admin-primary-link" href="{{.InteriorProjectConflict.EditPath}}">
+				{{if .InteriorProjectConflict.ActionLabel}}{{.InteriorProjectConflict.ActionLabel}}{{else}}Open latest edit form{{end}}
+			</a>
+			<a class="admin-secondary-link" href="{{.InteriorProjectConflict.DetailPath}}">View current Interior project</a>
+		</div>
+	</section>
+</main>
+{{end}}

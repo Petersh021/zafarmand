@@ -1,8 +1,7 @@
 {{/*
 The Interior project detail page is a separate template-cache entry discovered
-by the existing templates/pages glob. It renders one structural Stage 9 record
-without reusing the landing-page discipline shell, keeping project-detail
-semantics and presentation independent from /interior-design.
+by the existing templates/pages glob. Stage 22 renders one published PostgreSQL
+projection without exposing its internal identity, ordering, or lifecycle.
 */}}
 
 {{/*
@@ -57,10 +56,10 @@ uniquely-named destination; only the incomplete article is withheld.
 		</nav>
 
 		{{/*
-		Identity and known facts precede decorative media in source order. This
+		Identity and reviewed facts precede media in source order. This
 		order remains unchanged at every breakpoint, so screen readers, keyboard
 		users, zoomed layouts, and CSS-disabled documents encounter the project
-		meaning before its non-content visual field.
+		meaning before its visual field.
 		*/}}
 		<header class="interior-project-detail__intro">
 			<div class="interior-project-detail__identity">
@@ -80,8 +79,8 @@ uniquely-named destination; only the incomplete article is withheld.
 			<div class="interior-project-detail__summary">
 				{{/*
 				A description list communicates the relationship between each
-				label and value. Every fact comes from the narrow Stage 9 view
-				model; no location, year, client, or descriptive claim is invented.
+				label and value. Every fact comes from the narrow Stage 22 view
+				model; optional values are omitted instead of being invented.
 				*/}}
 				<dl class="interior-project-detail__facts">
 					<div class="interior-project-detail__fact">
@@ -95,29 +94,62 @@ uniquely-named destination; only the incomplete article is withheld.
 					</div>
 
 					<div class="interior-project-detail__fact">
-						<dt>Publication status</dt>
-						<dd>{{.Status}}</dd>
+						<dt>Project status</dt>
+						<dd>{{.ProjectStatus}}</dd>
 					</div>
+
+					{{with .Location}}
+					<div class="interior-project-detail__fact">
+						<dt>Location</dt>
+						<dd>{{.}}</dd>
+					</div>
+					{{end}}
+
+					{{with .YearLabel}}
+					<div class="interior-project-detail__fact">
+						<dt>Year</dt>
+						<dd>{{.}}</dd>
+					</div>
+					{{end}}
 				</dl>
 
 				{{/*
-				This restrained interface note states the temporary content state
-				truthfully. Approved copy and real project photography remain
-				deferred to the later publishing and media-management stages.
+				Description remains ordinary escaped text. CSS preserves intentional
+				line breaks without treating managed copy as executable markup.
 				*/}}
+				{{with .Description}}
+				<p class="interior-project-detail__description">{{.}}</p>
+				{{else}}
 				<p class="interior-project-detail__notice">
-					Approved project information and media are being
-					prepared for publication.
+					Additional project information is not available yet.
 				</p>
+				{{end}}
 			</div>
 		</header>
 
 		{{/*
-		The landscape field establishes the spatial scale of an Interior project
-		page without publishing the supplied reference composite as content.
-		Everything inside repeats information already exposed above and is
-		decorative, so the complete field is hidden from assistive technology.
+		A reviewed cover is meaningful content with required alternative text and
+		an optional visible caption. Only the fallback repeats existing facts and
+		is hidden from assistive technology.
 		*/}}
+		{{with .Cover}}
+		<figure class="interior-project-detail__media interior-project-detail__media--image">
+			<img
+				class="interior-project-detail__image"
+				src="{{.Path}}"
+				width="{{.Width}}"
+				height="{{.Height}}"
+				alt="{{.AltText}}"
+				decoding="async"
+			>
+
+			{{with .Caption}}
+			<figcaption class="interior-project-detail__caption">
+				{{.}}
+			</figcaption>
+			{{end}}
+		</figure>
+		{{else}}
 		<div
 			class="interior-project-detail__media"
 			aria-hidden="true"
@@ -130,6 +162,7 @@ uniquely-named destination; only the incomplete article is withheld.
 				{{.Number}}
 			</span>
 		</div>
+		{{end}}
 	</article>
 	{{/* End the optional project record and restore pageData as dot. */}}
 	{{end}}

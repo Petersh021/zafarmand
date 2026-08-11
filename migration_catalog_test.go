@@ -454,15 +454,16 @@ func TestLoadMigrationCatalogRejectsNonRegularEntries(t *testing.T) {
 
 // TestEmbeddedMigrationCatalog verifies the production catalog contains the
 // inquiry table, its idempotency key, the admin-access boundary, and the first
-// Product catalogue table, edit revision, and reviewed content/cover boundary
-// with exact ordered identities and independently reversible schema changes.
+// Product catalogue table, edit revision, reviewed Product content/cover, and
+// the independent Interior project/content/cover boundary with exact ordered
+// identities and independently reversible schema changes.
 func TestEmbeddedMigrationCatalog(t *testing.T) {
 	catalog, err := loadEmbeddedMigrationCatalog()
 	if err != nil {
 		t.Fatalf("load embedded migration catalog: %v", err)
 	}
-	if len(catalog) != 6 {
-		t.Fatalf("embedded catalog length: got %d, want 6", len(catalog))
+	if len(catalog) != 7 {
+		t.Fatalf("embedded catalog length: got %d, want 7", len(catalog))
 	}
 
 	initialDefinition := catalog[0]
@@ -951,6 +952,181 @@ ALTER TABLE public.products
 	} {
 		if strings.Contains(upperContentDownSQL, forbiddenSQL) {
 			t.Errorf("product-content down SQL contains forbidden %q", forbiddenSQL)
+		}
+	}
+
+	interiorDefinition := catalog[6]
+	if interiorDefinition.Version != 7 ||
+		interiorDefinition.Name != "create_interior_projects" {
+		t.Errorf(
+			"embedded migration identity: got %06d_%s",
+			interiorDefinition.Version,
+			interiorDefinition.Name,
+		)
+	}
+
+	// Version 000007 owns a complete but deliberately narrow Interior slice. Its
+	// parent table carries public content, lifecycle state, ordering, and one
+	// optimistic revision; its dependent table stores exactly one reviewed cover.
+	// Explicit fragments catch an accidentally optional public status, a sentinel
+	// year default, broader media limits, or a missing publication-only index.
+	expectedInteriorUpSQL := []string{
+		"CREATE TABLE public.interior_projects",
+		"id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY",
+		"slug text NOT NULL",
+		"title text NOT NULL",
+		"typology text NOT NULL",
+		"location text NOT NULL DEFAULT ''",
+		"project_year integer",
+		"project_status text NOT NULL",
+		"description text NOT NULL DEFAULT ''",
+		"sort_order integer NOT NULL",
+		"publication_status text NOT NULL DEFAULT 'draft'",
+		"version bigint NOT NULL DEFAULT 1",
+		"created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP",
+		"updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP",
+		"CONSTRAINT interior_projects_slug_length",
+		"CHECK (char_length(slug) BETWEEN 1 AND 120)",
+		"CONSTRAINT interior_projects_slug_format",
+		"CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$')",
+		"CONSTRAINT interior_projects_slug_unique",
+		"UNIQUE (slug)",
+		"CONSTRAINT interior_projects_title_trimmed",
+		"CHECK (title = btrim(title))",
+		"CONSTRAINT interior_projects_title_length",
+		"CHECK (char_length(title) BETWEEN 1 AND 160)",
+		"CONSTRAINT interior_projects_typology_trimmed",
+		"CHECK (typology = btrim(typology))",
+		"CONSTRAINT interior_projects_typology_length",
+		"CHECK (char_length(typology) BETWEEN 1 AND 80)",
+		"CONSTRAINT interior_projects_location_trimmed",
+		"CHECK (location = btrim(location))",
+		"CONSTRAINT interior_projects_location_length",
+		"CHECK (char_length(location) <= 160)",
+		"CONSTRAINT interior_projects_project_year_supported",
+		"project_year IS NULL OR",
+		"project_year BETWEEN 1000 AND 9999",
+		"CONSTRAINT interior_projects_project_status_trimmed",
+		"CHECK (project_status = btrim(project_status))",
+		"CONSTRAINT interior_projects_project_status_length",
+		"CHECK (char_length(project_status) BETWEEN 1 AND 80)",
+		"CONSTRAINT interior_projects_description_trimmed",
+		"CHECK (description = btrim(description))",
+		"CONSTRAINT interior_projects_description_length",
+		"CHECK (char_length(description) <= 6000)",
+		"CONSTRAINT interior_projects_sort_order_positive",
+		"CHECK (sort_order > 0)",
+		"CONSTRAINT interior_projects_publication_status_supported",
+		"CHECK (publication_status IN ('draft', 'published', 'archived'))",
+		"CONSTRAINT interior_projects_version_positive",
+		"CHECK (version > 0)",
+		"CONSTRAINT interior_projects_timestamp_order",
+		"CHECK (updated_at >= created_at)",
+		"CREATE INDEX interior_projects_published_order_idx",
+		"ON public.interior_projects (sort_order, id)",
+		"WHERE publication_status = 'published'",
+		"CREATE TABLE public.interior_project_cover_images",
+		"interior_project_id bigint NOT NULL",
+		"CONSTRAINT interior_project_cover_images_pkey",
+		"PRIMARY KEY (interior_project_id)",
+		"CONSTRAINT interior_project_cover_images_project_id_foreign",
+		"FOREIGN KEY (interior_project_id)",
+		"REFERENCES public.interior_projects (id)",
+		"ON DELETE CASCADE",
+		"CONSTRAINT interior_project_cover_images_version_positive",
+		"CONSTRAINT interior_project_cover_images_content_type_supported",
+		"CHECK (content_type IN ('image/jpeg', 'image/png'))",
+		"CONSTRAINT interior_project_cover_images_byte_size_supported",
+		"CHECK (byte_size BETWEEN 1 AND 8388608)",
+		"CONSTRAINT interior_project_cover_images_content_size_matches",
+		"CHECK (octet_length(content) = byte_size)",
+		"CONSTRAINT interior_project_cover_images_width_supported",
+		"CHECK (width BETWEEN 1 AND 10000)",
+		"CONSTRAINT interior_project_cover_images_height_supported",
+		"CHECK (height BETWEEN 1 AND 10000)",
+		"CONSTRAINT interior_project_cover_images_pixel_count_supported",
+		"CHECK ((width::bigint * height::bigint) <= 25000000)",
+		"CONSTRAINT interior_project_cover_images_sha256_length",
+		"CHECK (octet_length(sha256) = 32)",
+		"CONSTRAINT interior_project_cover_images_alt_text_trimmed",
+		"CHECK (alt_text = btrim(alt_text))",
+		"CONSTRAINT interior_project_cover_images_alt_text_length",
+		"CHECK (char_length(alt_text) BETWEEN 1 AND 300)",
+		"CONSTRAINT interior_project_cover_images_caption_trimmed",
+		"CHECK (caption = btrim(caption))",
+		"CONSTRAINT interior_project_cover_images_caption_length",
+		"CHECK (char_length(caption) <= 500)",
+		"CONSTRAINT interior_project_cover_images_timestamp_order",
+	}
+	for _, expectedSQL := range expectedInteriorUpSQL {
+		if !strings.Contains(interiorDefinition.UpSQL, expectedSQL) {
+			t.Errorf("Interior-project up SQL does not contain %q", expectedSQL)
+		}
+	}
+
+	// Migration 7 establishes structure only. Architecture, homepage selection,
+	// galleries, and business records remain later explicit decisions.
+	upperInteriorUpSQL := strings.ToUpper(interiorDefinition.UpSQL)
+	if count := strings.Count(
+		upperInteriorUpSQL,
+		"CREATE TABLE PUBLIC.",
+	); count != 2 {
+		t.Errorf("Interior-project CREATE TABLE count: got %d, want 2", count)
+	}
+	if count := strings.Count(
+		upperInteriorUpSQL,
+		"ON DELETE CASCADE",
+	); count != 1 {
+		t.Errorf("Interior-project ON DELETE CASCADE count: got %d, want 1", count)
+	}
+	for _, forbiddenSQL := range []string{
+		"INSERT INTO",
+		"UPDATE PUBLIC.INTERIOR_PROJECTS",
+		"DELETE FROM",
+		"CREATE EXTENSION",
+		"CREATE TABLE PUBLIC.ARCHITECTURE_PROJECTS",
+		"CREATE TABLE PUBLIC.INTERIOR_PROJECT_GALLERY",
+		"PROJECT_YEAR INTEGER NOT NULL",
+		"PROJECT_YEAR INTEGER DEFAULT",
+		"FEATURED",
+		"SEO",
+	} {
+		if strings.Contains(upperInteriorUpSQL, forbiddenSQL) {
+			t.Errorf("Interior-project up SQL contains forbidden %q", forbiddenSQL)
+		}
+	}
+
+	// Reverse dependency order is part of the migration contract: the cover must
+	// disappear before its parent. Neither forgiving modifiers nor unrelated
+	// schema names may conceal drift or broaden a destructive rollback.
+	orderedInteriorDownSQL := []string{
+		"DROP TABLE public.interior_project_cover_images;",
+		"DROP TABLE public.interior_projects;",
+	}
+	previousPosition = -1
+	for _, expectedSQL := range orderedInteriorDownSQL {
+		position := strings.Index(interiorDefinition.DownSQL, expectedSQL)
+		if position < 0 {
+			t.Errorf("Interior-project down SQL does not contain %q", expectedSQL)
+			continue
+		}
+		if position <= previousPosition {
+			t.Errorf("Interior-project down SQL has %q out of order", expectedSQL)
+		}
+		previousPosition = position
+	}
+	upperInteriorDownSQL := strings.ToUpper(interiorDefinition.DownSQL)
+	for _, forbiddenSQL := range []string{
+		"CASCADE",
+		"IF EXISTS",
+		"PRODUCTS",
+		"INQUIRIES",
+		"ADMIN_USERS",
+		"ADMIN_SESSIONS",
+		"ARCHITECTURE_PROJECTS",
+	} {
+		if strings.Contains(upperInteriorDownSQL, forbiddenSQL) {
+			t.Errorf("Interior-project down SQL contains forbidden %q", forbiddenSQL)
 		}
 	}
 }

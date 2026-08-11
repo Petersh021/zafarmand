@@ -21,31 +21,47 @@ const (
 	productMaterialMaximumLength = 500
 	// productDimensionsMaximumLength bounds the optional reviewed dimensions fact.
 	productDimensionsMaximumLength = 500
-	// productCoverMaximumBytes prevents one upload or database row from consuming
-	// unbounded request, memory, or response resources.
-	productCoverMaximumBytes = 8 * 1024 * 1024
-	// productCoverMaximumDimension rejects implausibly wide or tall decoded images.
-	productCoverMaximumDimension = 10000
-	// productCoverMaximumPixels bounds decoded memory independently of compressed
+	// reviewedCoverMaximumBytes prevents one reviewed image from consuming
+	// unbounded request, memory, database, or response resources. Product and
+	// Interior cover workflows intentionally share this mechanical boundary.
+	reviewedCoverMaximumBytes = 8 * 1024 * 1024
+	// reviewedCoverMaximumDimension rejects implausibly wide or tall decoded
+	// images before a full pixel allocation is accepted.
+	reviewedCoverMaximumDimension = 10000
+	// reviewedCoverMaximumPixels bounds decoded memory independently of compressed
 	// file size. A 6000 by 4000 photograph remains within this limit.
-	productCoverMaximumPixels = 25_000_000
-	// productCoverAltTextMaximumLength keeps meaningful alternative text concise.
-	productCoverAltTextMaximumLength = 300
-	// productCoverCaptionMaximumLength bounds optional visible cover copy.
-	productCoverCaptionMaximumLength = 500
-	// productCoverJPEGContentType is the trusted response type derived from a
-	// successfully decoded JPEG rather than from an upload header.
-	productCoverJPEGContentType = "image/jpeg"
-	// productCoverPNGContentType is the equivalent trusted PNG response type.
-	productCoverPNGContentType = "image/png"
-	// productCoverJPEGQuality is the explicit quality used when uploaded pixels
+	reviewedCoverMaximumPixels = 25_000_000
+	// reviewedCoverAltTextMaximumLength keeps meaningful alternative text concise.
+	reviewedCoverAltTextMaximumLength = 300
+	// reviewedCoverCaptionMaximumLength bounds optional visible cover copy.
+	reviewedCoverCaptionMaximumLength = 500
+	// reviewedCoverJPEGContentType is derived from a successful JPEG decode rather
+	// than trusting the browser-supplied multipart media type.
+	reviewedCoverJPEGContentType = "image/jpeg"
+	// reviewedCoverPNGContentType is the equivalent trusted PNG response type.
+	reviewedCoverPNGContentType = "image/png"
+	// reviewedCoverJPEGQuality is the explicit quality used when uploaded pixels
 	// are re-encoded without ancillary camera or location metadata.
-	productCoverJPEGQuality = 90
+	reviewedCoverJPEGQuality = 90
+
+	// Product aliases retain the Stage 21 vocabulary in Product HTTP,
+	// repository, form, and test code while their mechanics use the shared
+	// reviewed-cover implementation introduced for Stage 22.
+	productCoverMaximumBytes         = reviewedCoverMaximumBytes
+	productCoverMaximumDimension     = reviewedCoverMaximumDimension
+	productCoverAltTextMaximumLength = reviewedCoverAltTextMaximumLength
+	productCoverCaptionMaximumLength = reviewedCoverCaptionMaximumLength
+	productCoverJPEGContentType      = reviewedCoverJPEGContentType
+	productCoverPNGContentType       = reviewedCoverPNGContentType
 )
 
-// Product-cover errors are fixed, credential-free categories. They never wrap
-// image bytes, administrator text, SQL, or driver diagnostics.
+// Reviewed-cover errors and Product-facing categories are fixed,
+// credential-free values. They never wrap image bytes, administrator text,
+// SQL, or driver diagnostics.
 var (
+	// errReviewedCoverImageInvalid is the shared internal result for unsafe image
+	// bytes. Domain HTTP layers translate it into their own fixed form errors.
+	errReviewedCoverImageInvalid = errors.New("reviewed cover image is invalid")
 	// errProductCoverNotFound represents a missing cover, a hidden Product, or a
 	// stale cover revision without revealing which condition occurred publicly.
 	errProductCoverNotFound = errors.New("product cover not found")
@@ -54,7 +70,7 @@ var (
 	errProductCoverReadFailed = errors.New("product cover read failed")
 	// errProductCoverImageInvalid identifies bytes that are empty, unsupported,
 	// corrupt, oversized, or unsafe to decode within the Stage 21 limits.
-	errProductCoverImageInvalid = errors.New("product cover image is invalid")
+	errProductCoverImageInvalid = errReviewedCoverImageInvalid
 )
 
 // productCoverMetadata is the small, binary-free projection safe to join into
@@ -101,9 +117,10 @@ type productCoverAsset struct {
 	UpdatedAt time.Time
 }
 
-// inspectedProductCover contains trusted facts derived from encoded bytes. The
-// administrator writer persists only this output, never browser media headers.
-type inspectedProductCover struct {
+// reviewedCoverInspection contains trusted facts derived from encoded bytes.
+// These facts, rather than browser-claimed headers, populate each
+// discipline-specific cover write input.
+type reviewedCoverInspection struct {
 	// ContentType is derived from the decoder format.
 	ContentType string
 	// Width is the decoded pixel width.
@@ -114,6 +131,10 @@ type inspectedProductCover struct {
 	SHA256 [sha256.Size]byte
 }
 
+// inspectedProductCover preserves the Product-facing Stage 21 type name while
+// making its implementation the shared reviewed-cover inspection value.
+type inspectedProductCover = reviewedCoverInspection
+
 // productCoverRowScanner is the smallest database/sql surface needed by both
 // public and protected cover reads.
 type productCoverRowScanner interface {
@@ -121,42 +142,66 @@ type productCoverRowScanner interface {
 	Scan(...any) error
 }
 
-// isValidOptionalProductText accepts an empty value or one already-trimmed,
+// isValidOptionalEditorialText accepts an empty value or one already-trimmed,
 // valid UTF-8 string within the supplied Unicode-character limit. NUL is
 // rejected because PostgreSQL text cannot store it; intended newlines and tabs
-// remain available to long-form editorial copy.
-func isValidOptionalProductText(value string, maximumLength int) bool {
+// remain available to long-form editorial copy in either managed discipline.
+func isValidOptionalEditorialText(value string, maximumLength int) bool {
 	return maximumLength > 0 && utf8.ValidString(value) &&
 		!strings.ContainsRune(value, '\x00') &&
 		strings.TrimSpace(value) == value &&
 		utf8.RuneCountInString(value) <= maximumLength
 }
 
-// isValidProductCoverMetadata verifies every binary-free cover invariant before
-// a path or image element is rendered.
-func isValidProductCoverMetadata(metadata productCoverMetadata) bool {
-	return metadata.Version > 0 &&
-		isValidProductCoverDimensions(metadata.Width, metadata.Height) &&
-		isValidRequiredProductCoverText(
-			metadata.AltText,
-			productCoverAltTextMaximumLength,
+// isValidOptionalProductText preserves the Product-specific call site while
+// delegating its mechanical string boundary to the shared editorial validator.
+func isValidOptionalProductText(value string, maximumLength int) bool {
+	return isValidOptionalEditorialText(value, maximumLength)
+}
+
+// isValidReviewedCoverMetadata verifies the shared binary-free invariants
+// before either discipline constructs an image path or element.
+func isValidReviewedCoverMetadata(
+	version int64,
+	width int,
+	height int,
+	altText string,
+	caption string,
+) bool {
+	return version > 0 &&
+		isValidReviewedCoverDimensions(width, height) &&
+		isValidRequiredReviewedCoverText(
+			altText,
+			reviewedCoverAltTextMaximumLength,
 		) &&
-		isValidOptionalProductCoverText(
-			metadata.Caption,
-			productCoverCaptionMaximumLength,
+		isValidOptionalReviewedCoverText(
+			caption,
+			reviewedCoverCaptionMaximumLength,
 		)
 }
 
-// isValidRequiredProductCoverText applies UTF-8, trimming, and nonempty rules
-// to required administrator-authored media text.
-func isValidRequiredProductCoverText(value string, maximumLength int) bool {
-	return value != "" && isValidOptionalProductCoverText(value, maximumLength)
+// isValidProductCoverMetadata verifies every binary-free cover invariant before
+// a path or image element is rendered.
+func isValidProductCoverMetadata(metadata productCoverMetadata) bool {
+	return isValidReviewedCoverMetadata(
+		metadata.Version,
+		metadata.Width,
+		metadata.Height,
+		metadata.AltText,
+		metadata.Caption,
+	)
 }
 
-// isValidOptionalProductCoverText adds a single-line control-character rule to
-// the shared optional-text boundary used by Product editorial fields.
-func isValidOptionalProductCoverText(value string, maximumLength int) bool {
-	if !isValidOptionalProductText(value, maximumLength) {
+// isValidRequiredReviewedCoverText applies UTF-8, trimming, single-line, and
+// nonempty rules to administrator-authored alternative text.
+func isValidRequiredReviewedCoverText(value string, maximumLength int) bool {
+	return value != "" && isValidOptionalReviewedCoverText(value, maximumLength)
+}
+
+// isValidOptionalReviewedCoverText adds a single-line control-character rule
+// to the shared optional editorial-text boundary.
+func isValidOptionalReviewedCoverText(value string, maximumLength int) bool {
+	if !isValidOptionalEditorialText(value, maximumLength) {
 		return false
 	}
 	for _, character := range value {
@@ -169,60 +214,78 @@ func isValidOptionalProductCoverText(value string, maximumLength int) bool {
 	return true
 }
 
-// isValidProductCoverDimensions enforces both per-axis and total decoded-pixel
-// limits without allowing integer multiplication to overflow.
-func isValidProductCoverDimensions(width int, height int) bool {
+// isValidRequiredProductCoverText keeps existing Product call sites explicit
+// while sharing the discipline-neutral cover-text mechanics.
+func isValidRequiredProductCoverText(value string, maximumLength int) bool {
+	return isValidRequiredReviewedCoverText(value, maximumLength)
+}
+
+// isValidOptionalProductCoverText keeps existing Product call sites explicit
+// while sharing the discipline-neutral cover-text mechanics.
+func isValidOptionalProductCoverText(value string, maximumLength int) bool {
+	return isValidOptionalReviewedCoverText(value, maximumLength)
+}
+
+// isValidReviewedCoverDimensions enforces both per-axis and total decoded-
+// pixel limits without allowing integer multiplication to overflow.
+func isValidReviewedCoverDimensions(width int, height int) bool {
 	if width <= 0 || height <= 0 ||
-		width > productCoverMaximumDimension ||
-		height > productCoverMaximumDimension {
+		width > reviewedCoverMaximumDimension ||
+		height > reviewedCoverMaximumDimension {
 		return false
 	}
 
-	return int64(width)*int64(height) <= productCoverMaximumPixels
+	return int64(width)*int64(height) <= reviewedCoverMaximumPixels
 }
 
-// inspectProductCover validates a complete JPEG or PNG and returns only facts
+// isValidProductCoverDimensions preserves the Product vocabulary around the
+// shared reviewed-image dimension boundary.
+func isValidProductCoverDimensions(width int, height int) bool {
+	return isValidReviewedCoverDimensions(width, height)
+}
+
+// inspectReviewedCover validates a complete JPEG or PNG and returns only facts
 // derived by the standard-library decoder. fullDecode is true for uploads so a
 // truncated file cannot be persisted, and false for the cheaper read recheck.
-func inspectProductCover(
+func inspectReviewedCover(
 	content []byte,
 	fullDecode bool,
-) (inspectedProductCover, error) {
-	if len(content) == 0 || len(content) > productCoverMaximumBytes {
-		return inspectedProductCover{}, errProductCoverImageInvalid
+) (reviewedCoverInspection, error) {
+	if len(content) == 0 || len(content) > reviewedCoverMaximumBytes {
+		return reviewedCoverInspection{}, errReviewedCoverImageInvalid
 	}
 
 	configuration, format, err := image.DecodeConfig(bytes.NewReader(content))
-	if err != nil || !isValidProductCoverDimensions(
+	if err != nil || !isValidReviewedCoverDimensions(
 		configuration.Width,
 		configuration.Height,
 	) {
-		return inspectedProductCover{}, errProductCoverImageInvalid
+		return reviewedCoverInspection{}, errReviewedCoverImageInvalid
 	}
 
 	contentType := ""
 	switch format {
 	case "jpeg":
-		contentType = productCoverJPEGContentType
+		contentType = reviewedCoverJPEGContentType
 	case "png":
-		contentType = productCoverPNGContentType
+		contentType = reviewedCoverPNGContentType
 	default:
-		return inspectedProductCover{}, errProductCoverImageInvalid
+		return reviewedCoverInspection{}, errReviewedCoverImageInvalid
 	}
 
 	if fullDecode {
 		decoded, decodedFormat, decodeErr := image.Decode(bytes.NewReader(content))
 		if decodeErr != nil || decodedFormat != format {
-			return inspectedProductCover{}, errProductCoverImageInvalid
+			return reviewedCoverInspection{}, errReviewedCoverImageInvalid
 		}
 		bounds := decoded.Bounds()
 		if bounds.Dx() != configuration.Width ||
 			bounds.Dy() != configuration.Height {
-			return inspectedProductCover{}, errProductCoverImageInvalid
+			return reviewedCoverInspection{}, errReviewedCoverImageInvalid
 		}
 	}
 
-	return inspectedProductCover{
+	return reviewedCoverInspection{
 		ContentType: contentType,
 		Width:       configuration.Width,
 		Height:      configuration.Height,
@@ -230,57 +293,66 @@ func inspectProductCover(
 	}, nil
 }
 
-// normalizeProductCover decodes one complete supported upload and re-encodes
+// inspectProductCover retains the Product-specific API while delegating to the
+// shared Stage 22 reviewed-cover implementation.
+func inspectProductCover(
+	content []byte,
+	fullDecode bool,
+) (inspectedProductCover, error) {
+	return inspectReviewedCover(content, fullDecode)
+}
+
+// normalizeReviewedCover decodes one complete supported upload and re-encodes
 // only its pixels. Re-encoding strips EXIF, XMP, PNG text, hidden thumbnails,
 // and other ancillary metadata before public persistence. JPEG orientation must
 // therefore already be baked into the selected pixels by the administrator.
-func normalizeProductCover(
+func normalizeReviewedCover(
 	content []byte,
-) ([]byte, inspectedProductCover, error) {
-	if len(content) == 0 || len(content) > productCoverMaximumBytes {
-		return nil, inspectedProductCover{}, errProductCoverImageInvalid
+) ([]byte, reviewedCoverInspection, error) {
+	if len(content) == 0 || len(content) > reviewedCoverMaximumBytes {
+		return nil, reviewedCoverInspection{}, errReviewedCoverImageInvalid
 	}
 
 	configuration, format, err := image.DecodeConfig(bytes.NewReader(content))
-	if err != nil || !isValidProductCoverDimensions(
+	if err != nil || !isValidReviewedCoverDimensions(
 		configuration.Width,
 		configuration.Height,
 	) {
-		return nil, inspectedProductCover{}, errProductCoverImageInvalid
+		return nil, reviewedCoverInspection{}, errReviewedCoverImageInvalid
 	}
 	if format != "jpeg" && format != "png" {
-		return nil, inspectedProductCover{}, errProductCoverImageInvalid
+		return nil, reviewedCoverInspection{}, errReviewedCoverImageInvalid
 	}
 
 	decoded, decodedFormat, err := image.Decode(bytes.NewReader(content))
 	if err != nil || decodedFormat != format {
-		return nil, inspectedProductCover{}, errProductCoverImageInvalid
+		return nil, reviewedCoverInspection{}, errReviewedCoverImageInvalid
 	}
 	bounds := decoded.Bounds()
 	if bounds.Dx() != configuration.Width || bounds.Dy() != configuration.Height {
-		return nil, inspectedProductCover{}, errProductCoverImageInvalid
+		return nil, reviewedCoverInspection{}, errReviewedCoverImageInvalid
 	}
 
 	var normalized bytes.Buffer
-	contentType := productCoverPNGContentType
+	contentType := reviewedCoverPNGContentType
 	if format == "jpeg" {
-		contentType = productCoverJPEGContentType
+		contentType = reviewedCoverJPEGContentType
 		err = jpeg.Encode(
 			&normalized,
 			decoded,
-			&jpeg.Options{Quality: productCoverJPEGQuality},
+			&jpeg.Options{Quality: reviewedCoverJPEGQuality},
 		)
 	} else {
 		encoder := png.Encoder{CompressionLevel: png.DefaultCompression}
 		err = encoder.Encode(&normalized, decoded)
 	}
 	if err != nil || normalized.Len() == 0 ||
-		normalized.Len() > productCoverMaximumBytes {
-		return nil, inspectedProductCover{}, errProductCoverImageInvalid
+		normalized.Len() > reviewedCoverMaximumBytes {
+		return nil, reviewedCoverInspection{}, errReviewedCoverImageInvalid
 	}
 
 	normalizedContent := append([]byte(nil), normalized.Bytes()...)
-	return normalizedContent, inspectedProductCover{
+	return normalizedContent, reviewedCoverInspection{
 		ContentType: contentType,
 		Width:       configuration.Width,
 		Height:      configuration.Height,
@@ -288,34 +360,74 @@ func normalizeProductCover(
 	}, nil
 }
 
-// isValidProductCoverAsset rechecks database metadata, encoded image
-// configuration, digest, timestamps, and reviewed text before a response. Full
-// pixel decoding and metadata stripping occur once at the upload boundary.
-func isValidProductCoverAsset(asset productCoverAsset) bool {
-	if asset.ProductID <= 0 || asset.Version <= 0 ||
-		asset.ByteSize != len(asset.Content) ||
-		asset.CreatedAt.IsZero() || asset.UpdatedAt.IsZero() ||
-		asset.UpdatedAt.Before(asset.CreatedAt) ||
-		!isValidRequiredProductCoverText(
-			asset.AltText,
-			productCoverAltTextMaximumLength,
+// normalizeProductCover retains the Product-specific API while delegating to
+// the shared metadata-stripping reviewed-cover implementation.
+func normalizeProductCover(
+	content []byte,
+) ([]byte, inspectedProductCover, error) {
+	return normalizeReviewedCover(content)
+}
+
+// isValidReviewedCoverAsset rechecks database metadata, encoded image
+// configuration, digest, timestamps, and reviewed text before either domain
+// emits a response. Full pixel decoding occurs once at the upload boundary.
+func isValidReviewedCoverAsset(
+	ownerID int64,
+	version int64,
+	contentType string,
+	content []byte,
+	byteSize int,
+	width int,
+	height int,
+	digest [sha256.Size]byte,
+	altText string,
+	caption string,
+	createdAt time.Time,
+	updatedAt time.Time,
+) bool {
+	if ownerID <= 0 || version <= 0 ||
+		byteSize != len(content) ||
+		createdAt.IsZero() || updatedAt.IsZero() ||
+		updatedAt.Before(createdAt) ||
+		!isValidRequiredReviewedCoverText(
+			altText,
+			reviewedCoverAltTextMaximumLength,
 		) ||
-		!isValidOptionalProductCoverText(
-			asset.Caption,
-			productCoverCaptionMaximumLength,
+		!isValidOptionalReviewedCoverText(
+			caption,
+			reviewedCoverCaptionMaximumLength,
 		) {
 		return false
 	}
 
-	inspection, err := inspectProductCover(asset.Content, false)
+	inspection, err := inspectReviewedCover(content, false)
 	if err != nil {
 		return false
 	}
 
-	return asset.ContentType == inspection.ContentType &&
-		asset.Width == inspection.Width &&
-		asset.Height == inspection.Height &&
-		asset.SHA256 == inspection.SHA256
+	return contentType == inspection.ContentType &&
+		width == inspection.Width &&
+		height == inspection.Height &&
+		digest == inspection.SHA256
+}
+
+// isValidProductCoverAsset applies the shared reviewed-cover record boundary
+// to a Product-owned asset without exposing that owner model to Interior code.
+func isValidProductCoverAsset(asset productCoverAsset) bool {
+	return isValidReviewedCoverAsset(
+		asset.ProductID,
+		asset.Version,
+		asset.ContentType,
+		asset.Content,
+		asset.ByteSize,
+		asset.Width,
+		asset.Height,
+		asset.SHA256,
+		asset.AltText,
+		asset.Caption,
+		asset.CreatedAt,
+		asset.UpdatedAt,
+	)
 }
 
 // scanProductCoverAsset reads one binary cover projection, copies its digest

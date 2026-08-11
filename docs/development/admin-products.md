@@ -10,6 +10,11 @@ cover deletion, crop/focal-point controls, object storage, SEO, featured
 placement, bulk actions, or an audit history. Those features need separate data,
 interface, retention, and security decisions.
 
+Stage 22 does not change any Product route, table, repository contract, form,
+or grant. It reuses reviewed mechanics for a separate Interior-project domain
+without merging the two models. See [interior-projects.md](interior-projects.md)
+for that migration and workflow; keep using this guide for Product behavior.
+
 ## Routes and authorization
 
 The private Product routes are:
@@ -83,11 +88,13 @@ SHA-256 digest, required alt text, optional caption, timestamps, and its own
 positive cover revision. Ordinary Product queries join only the small metadata;
 binary bytes use separate exact-revision queries.
 
-Do not edit an applied migration. On a complete schema, `go run . migrate down
---confirm` first removes the cover table and three content columns from version
-6. A second rollback removes version 5's Product revision. A third removes
-migration 4's entire Product table and all its rows. Use rollback only in a
-confirmed disposable database.
+Do not edit an applied migration. In the current Stage 22 catalog, migration 7
+must be reversed first in a confirmed disposable database; doing so permanently
+removes the separate Interior tables. The next `go run . migrate down
+--confirm` removes Product's cover table and three content columns from version
+6. Later rollback commands remove version 5's Product revision and then
+migration 4's entire Product table and every Product row. Never use rollback as
+a content-cleanup operation.
 
 ## Separate read and write dependencies
 
@@ -289,7 +296,8 @@ Use a local development database and fictional Product values only.
    go run . migrate status
    ```
 
-   Versions 1 through 6 should be applied.
+   Versions 1 through 7 should be applied. Migration 7 is the separate
+   Interior-project schema and does not alter Product behavior.
 
 2. Switch `DATABASE_URL` to the runtime role, start `go run .`, sign in, and open
    `http://localhost:8080/admin/products`.
@@ -344,7 +352,8 @@ routes, strict URL-encoded and multipart forms, CSRF ordering, 304 revalidation,
 The opt-in disposable PostgreSQL suite additionally proves real identity and
 version defaults, unique slug handling, publication visibility, revision
 increments, stale-write rejection, real cover replacement, hidden-public-state
-behavior, and the full v1-to-v6 migration cycle:
+behavior, and the full v1-to-v7 migration cycle. Migration 7's separate
+Interior lifecycle is verified without weakening these Product assertions:
 
 ```powershell
 go test -count=1 -run 'Postgres' ./...

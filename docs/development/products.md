@@ -22,6 +22,11 @@ contract. Their routes, authorization, validation, and verification steps are
 documented in [admin-products.md](admin-products.md). Galleries and final
 Zafarmand content remain future reviewed stages.
 
+Stage 22 leaves this Product slice unchanged. It applies similar reviewed
+mechanics to separate Interior-project tables, repositories, routes, and forms;
+see [interior-projects.md](interior-projects.md). Shared validation mechanics do
+not make Product and Interior records interchangeable.
+
 ## Migration 4 schema
 
 The paired migration is:
@@ -81,8 +86,10 @@ DROP TABLE public.products;
 
 It intentionally omits `IF EXISTS` and `CASCADE`, so unexpected schema drift or
 dependencies fail visibly. Rolling migration 4 down destroys every Product row
-and its index. Run that operation only against a confirmed disposable database,
-never as a content-cleanup command.
+and its index. In the current catalog, migrations 7, 6, and 5 must first be
+reversed in order; migration 7 removes only the separate Interior tables, while
+migration 6 removes Product's dependent cover relation. Run any rollback only
+against a confirmed disposable database, never as a content-cleanup command.
 
 ## No seed data
 
@@ -234,7 +241,9 @@ database pool.
 Application construction rejects a nil Product reader. The request handlers
 also fail safely if a manually assembled application bypasses normal
 construction. Repository construction itself performs no query, so operators
-must apply the current migrations through version 6 before serving traffic. If
+must apply the current application catalog through version 7 before serving
+traffic. Product storage itself is complete at version 6; version 7 adds the
+separate Interior dependency required by the same application. If
 the table or revision is absent, Product requests fail generically rather than
 falling back to temporary records or disabling concurrency checks.
 
@@ -315,7 +324,8 @@ reviewed protected workflow and its deployment-specific backup policy.
    go run . migrate status
    ```
 
-   Versions 1 through 6 should be applied.
+   Versions 1 through 7 should be applied. Migration 7 owns the separate
+   Interior-project schema and does not change these Product checks.
 3. Let `psql` read the same URL from `PGDATABASE`, verify the database identity,
    and inspect schema rather than content:
 
@@ -438,7 +448,9 @@ seeds zero rows, inserts synthetic rows out of editorial order, produces
 consecutive published-only numbers, uses ID to break equal sort positions,
 keeps detail numbering consistent with the list, hides draft, archived, and
 missing public slugs, and separately verifies protected all-state reads plus
-real create, publication, stale-version behavior, and cover replacement.
+real create, publication, stale-version behavior, and cover replacement. Its
+complete migration lifecycle now reaches version 7, whose separate Interior
+assertions do not replace the Product checks.
 
 Follow the two-variable destructive opt-in in [database.md](database.md), then
 run:
@@ -480,7 +492,7 @@ Stages 18–21 do not implement:
 - Product SEO title or description;
 - search, filtering, public pagination, or catalogue counts;
 - real Zafarmand Product records; or
-- Interior Design and Architecture database migration.
+- Architecture database migration.
 
 Those changes expand mutation authority, validation, media security, content
 modeling, or public navigation. Future reviewed stages should design them from

@@ -97,10 +97,10 @@ func (app *application) productCoverHandler(
 	}
 }
 
-// productCoverETagMatches applies HTTP's weak comparison used by If-None-Match
-// on GET/HEAD. It accepts the wildcard and comma-separated entity-tag forms
-// without treating malformed header text as a cache hit.
-func productCoverETagMatches(headerValue string, currentETag string) bool {
+// reviewedCoverETagMatches applies HTTP's weak comparison used by If-None-Match
+// on GET/HEAD. Product and Interior media routes share these protocol mechanics
+// without sharing repository identities or publication queries.
+func reviewedCoverETagMatches(headerValue string, currentETag string) bool {
 	remaining := strings.TrimSpace(headerValue)
 	if remaining == "*" {
 		return true
@@ -141,4 +141,10 @@ func productCoverETagMatches(headerValue string, currentETag string) bool {
 	}
 
 	return false
+}
+
+// productCoverETagMatches preserves the Stage 21 Product-facing helper name for
+// its existing tests while delegating to the shared conditional-request logic.
+func productCoverETagMatches(headerValue string, currentETag string) bool {
+	return reviewedCoverETagMatches(headerValue, currentETag)
 }

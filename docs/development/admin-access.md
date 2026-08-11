@@ -8,30 +8,34 @@ dashboard, and logout routes.
 Stages 16 and 17 build one bounded inquiry feature on that foundation: both
 current roles can read saved Contact inquiries and manually set one inquiry's
 workflow status. Stages 19–21 add protected Product review, create/edit
-publication controls, rich content, and one reviewed cover image.
+publication controls, rich content, and one reviewed cover image. Stage 22
+applies the same explicit access decisions to the separate Interior-project
+publishing workflow.
 See the [administrator inquiry guide](admin-inquiries.md) and
-[administrator Product guide](admin-products.md) for their exact authorization,
+[administrator Product guide](admin-products.md), plus the
+[Interior-project guide](interior-projects.md), for their exact authorization,
 privacy, and verification contracts.
 
 Stage 15 itself deliberately added no management feature; its first dashboard
 was only an authenticated shell. Stage 17 adds only manual inquiry status
 changes; Stage 20 adds bounded Product creation and version-guarded edits;
 Stage 21 adds one cover, not a general media library. The current project still
-has no Product deletion, project management, galleries/cropping, account
-management, password change or recovery, multi-factor authentication, or
-audit-reporting workflow.
+has no Product or Interior-project deletion, Architecture management,
+galleries/cropping, account management, password change or recovery,
+multi-factor authentication, or audit-reporting workflow.
 
 Expired rows are rejected during authentication but Stage 15 does not yet run
 a scheduled session-pruning job. The expiry index prepares for that later
 maintenance without making it part of an HTTP request.
 
 The two current roles are `owner` and `editor`. Stage 15 validates and displays
-those labels. Stages 16, 17, 19, 20, and 21 explicitly authorize both roles for
-their separate inquiry-read, inquiry-status, Product-read, Product-text-write,
-and Product-cover-write operations, but do not give either role broader
-management permission. Do not describe an owner as having working
-user-management powers or an editor as having general content mutation
-permission until later handlers enforce those rules.
+those labels. Later stages explicitly authorize both roles for their separate
+inquiry-read, inquiry-status, Product-read/write, and Interior-project
+read/write operations, including the two reviewed one-cover workflows. Those
+allowlists do not give either role broader management permission. Do not
+describe an owner as having working user-management powers or an editor as
+having unrestricted content mutation permission until later handlers enforce
+those rules.
 
 ## What migration 000003 adds
 
@@ -60,19 +64,22 @@ go run . migrate up
 go run . migrate status
 ```
 
-The current Stage 21 application reports versions 1 through 6 applied. Migration
-4 creates Product storage, migration 5 adds its edit revision, and migration 6
-adds rich content plus the one-cover relation as described in
-[products.md](products.md) and [admin-products.md](admin-products.md). Do not
-edit an applied migration; add a new version for a later schema correction.
+The current Stage 22 application reports versions 1 through 7 applied.
+Migrations 4–6 build Product storage, editing, rich content, and its one-cover
+relation as described in [products.md](products.md) and
+[admin-products.md](admin-products.md). Migration 7 independently creates the
+unseeded Interior-project and one-cover relations described in
+[interior-projects.md](interior-projects.md). Do not edit an applied migration;
+add a new version for a later schema correction.
 
 `go run . migrate down --confirm` reverses only the newest applied version. On
-the complete current catalog, the first rollback removes migration 6's Product
-cover relation and rich-content columns. The next two remove migration 5's
-Product revision and migration 4's Product table; the following rollback would
-remove the Stage 15 session and user tables and destroy administrator access
-records. Use rollback only in a verified disposable database, never as a
-production cleanup technique.
+the complete current catalog, the first rollback removes migration 7's
+Interior cover and project tables, permanently deleting their rows. Only then
+can later rollback commands remove migration 6's Product cover/content,
+migration 5's Product revision, and migration 4's Product table. The following
+rollback would remove the Stage 15 session and user tables and destroy
+administrator access records. Use rollback only in a verified disposable
+database, never as a production cleanup technique.
 
 ## Creating the first administrator safely
 
@@ -197,11 +204,25 @@ POST /admin/products/{id}/cover           upload or replace one cover
 GET  /admin/products/{id}/cover/{version} serve a protected preview
 ```
 
-Both `owner` and `editor` are explicitly present on the separate inquiry-reader
-status-writer, Product-reader, and Product-writer allowlists. A future role is denied unless
-route composition deliberately adds it to the relevant operation. Viewing or
-refreshing an inquiry or Product detail performs no hidden update; only the
-protected inquiry and Product POST forms change state.
+Stage 22 adds separate Interior-project read/write allowlists and these routes:
+
+```text
+GET  /admin/interior-projects                    list every lifecycle state
+GET  /admin/interior-projects/new                render an empty create form
+POST /admin/interior-projects                    create one project
+GET  /admin/interior-projects/{id}               show one protected project
+GET  /admin/interior-projects/{id}/edit          render its current revision
+POST /admin/interior-projects/{id}               save a version-guarded edit
+GET  /admin/interior-projects/{id}/cover         render cover management
+POST /admin/interior-projects/{id}/cover         upload or replace one cover
+GET  /admin/interior-projects/{id}/cover/{version} serve a protected preview
+```
+
+Both `owner` and `editor` are explicitly present on the separate inquiry,
+Product, and Interior-project read/write allowlists. A future role is denied
+unless route composition deliberately adds it to the relevant operation.
+Viewing or refreshing a detail performs no hidden update; only the protected
+POST forms change state.
 
 There is intentionally no `GET /admin/logout`: logout changes server state and
 therefore requires a protected POST. An unauthenticated visit to `/admin`
@@ -215,9 +236,10 @@ differences. Database or entropy failures return a generic unavailable response
 and do not include credentials or driver detail.
 
 The dashboard displays the authenticated email and trusted role label and links
-to both current workspaces. It provides logout, manual inquiry-status forms,
-and Product text/publication/single-cover controls, but no project, gallery,
-user, deletion, bulk, or automatic workflow controls.
+to the current Inquiries, Products, and Interior Projects workspaces. It
+provides logout, manual inquiry-status forms, and bounded Product/Interior text,
+publication, and single-cover controls, but no Architecture, gallery, user,
+deletion, bulk, or automatic workflow controls.
 
 ## How password storage works
 
@@ -269,12 +291,12 @@ expires both cookies. Disabling a user also makes every associated session
 unusable on its next lookup.
 
 The anonymous login form has its own short-lived, ten-minute CSRF cookie and
-hidden form value. Authenticated logout, inquiry-status, Product text, and
-Product cover forms reuse the independent session-bound CSRF value. Keeping it
-valid for the complete session supports Back navigation and multiple tabs.
-URL-encoded and multipart forms are separately size-bounded, accept only their
-exact expected fields/parts, and reject unsupported content types, codings, or
-duplicated values.
+hidden form value. Authenticated logout, inquiry-status, Product, and
+Interior-project text/cover forms reuse the independent session-bound CSRF
+value. Keeping it valid for the complete session supports Back navigation and
+multiple tabs. URL-encoded and multipart forms are separately size-bounded,
+accept only their exact expected fields/parts, and reject unsupported content
+types, codings, or duplicated values.
 
 Administrator cookies are host-only because no `Domain` is set. They use
 `HttpOnly`, `SameSite=Strict`, bounded `Expires`/`Max-Age`, and narrow paths:
@@ -353,9 +375,11 @@ Use separate credentials for these responsibilities:
   `description`, `material`, `dimensions`, `version`, `created_at`, and
   `updated_at`. Stages 20–21 additionally need narrow Product INSERT/UPDATE,
   identity-sequence usage, and cover-table SELECT/INSERT/UPDATE as documented
-  in [admin-products.md](admin-products.md). The
-  protected reader needs the timestamps while the public reader selects the
-  smaller published projection. The runtime also needs read access to
+  in [admin-products.md](admin-products.md). Stage 22 separately requires the
+  column-level Interior-project and one-cover grants listed in
+  [interior-projects.md](interior-projects.md); it does not grant Architecture
+  access. Protected readers need timestamps while public readers select smaller
+  Published-only projections. The runtime also needs read access to
   active admin users (including the verifier needed for login) and narrow
   insert/select/update access for admin sessions. Logout updates `revoked_at`;
   it does not require table deletion. The server does not need permission to
@@ -369,7 +393,7 @@ deployment.
 
 ## Manual verification without exposing secrets
 
-After the current migrations through version 6 are applied and a placeholder
+After the current migrations through version 7 are applied and a placeholder
 test administrator has been created locally, start the server in the same
 process environment that contains the runtime `DATABASE_URL`:
 
@@ -383,11 +407,14 @@ Then verify in a private browser window:
 2. Submit a deliberately wrong password. The page should show one generic
    authentication failure, without confirming whether the address exists.
 3. Sign in with the local test account. The browser should reach `/admin`,
-   display the expected role label, and offer Products and Inquiries links.
+   display the expected role label, and offer Products, Interior Projects, and
+   Inquiries links.
    With only fictional data, confirm an inquiry detail changes status through a
    POST and returns with HTTP 303; opening or refreshing either kind of detail
    must not mutate it. Follow [admin-products.md](admin-products.md) to compare
    protected all-state Products with the published-only public catalogue.
+   Follow [interior-projects.md](interior-projects.md) for the equivalent
+   fictional Interior Draft, publication, cover, stale-edit, and archive checks.
 4. In browser developer tools, inspect cookie **names and attributes only**.
    Confirm `HttpOnly`, `SameSite=Strict`, expiry, and paths; do not copy, log,
    screenshot, or paste cookie values. `Secure` is expected to be absent only
@@ -443,10 +470,10 @@ CSRF handling, cookie attributes, security headers, route methods, dashboard
 protection, explicit owner/editor inquiry read and mutation authorization,
 strict manual status updates, Post/Redirect/Get, logout, and expiry. Production
 continues to use the fixed 600,000 iteration manager; only tests can inject the
-inexpensive manager. Stages 19–21 additionally cover explicit Owner/Editor
-Product reads/writes, strict protected URLs and URL-encoded/multipart forms,
-all-state mapping, image validation, version-conflict handling, and generic
-dependency errors.
+inexpensive manager. Stages 19–22 additionally cover explicit Owner/Editor
+Product and Interior-project reads/writes, strict protected URLs and
+URL-encoded/multipart forms, all-state mapping, image validation,
+version-conflict handling, and generic dependency errors.
 
 The PostgreSQL tests are destructive and opt-in. Supply only a dedicated empty
 database whose name ends in `_test`; never use a development, shared, or
@@ -467,14 +494,16 @@ Remove-Item Env:ZAFARMAND_TEST_DATABASE_CONFIRM -ErrorAction SilentlyContinue
 ```
 
 `Set-SecretProcessVariable` is the history-safe helper defined earlier in this
-guide. The live suite covers the complete v1-to-v6 migration cycle, rollback
+guide. The live suite covers the complete v1-to-v7 migration cycle, rollback
 and reapplication, real PostgreSQL constraints, duplicate normalized email,
 session byte mapping, active-user filtering, expiry, revocation, the Stage 16
 inquiry list/detail reader, the Stage 17 status writer, and the Stage 18
 unseeded published-Product reader. Stage 19 adds the separate all-state Product
 reader. Stage 20 adds migration 5 and verifies real create, publish, revision,
 and stale-edit behavior. Stage 21 adds migration 6 and verifies real rich-content
-and cover insertion/replacement behavior. Stage 17 still added no schema
-version. The suite never falls back to `DATABASE_URL`
+and cover insertion/replacement behavior. Stage 22 adds migration 7 and verifies
+the separate Interior-project public/protected readers, writer, cover workflow,
+constraints, and empty rollback/reapply lifecycle. Stage 17 still added no
+schema version. The suite never falls back to `DATABASE_URL`
 and skips only when its explicit opt-in variables are absent. Ensure cleanup
 succeeds before reusing or removing the disposable database.

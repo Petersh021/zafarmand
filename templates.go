@@ -25,12 +25,11 @@ type application struct {
 	// shared by public Product HTML and media handlers. Production supplies
 	// PostgreSQL, while tests inject records without opening a database.
 	products productCatalogueReader
-	// interiorProjects is the ordered temporary source shared by Interior
-	// listing and detail handlers.
-	//
-	// Keeping it separate from Architecture allows each discipline's fields and
-	// publishing needs to evolve without a premature generic Project abstraction.
-	interiorProjects []interiorProject
+	// interiorProjects is the published-only Interior catalogue and exact-cover
+	// boundary shared by the public listing, detail, and media handlers.
+	// Keeping it separate from Architecture prevents Stage 22 publication rules
+	// from accidentally exposing or constraining the later discipline.
+	interiorProjects interiorProjectCatalogueReader
 	// architectureProjects is the ordered temporary source shared by Architecture
 	// Design listing and detail handlers.
 	//
@@ -52,6 +51,12 @@ type application struct {
 	// adminProductWrites is the separate Product text and single-cover mutation
 	// authority. Keeping it apart from readers makes permission explicit.
 	adminProductWrites adminProductWriter
+	// adminInteriorProjects provides protected all-state Interior project and
+	// exact-cover reads without granting mutation authority.
+	adminInteriorProjects adminInteriorProjectReader
+	// adminInteriorProjectWrites owns Interior create, optimistic edit, and
+	// single-cover mutations. It deliberately exposes no delete operation.
+	adminInteriorProjectWrites adminInteriorProjectWriter
 	// adminInquiries is the read-only personal-data boundary used by the private
 	// inquiry inbox. It remains separate from the public Contact write interface.
 	adminInquiries adminInquiryReader
@@ -221,47 +226,68 @@ type productDetailData struct {
 
 // interiorProjectListingData describes the Interior Design portfolio section.
 //
-// The pointer to this value is optional on pageData because only the
-// /interior-design route uses it. Section-level copy stays beside the ordered
-// preview slice so a later database result can use the same template contract.
+// The pointer is optional on pageData because only /interior-design uses this
+// contract. Section copy stays beside the ordered published projection so the
+// handler passes one coherent portfolio value to the template.
 type interiorProjectListingData struct {
 	// Eyebrow is the short interface label displayed above the section heading.
 	Eyebrow string
 	// Heading names the project index and labels the shared work section.
 	Heading string
-	// Introduction explains the temporary index without inventing project claims.
+	// Introduction is fixed explanatory copy above the published project index.
 	Introduction string
 	// EmptyMessage is shown when Items is nil or empty.
 	EmptyMessage string
-	// Items contains structural project previews in their editorial order.
+	// Items contains published previews in their database portfolio order.
 	Items []interiorProjectPreviewData
 }
 
-// interiorProjectPreviewData is the minimal presentation shape for one
-// temporary Interior Design project slot.
+// interiorProjectPreviewData is the public presentation shape for one
+// published Interior Design project.
 //
-// It receives a complete trusted Path rather than exposing the source Slug.
-// Locations, years, descriptions, and media remain deferred until approved data
-// exists.
+// It receives complete trusted HTML and cover paths rather than exposing the
+// database identity, slug, ordering key, or private publication state.
 type interiorProjectPreviewData struct {
-	// Number is the zero-padded sequence visible in the structural media field.
+	// Number is the consecutive zero-padded published portfolio sequence.
 	Number string
-	// Title is the temporary study heading displayed by the preview article.
+	// Title is the reviewed project heading displayed by the preview article.
 	Title string
-	// Typology identifies the broad interior category reserved by the slot.
+	// Typology identifies the broad Interior project category.
 	Typology string
-	// Status truthfully communicates that approved project content is pending.
-	Status string
+	// Location is optional reviewed geographic copy.
+	Location string
+	// YearLabel is empty when the nullable project year is not supplied.
+	YearLabel string
+	// ProjectStatus is the required real-world project state, such as Completed.
+	ProjectStatus string
 	// Path is the real server-rendered project detail URL used by the card link.
 	Path string
+	// Cover contains reviewed responsive image data, or nil for the honest
+	// decorative fallback.
+	Cover *publicInteriorProjectCoverPageData
 }
 
-// interiorProjectDetailData is the complete view model needed by one
-// structural Interior Design project detail page.
+// publicInteriorProjectCoverPageData is the binary-free image contract shared
+// by the public Interior listing and detail templates. Its public prefix keeps
+// it distinct from the protected administrator preview model.
+type publicInteriorProjectCoverPageData struct {
+	// Path is the exact current public cover revision URL.
+	Path string
+	// Width reserves horizontal space from the reviewed pixel dimensions.
+	Width int
+	// Height reserves vertical space from the reviewed pixel dimensions.
+	Height int
+	// AltText is the required meaningful image alternative.
+	AltText string
+	// Caption is optional visible reviewed copy.
+	Caption string
+}
+
+// interiorProjectDetailData is the complete public view model needed by one
+// published Interior Design project detail page.
 //
-// It deliberately includes only facts present in the temporary source. Final
-// location, year, client, description, photography, and gallery information
-// remain outside Stage 9.
+// Internal ID, slug, lifecycle, sort order, version, and timestamps stay behind
+// the mapping boundary. Galleries and client data remain deferred.
 type interiorProjectDetailData struct {
 	// Number is the portfolio sequence displayed as editorial context.
 	Number string
@@ -269,8 +295,16 @@ type interiorProjectDetailData struct {
 	Title string
 	// Typology identifies the broad interior category in the visible facts list.
 	Typology string
-	// Status communicates that the page is a temporary portfolio preview.
-	Status string
+	// Location is optional reviewed geographic copy.
+	Location string
+	// YearLabel is empty when no reviewed project year exists.
+	YearLabel string
+	// ProjectStatus is required real-world project-state copy.
+	ProjectStatus string
+	// Description is optional reviewed long-form public copy.
+	Description string
+	// Cover contains one reviewed image, or nil for the honest fallback field.
+	Cover *publicInteriorProjectCoverPageData
 }
 
 // architectureProjectListingData describes the Architecture Design portfolio
@@ -463,16 +497,22 @@ type pageData struct {
 // reusable from both main and tests.
 func newApplication(
 	products productCatalogueReader,
+	interiorProjects interiorProjectCatalogueReader,
 	inquiries inquiryRepository,
 	admins adminRepository,
 	adminProducts adminProductReader,
 	adminProductWrites adminProductWriter,
+	adminInteriorProjects adminInteriorProjectReader,
+	adminInteriorProjectWrites adminInteriorProjectWriter,
 	adminInquiries adminInquiryReader,
 	adminInquiryStatuses adminInquiryStatusUpdater,
 	passwords adminPasswordManager,
 ) (*application, error) {
 	if products == nil {
 		return nil, errProductCatalogueReaderRequired
+	}
+	if interiorProjects == nil {
+		return nil, errInteriorProjectCatalogueReaderRequired
 	}
 	if inquiries == nil {
 		return nil, errInquiryRepositoryRequired
@@ -485,6 +525,12 @@ func newApplication(
 	}
 	if adminProductWrites == nil {
 		return nil, errAdminProductWriterRequired
+	}
+	if adminInteriorProjects == nil {
+		return nil, errAdminInteriorProjectReaderRequired
+	}
+	if adminInteriorProjectWrites == nil {
+		return nil, errAdminInteriorProjectWriterRequired
 	}
 	if adminInquiries == nil {
 		return nil, errAdminInquiryReaderRequired
@@ -535,21 +581,23 @@ func newApplication(
 	}
 
 	app := &application{
-		templates:              templateCache,
-		products:               products,
-		interiorProjects:       temporaryInteriorProjects(),
-		architectureProjects:   temporaryArchitectureProjects(),
-		inquiries:              inquiries,
-		inquirySuccess:         inquirySuccess,
-		admins:                 admins,
-		adminProducts:          adminProducts,
-		adminProductWrites:     adminProductWrites,
-		adminInquiries:         adminInquiries,
-		adminInquiryStatuses:   adminInquiryStatuses,
-		adminPasswords:         passwords,
-		adminDummyPasswordHash: adminDummyPasswordHash,
-		adminEntropy:           rand.Reader,
-		now:                    time.Now,
+		templates:                  templateCache,
+		products:                   products,
+		interiorProjects:           interiorProjects,
+		architectureProjects:       temporaryArchitectureProjects(),
+		inquiries:                  inquiries,
+		inquirySuccess:             inquirySuccess,
+		admins:                     admins,
+		adminProducts:              adminProducts,
+		adminProductWrites:         adminProductWrites,
+		adminInteriorProjects:      adminInteriorProjects,
+		adminInteriorProjectWrites: adminInteriorProjectWrites,
+		adminInquiries:             adminInquiries,
+		adminInquiryStatuses:       adminInquiryStatuses,
+		adminPasswords:             passwords,
+		adminDummyPasswordHash:     adminDummyPasswordHash,
+		adminEntropy:               rand.Reader,
+		now:                        time.Now,
 	}
 
 	return app, nil

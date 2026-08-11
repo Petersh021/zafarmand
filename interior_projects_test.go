@@ -1,473 +1,435 @@
 package main
 
 import (
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 )
 
-// extractInteriorPreviewArticles returns complete interior-preview articles in
-// their document order.
-//
-// The preview template does not nest article elements, so a direct
-// opening/closing scan keeps this focused test helper independent from a
-// third-party HTML parser. An empty result is valid and lets empty-state tests
-// prove that no cards were emitted.
-func extractInteriorPreviewArticles(
-	t *testing.T,
-	source string,
-) []string {
+// extractInteriorPreviewArticles returns complete preview articles in document
+// order. The template does not nest article elements, so this small scanner can
+// keep semantic assertions independent from a third-party HTML parser.
+func extractInteriorPreviewArticles(t *testing.T, source string) []string {
 	t.Helper()
 
 	const classMarker = `class="interior-preview`
 	const closingMarker = "</article>"
-
-	var articles []string
 	remaining := source
-
+	var articles []string
 	for {
-		classPosition := strings.Index(
-			remaining,
-			classMarker,
-		)
+		classPosition := strings.Index(remaining, classMarker)
 		if classPosition == -1 {
 			break
 		}
-
 		articleStart := strings.LastIndex(
 			remaining[:classPosition],
 			"<article",
 		)
 		if articleStart == -1 {
-			t.Fatal(
-				"interior-preview class does not belong to an article",
-			)
+			t.Fatal("interior-preview class is not inside an article")
 		}
-
 		articleEnd := strings.Index(
 			remaining[articleStart:],
 			closingMarker,
 		)
 		if articleEnd == -1 {
-			t.Fatal(
-				"interior-preview article does not have a closing tag",
-			)
+			t.Fatal("interior-preview article has no closing tag")
 		}
-
 		articleEnd += articleStart + len(closingMarker)
-		articles = append(
-			articles,
-			remaining[articleStart:articleEnd],
-		)
+		articles = append(articles, remaining[articleStart:articleEnd])
 		remaining = remaining[articleEnd:]
 	}
 
 	return articles
 }
 
-// TestInteriorProjectPreviewsPreservesOrderAndFields verifies the explicit
-// source-to-template mapping independently from production fixture values.
-//
-// Sentinel records prove that every supported field remains associated with
-// its source record and that ordering is stable. Nil input covers the future
-// zero-row repository case without defining any database behavior.
-func TestInteriorProjectPreviewsPreservesOrderAndFields(t *testing.T) {
-	source := []interiorProject{
+// TestInteriorProjectPresentationHelpers verifies explicit repository-to-view
+// mapping, nullable year formatting, canonical paths, cover metadata, and order.
+func TestInteriorProjectPresentationHelpers(t *testing.T) {
+	projects := []catalogueInteriorProject{
 		{
-			Number:   "A-17",
-			Slug:     "first-sentinel",
-			Title:    "First sentinel title",
-			Typology: "First sentinel typology",
-			Status:   "First sentinel status",
+			ID:              11,
+			PortfolioNumber: 1,
+			Slug:            "first-interior",
+			Title:           "First Interior",
+			Typology:        "Residential",
+			Location:        "Tehran",
+			ProjectYear:     2033,
+			ProjectStatus:   "Completed",
+			Description:     "First reviewed description.",
+			Cover: &interiorProjectCoverMetadata{
+				Version: 4,
+				Width:   1600,
+				Height:  1000,
+				AltText: "A fictional warm residential Interior",
+				Caption: "First fictional cover.",
+			},
 		},
 		{
-			Number:   "B-29",
-			Slug:     "second-sentinel",
-			Title:    "Second sentinel title",
-			Typology: "Second sentinel typology",
-			Status:   "Second sentinel status",
+			ID:              12,
+			PortfolioNumber: 2,
+			Slug:            "second-interior",
+			Title:           "Second Interior",
+			Typology:        "Cultural",
+			ProjectStatus:   "Ongoing",
 		},
 	}
 
-	previews := interiorProjectPreviews(source)
-	if len(previews) != len(source) {
-		t.Fatalf(
-			"preview count: got %d, want %d",
-			len(previews),
-			len(source),
-		)
+	previews := interiorProjectPreviews(projects)
+	want := []interiorProjectPreviewData{
+		{
+			Number:        "01",
+			Title:         "First Interior",
+			Typology:      "Residential",
+			Location:      "Tehran",
+			YearLabel:     "2033",
+			ProjectStatus: "Completed",
+			Path:          "/interior-design/first-interior",
+			Cover: &publicInteriorProjectCoverPageData{
+				Path:    "/interior-design/first-interior/cover/4",
+				Width:   1600,
+				Height:  1000,
+				AltText: "A fictional warm residential Interior",
+				Caption: "First fictional cover.",
+			},
+		},
+		{
+			Number:        "02",
+			Title:         "Second Interior",
+			Typology:      "Cultural",
+			ProjectStatus: "Ongoing",
+			Path:          "/interior-design/second-interior",
+		},
 	}
-
-	for index, project := range source {
-		preview := previews[index]
-
-		if preview.Number != project.Number {
-			t.Errorf(
-				"preview %d number: got %q, want %q",
-				index,
-				preview.Number,
-				project.Number,
-			)
-		}
-		if preview.Title != project.Title {
-			t.Errorf(
-				"preview %d title: got %q, want %q",
-				index,
-				preview.Title,
-				project.Title,
-			)
-		}
-		if preview.Typology != project.Typology {
-			t.Errorf(
-				"preview %d typology: got %q, want %q",
-				index,
-				preview.Typology,
-				project.Typology,
-			)
-		}
-		if preview.Status != project.Status {
-			t.Errorf(
-				"preview %d status: got %q, want %q",
-				index,
-				preview.Status,
-				project.Status,
-			)
-		}
-		expectedPath := interiorProjectDetailPath(project.Slug)
-		if preview.Path != expectedPath {
-			t.Errorf(
-				"preview %d path: got %q, want %q",
-				index,
-				preview.Path,
-				expectedPath,
-			)
-		}
+	if !reflect.DeepEqual(previews, want) {
+		t.Errorf("previews: got %#v, want %#v", previews, want)
 	}
-
+	if year := formatInteriorProjectYear(0); year != "" {
+		t.Errorf("absent year label: got %q, want empty", year)
+	}
+	if number := formatInteriorProjectNumber(103); number != "103" {
+		t.Errorf("three-digit project number: got %q, want 103", number)
+	}
+	if path := interiorProjectCoverPath("first-interior", 4); path !=
+		"/interior-design/first-interior/cover/4" {
+		t.Errorf("cover path: got %q", path)
+	}
+	if cover := newPublicInteriorProjectCoverPageData("second-interior", nil); cover != nil {
+		t.Errorf("nil repository cover produced view data: %#v", cover)
+	}
 	if previews := interiorProjectPreviews(nil); len(previews) != 0 {
-		t.Errorf(
-			"nil source preview count: got %d, want 0",
-			len(previews),
-		)
+		t.Errorf("nil source preview count: got %d, want 0", len(previews))
 	}
 }
 
-// TestInteriorDesignRouteRendersPortfolio verifies the complete public Stage
-// 8-9 response produced by interiorDesignHandler.
-//
-// Expected records are derived from the application's temporary source rather
-// than duplicated as test fixtures. The assertions own semantic structure,
-// stylesheet ordering, source association, and each Stage 9 detail destination.
-func TestInteriorDesignRouteRendersPortfolio(t *testing.T) {
-	app := newTestApplication(t)
-	// Replacing the application-owned source before the request proves the
-	// handler reads its dependency instead of reconstructing production fixtures
-	// internally. Two records also keep this contract independent from a fixed
-	// production item count.
-	app.interiorProjects = []interiorProject{
+// TestPublishedInteriorProjectCatalogueValidation protects handlers from an
+// injected reader that skips repository ordering, uniqueness, or row checks.
+func TestPublishedInteriorProjectCatalogueValidation(t *testing.T) {
+	valid := []catalogueInteriorProject{
+		validCatalogueInteriorProject(1, 1, "first-interior"),
+		validCatalogueInteriorProject(2, 2, "second-interior"),
+	}
+	if !isValidPublishedInteriorProjectCatalogue(valid) {
+		t.Fatal("valid published Interior catalogue was rejected")
+	}
+
+	invalid := []struct {
+		// name identifies the broken injected contract.
+		name string
+		// mutate changes an isolated valid copy.
+		mutate func([]catalogueInteriorProject)
+	}{
+		{name: "number gap", mutate: func(projects []catalogueInteriorProject) {
+			projects[1].PortfolioNumber = 3
+		}},
+		{name: "duplicate identity", mutate: func(projects []catalogueInteriorProject) {
+			projects[1].ID = projects[0].ID
+		}},
+		{name: "duplicate slug", mutate: func(projects []catalogueInteriorProject) {
+			projects[1].Slug = projects[0].Slug
+		}},
+		{name: "invalid stored field", mutate: func(projects []catalogueInteriorProject) {
+			projects[0].ProjectStatus = ""
+		}},
+	}
+	for _, test := range invalid {
+		t.Run(test.name, func(t *testing.T) {
+			projects := cloneCatalogueInteriorProjects(valid)
+			test.mutate(projects)
+			if isValidPublishedInteriorProjectCatalogue(projects) {
+				t.Errorf("invalid catalogue was accepted: %#v", projects)
+			}
+		})
+	}
+}
+
+// TestInteriorDesignRouteRendersPublishedPortfolio verifies the complete
+// repository-backed index, optional facts, meaningful cover, honest fallback,
+// semantic ordering, and bounded dependency call.
+func TestInteriorDesignRouteRendersPublishedPortfolio(t *testing.T) {
+	reader := newRecordingInteriorProjectCatalogueReader()
+	projects := []catalogueInteriorProject{
 		{
-			Number:   "R-17",
-			Slug:     "route-sentinel-one",
-			Title:    "Route sentinel one",
-			Typology: "Route typology one",
-			Status:   "Route status one",
+			ID:              31,
+			PortfolioNumber: 1,
+			Slug:            "covered-residence",
+			Title:           "Covered Residence",
+			Typology:        "Residential",
+			Location:        "Tehran",
+			ProjectYear:     2032,
+			ProjectStatus:   "Completed",
+			Cover: &interiorProjectCoverMetadata{
+				Version: 7,
+				Width:   1800,
+				Height:  1200,
+				AltText: "Sunlight crossing a fictional stone living room",
+				Caption: "Not rendered in the compact card.",
+			},
 		},
 		{
-			Number:   "R-29",
-			Slug:     "route-sentinel-two",
-			Title:    "Route sentinel two",
-			Typology: "Route typology two",
-			Status:   "Route status two",
+			ID:              32,
+			PortfolioNumber: 2,
+			Slug:            "uncovered-gallery",
+			Title:           "Uncovered Gallery",
+			Typology:        "Cultural",
+			ProjectStatus:   "Ongoing",
 		},
 	}
-	handler := app.routes()
+	reader.setProjects(projects)
+	app := newTestApplication(t)
+	app.interiorProjects = reader
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(
-		http.MethodGet,
-		"/interior-design",
-		nil,
-	)
+	request := httptest.NewRequest(http.MethodGet, "/interior-design", nil)
 
-	handler.ServeHTTP(recorder, request)
+	app.routes().ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusOK {
-		t.Fatalf(
-			"status code: got %d, want %d",
-			recorder.Code,
-			http.StatusOK,
-		)
+		t.Fatalf("status: got %d, want 200", recorder.Code)
 	}
-
+	calls := reader.listCallSnapshot()
+	if len(calls) != 1 || !calls[0].HasDeadline {
+		t.Errorf("list calls: got %#v, want one deadline-bounded call", calls)
+	}
 	body := recorder.Body.String()
-
-	// The page builds on discipline.css. Both assets must appear exactly once,
-	// and the route-specific file must follow the shared foundation in source
-	// order so its intentionally narrower rules can compose safely.
-	disciplineStyles := `href="/static/css/discipline.css"`
-	interiorStyles := `href="/static/css/interior-design.css"`
-	if count := strings.Count(body, disciplineStyles); count != 1 {
-		t.Errorf(
-			"discipline stylesheet count: got %d, want 1",
-			count,
-		)
-	}
-	if count := strings.Count(body, interiorStyles); count != 1 {
-		t.Errorf(
-			"Interior stylesheet count: got %d, want 1",
-			count,
-		)
-	}
-	if strings.Index(body, interiorStyles) <
-		strings.Index(body, disciplineStyles) {
-		t.Error(
-			"Interior stylesheet must load after discipline stylesheet",
-		)
-	}
-
 	mainElement := extractMainElement(t, body)
-	workElement := extractElementByMarker(
+	work := extractElementByMarker(
 		t,
 		mainElement,
 		`class="discipline-work"`,
 		"section",
 	)
-	workOpening := extractOpeningTag(t, workElement)
-
-	// Reusing the shared work section must preserve its fragment destination and
-	// aria-labelledby relationship while replacing only the inner content.
-	if !strings.Contains(
-		workOpening,
-		`id="selected-work"`,
-	) || !strings.Contains(
-		workOpening,
-		`aria-labelledby="selected-work-title"`,
-	) {
-		t.Error(
-			"Interior work section does not own its id and heading label",
-		)
-	}
-
-	workHeading := extractElementByMarker(
-		t,
-		workElement,
-		`id="selected-work-title"`,
-		"h2",
-	)
-	if !strings.Contains(
-		normalizeHTMLWhitespace(workHeading),
-		"Interior project index",
-	) {
-		t.Error(
-			"Interior work heading does not contain Interior project index",
-		)
-	}
-
 	portfolio := extractElementByMarker(
 		t,
-		workElement,
+		work,
 		`class="interior-portfolio"`,
 		"ol",
 	)
-	portfolioOpening := extractOpeningTag(t, portfolio)
-	if !strings.Contains(
-		portfolioOpening,
+	if opening := extractOpeningTag(t, portfolio); !strings.Contains(
+		opening,
 		`aria-label="Interior project previews"`,
-	) {
-		t.Error(
-			"Interior portfolio does not have its accessible label",
-		)
+	) || !strings.Contains(opening, `role="list"`) {
+		t.Errorf("portfolio semantics are incomplete: %s", opening)
 	}
-	if !strings.Contains(
-		portfolioOpening,
-		`role="list"`,
-	) {
-		t.Error(
-			"Interior portfolio does not preserve explicit list semantics",
-		)
-	}
-
-	expectedItems := interiorProjectPreviews(app.interiorProjects)
 	articles := extractInteriorPreviewArticles(t, portfolio)
-	if len(articles) != len(expectedItems) {
-		t.Fatalf(
-			"Interior article count: got %d, want %d",
-			len(articles),
-			len(expectedItems),
-		)
-	}
-	if count := strings.Count(
-		portfolio,
-		`class="interior-portfolio__item"`,
-	); count != len(expectedItems) {
-		t.Errorf(
-			"Interior list-item count: got %d, want %d",
-			count,
-			len(expectedItems),
-		)
+	if len(articles) != len(projects) {
+		t.Fatalf("article count: got %d, want %d", len(articles), len(projects))
 	}
 
-	for index, expected := range expectedItems {
-		article := articles[index]
-		normalizedArticle := normalizeHTMLWhitespace(article)
-
-		// Matching slice positions proves that the template range preserves the
-		// source's editorial order and keeps every mapped field in one article.
-		expectedStrings := []string{
-			expected.Typology + " / Project slot " + expected.Number,
-			expected.Title,
-			expected.Status,
-		}
-		for _, expectedString := range expectedStrings {
-			if !strings.Contains(
-				normalizedArticle,
-				expectedString,
-			) {
-				t.Errorf(
-					"article %d does not contain %q",
-					index,
-					expectedString,
-				)
-			}
-		}
-
-		titleHeading := extractElementByMarker(
-			t,
-			article,
-			expected.Title,
-			"h3",
-		)
-		if !strings.Contains(
-			normalizeHTMLWhitespace(titleHeading),
-			expected.Title,
-		) {
-			t.Errorf(
-				"article %d h3 does not contain title %q",
-				index,
-				expected.Title,
-			)
-		}
-		if count := strings.Count(
-			article,
-			"<h3",
-		); count != 1 {
-			t.Errorf(
-				"article %d title heading count: got %d, want 1",
-				index,
-				count,
-			)
-		}
-
-		// Each article contains one native anchor whose href was constructed by
-		// Go from the same source record. Sending that URL through the real
-		// router proves the listing never advertises an unregistered destination.
-		previewLink := extractElementByMarker(
-			t,
-			article,
-			`class="interior-preview__link"`,
-			"a",
-		)
-		previewOpening := extractOpeningTag(t, previewLink)
-		expectedHref := `href="` + expected.Path + `"`
-		if !strings.Contains(
-			previewOpening,
-			expectedHref,
-		) {
-			t.Errorf(
-				"article %d link does not contain %q",
-				index,
-				expectedHref,
-			)
-		}
-		if count := strings.Count(article, `href="`); count != 1 {
-			t.Errorf(
-				"article %d href count: got %d, want 1",
-				index,
-				count,
-			)
-		}
-
-		detailRecorder := httptest.NewRecorder()
-		detailRequest := httptest.NewRequest(
-			http.MethodGet,
-			expected.Path,
-			nil,
-		)
-		handler.ServeHTTP(detailRecorder, detailRequest)
-		if detailRecorder.Code != http.StatusOK {
-			t.Errorf(
-				"article %d detail path %q status: got %d, want %d",
-				index,
-				expected.Path,
-				detailRecorder.Code,
-				http.StatusOK,
-			)
-		}
-
-		// The repeated editorial number is decorative because the same value is
-		// present in visible metadata. Verify the media container, rather than a
-		// descendant, owns the assistive-technology exclusion.
-		media := extractElementByMarker(
-			t,
-			article,
-			`class="interior-preview__media"`,
-			"div",
-		)
-		if !strings.Contains(
-			extractOpeningTag(t, media),
-			`aria-hidden="true"`,
-		) {
-			t.Errorf(
-				"article %d media is not hidden from assistive technology",
-				index,
-			)
+	covered := articles[0]
+	for _, expected := range []string{
+		`href="/interior-design/covered-residence"`,
+		"Residential / Project 01",
+		"Covered Residence",
+		"Completed / Tehran / 2032",
+		`src="/interior-design/covered-residence/cover/7"`,
+		`width="1800"`,
+		`height="1200"`,
+		`alt="Sunlight crossing a fictional stone living room"`,
+		`loading="lazy"`,
+		`decoding="async"`,
+	} {
+		if !strings.Contains(normalizeHTMLWhitespace(covered), expected) {
+			t.Errorf("covered article does not contain %q", expected)
 		}
 	}
-
-	// Placeholder fragments and design composites are never valid public
-	// navigation, even though the reference image informed the grid composition.
-	if strings.Contains(mainElement, `href="#"`) {
-		t.Error(
-			"Interior Design main must not contain a placeholder href",
-		)
+	coveredMedia := extractElementByMarker(
+		t,
+		covered,
+		`class="interior-preview__media interior-preview__media--image"`,
+		"div",
+	)
+	if strings.Contains(extractOpeningTag(t, coveredMedia), `aria-hidden=`) {
+		t.Error("meaningful covered media is hidden from assistive technology")
 	}
-	if strings.Contains(mainElement, "docs/reference") {
-		t.Error(
-			"Interior Design page must not render a reference composite",
-		)
+	if strings.Contains(covered, "Not rendered in the compact card") {
+		t.Error("listing unexpectedly rendered the detail-only cover caption")
 	}
 
+	uncovered := articles[1]
+	for _, expected := range []string{
+		`href="/interior-design/uncovered-gallery"`,
+		"Cultural / Project 02",
+		"Uncovered Gallery",
+		"Ongoing",
+	} {
+		if !strings.Contains(normalizeHTMLWhitespace(uncovered), expected) {
+			t.Errorf("fallback article does not contain %q", expected)
+		}
+	}
+	if strings.Contains(uncovered, "<img") ||
+		strings.Contains(normalizeHTMLWhitespace(uncovered), "Ongoing /") {
+		t.Error("absent optional fields produced an image or dangling separator")
+	}
+	fallbackMedia := extractElementByMarker(
+		t,
+		uncovered,
+		`class="interior-preview__media"`,
+		"div",
+	)
+	if !strings.Contains(extractOpeningTag(t, fallbackMedia), `aria-hidden="true"`) {
+		t.Error("decorative fallback is not hidden from assistive technology")
+	}
+	if strings.Index(portfolio, "Covered Residence") >=
+		strings.Index(portfolio, "Uncovered Gallery") {
+		t.Error("template changed repository portfolio order")
+	}
+	if strings.Contains(mainElement, `href="#"`) ||
+		strings.Contains(mainElement, "docs/reference") {
+		t.Error("public Interior index contains placeholder navigation or reference assets")
+	}
 }
 
-// TestInteriorDesignTemplateUsesDataAndEscapesHTML renders the Interior wrapper
-// with sentinel values that cannot be confused with production handler copy.
-//
-// Interleaved fields prove that each article uses its own preview record, while
-// unsafe markup verifies that html/template converts managed text into inert
-// visible characters rather than executable page elements.
-func TestInteriorDesignTemplateUsesDataAndEscapesHTML(t *testing.T) {
+// TestInteriorDesignRouteRendersEmptyPublishedState verifies zero published
+// rows are a successful truthful page rather than seeded content or an error.
+func TestInteriorDesignRouteRendersEmptyPublishedState(t *testing.T) {
+	reader := newRecordingInteriorProjectCatalogueReader()
+	reader.setProjects(nil)
 	app := newTestApplication(t)
+	app.interiorProjects = reader
 	recorder := httptest.NewRecorder()
 
+	app.routes().ServeHTTP(
+		recorder,
+		httptest.NewRequest(http.MethodGet, "/interior-design", nil),
+	)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", recorder.Code)
+	}
+	mainElement := extractMainElement(t, recorder.Body.String())
+	if strings.Contains(mainElement, `class="interior-portfolio"`) ||
+		strings.Contains(mainElement, `class="interior-preview`) {
+		t.Error("empty published query rendered a portfolio list or card")
+	}
+	empty := extractElementByMarker(
+		t,
+		mainElement,
+		`class="interior-portfolio__empty"`,
+		"p",
+	)
+	if !strings.Contains(
+		normalizeHTMLWhitespace(empty),
+		"Interior project entries are being prepared for publication.",
+	) {
+		t.Error("empty state does not contain truthful publication copy")
+	}
+}
+
+// TestInteriorDesignHandlerRejectsReaderFailures verifies repository errors,
+// malformed injected catalogues, and an unavailable dependency all become a
+// fixed 503 without leaking unsafe details.
+func TestInteriorDesignHandlerRejectsReaderFailures(t *testing.T) {
+	unsafeDetail := "postgres://private-interior-list"
+	invalid := []catalogueInteriorProject{
+		validCatalogueInteriorProject(1, 2, "number-gap"),
+	}
+	tests := []struct {
+		// name identifies the failed dependency contract.
+		name string
+		// configure mutates the otherwise valid app dependency.
+		configure func(*application, *recordingInteriorProjectCatalogueReader)
+	}{
+		{name: "repository error", configure: func(
+			_ *application,
+			reader *recordingInteriorProjectCatalogueReader,
+		) {
+			reader.setErrors(errors.New(unsafeDetail), nil)
+		}},
+		{name: "invalid catalogue", configure: func(
+			_ *application,
+			reader *recordingInteriorProjectCatalogueReader,
+		) {
+			reader.setProjects(invalid)
+		}},
+		{name: "nil dependency", configure: func(
+			app *application,
+			_ *recordingInteriorProjectCatalogueReader,
+		) {
+			app.interiorProjects = nil
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			app := newTestApplication(t)
+			reader := newRecordingInteriorProjectCatalogueReader()
+			app.interiorProjects = reader
+			test.configure(app, reader)
+			recorder := httptest.NewRecorder()
+			app.interiorDesignHandler(
+				recorder,
+				httptest.NewRequest(http.MethodGet, "/interior-design", nil),
+			)
+
+			if recorder.Code != http.StatusServiceUnavailable {
+				t.Fatalf("status: got %d, want 503", recorder.Code)
+			}
+			if strings.Contains(recorder.Body.String(), unsafeDetail) {
+				t.Error("service response exposed repository detail")
+			}
+		})
+	}
+
+	var nilApp *application
+	recorder := httptest.NewRecorder()
+	nilApp.interiorDesignHandler(
+		recorder,
+		httptest.NewRequest(http.MethodGet, "/interior-design", nil),
+	)
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Errorf("nil application status: got %d, want 503", recorder.Code)
+	}
+}
+
+// TestInteriorDesignTemplateEscapesManagedData renders sentinel content through
+// html/template and proves meaningful image attributes remain inert data.
+func TestInteriorDesignTemplateEscapesManagedData(t *testing.T) {
+	app := newTestApplication(t)
+	recorder := httptest.NewRecorder()
 	listing := &interiorProjectListingData{
 		Eyebrow:      "Sentinel interiors eyebrow",
 		Heading:      "Sentinel interiors heading",
 		Introduction: "Sentinel interiors introduction",
-		EmptyMessage: "Sentinel interiors empty message",
+		EmptyMessage: "Sentinel empty copy",
 		Items: []interiorProjectPreviewData{
 			{
-				Number:   "A1",
-				Path:     "/interior-design/sentinel-one",
-				Title:    "<b>Unsafe interior title</b>",
-				Typology: "<em>Unsafe typology</em>",
-				Status:   "First sentinel status",
-			},
-			{
-				Number:   "B2",
-				Path:     "/interior-design/sentinel-two",
-				Title:    "Second sentinel title",
-				Typology: "Second sentinel typology",
-				Status:   "<script>Unsafe status</script>",
+				Number:        "A1",
+				Path:          "/interior-design/safe-sentinel",
+				Title:         "<b>Unsafe title</b>",
+				Typology:      "<em>Unsafe typology</em>",
+				Location:      "<script>Unsafe location</script>",
+				YearLabel:     "2035",
+				ProjectStatus: "<img src=x onerror=alert(1)>",
+				Cover: &publicInteriorProjectCoverPageData{
+					Path:    "/interior-design/safe-sentinel/cover/1",
+					Width:   4,
+					Height:  3,
+					AltText: `A room " onload="alert(1)`,
+				},
 			},
 		},
 	}
@@ -482,366 +444,151 @@ func TestInteriorDesignTemplateUsesDataAndEscapesHTML(t *testing.T) {
 			DisciplinePage: &disciplinePageData{
 				Number:   "S-01",
 				Name:     "Sentinel Interior Design",
-				NextName: "Sentinel Next",
-				NextPath: "/sentinel-next",
+				NextName: "Next sentinel",
+				NextPath: "/architecture-design",
 			},
 			InteriorProjectListing: listing,
 		},
 	)
 
 	if recorder.Code != http.StatusOK {
-		t.Fatalf(
-			"status code: got %d, want %d",
-			recorder.Code,
-			http.StatusOK,
-		)
+		t.Fatalf("status: got %d, want 200", recorder.Code)
 	}
-
-	mainElement := extractMainElement(
-		t,
-		recorder.Body.String(),
-	)
-	normalizedMain := normalizeHTMLWhitespace(mainElement)
-
-	for _, expected := range []string{
-		listing.Eyebrow,
-		listing.Heading,
-		listing.Introduction,
+	mainElement := extractMainElement(t, recorder.Body.String())
+	for _, forbidden := range []string{
+		"<b>Unsafe",
+		"<em>Unsafe",
+		"<script>Unsafe",
+		"<img src=x onerror",
+		`onload="alert(1)`,
 	} {
-		if !strings.Contains(normalizedMain, expected) {
-			t.Errorf(
-				"sentinel Interior main does not contain %q",
-				expected,
-			)
+		if strings.Contains(mainElement, forbidden) {
+			t.Errorf("managed value became active markup %q", forbidden)
 		}
 	}
-
-	articles := extractInteriorPreviewArticles(t, mainElement)
-	if len(articles) != len(listing.Items) {
-		t.Fatalf(
-			"sentinel article count: got %d, want %d",
-			len(articles),
-			len(listing.Items),
-		)
-	}
-
-	firstArticle := normalizeHTMLWhitespace(articles[0])
-	for _, expected := range []string{
-		"&lt;em&gt;Unsafe typology&lt;/em&gt; / Project slot A1",
-		"&lt;b&gt;Unsafe interior title&lt;/b&gt;",
-		"First sentinel status",
+	for _, escaped := range []string{
+		"&lt;b&gt;Unsafe title&lt;/b&gt;",
+		"&lt;em&gt;Unsafe typology&lt;/em&gt;",
+		"&lt;script&gt;Unsafe location&lt;/script&gt;",
+		"&#34; onload=&#34;alert(1)",
 	} {
-		if !strings.Contains(firstArticle, expected) {
-			t.Errorf(
-				"first sentinel article does not contain %q",
-				expected,
-			)
+		if !strings.Contains(mainElement, escaped) {
+			t.Errorf("escaped response does not contain %q", escaped)
 		}
-	}
-
-	secondArticle := normalizeHTMLWhitespace(articles[1])
-	for _, expected := range []string{
-		"Second sentinel typology / Project slot B2",
-		"Second sentinel title",
-		"&lt;script&gt;Unsafe status&lt;/script&gt;",
-	} {
-		if !strings.Contains(secondArticle, expected) {
-			t.Errorf(
-				"second sentinel article does not contain %q",
-				expected,
-			)
-		}
-	}
-
-	for _, unsafeMarkup := range []string{
-		"<b>Unsafe interior title</b>",
-		"<em>Unsafe typology</em>",
-		"<script>Unsafe status</script>",
-	} {
-		if strings.Contains(mainElement, unsafeMarkup) {
-			t.Errorf(
-				"sentinel Interior main contains raw markup %q",
-				unsafeMarkup,
-			)
-		}
-	}
-
-}
-
-// TestInteriorDesignTemplateHandlesEmptyListing verifies that nil and allocated
-// zero-length item slices take the same explicit empty-data branch.
-//
-// This remains useful when a later repository returns zero published projects:
-// the page keeps its labelled work section and never emits an empty list.
-func TestInteriorDesignTemplateHandlesEmptyListing(t *testing.T) {
-	app := newTestApplication(t)
-
-	tests := []struct {
-		// name distinguishes the two zero-item slice representations.
-		name string
-		// items is the exact slice value supplied to html/template.
-		items []interiorProjectPreviewData
-	}{
-		{
-			name:  "nil items",
-			items: nil,
-		},
-		{
-			name:  "empty items",
-			items: []interiorProjectPreviewData{},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			recorder := httptest.NewRecorder()
-			emptyMessage := "<strong>No sentinel interiors are published.</strong>"
-			escapedEmptyMessage := "&lt;strong&gt;No sentinel interiors " +
-				"are published.&lt;/strong&gt;"
-
-			app.render(
-				recorder,
-				http.StatusOK,
-				"interior-design.html",
-				pageData{
-					Title:       "Empty Interior Design",
-					CurrentPath: "/interior-design",
-					DisciplinePage: &disciplinePageData{
-						Number:   "01",
-						Name:     "Empty Interior Design",
-						NextName: "Next Discipline",
-						NextPath: "/next-discipline",
-					},
-					InteriorProjectListing: &interiorProjectListingData{
-						Eyebrow:      "Empty eyebrow",
-						Heading:      "Empty interior index",
-						Introduction: "Empty introduction",
-						EmptyMessage: emptyMessage,
-						Items:        test.items,
-					},
-				},
-			)
-
-			if recorder.Code != http.StatusOK {
-				t.Fatalf(
-					"status code: got %d, want %d",
-					recorder.Code,
-					http.StatusOK,
-				)
-			}
-
-			workElement := extractElementByMarker(
-				t,
-				extractMainElement(t, recorder.Body.String()),
-				`class="discipline-work"`,
-				"section",
-			)
-			workHeading := extractElementByMarker(
-				t,
-				workElement,
-				`id="selected-work-title"`,
-				"h2",
-			)
-
-			if !strings.Contains(
-				normalizeHTMLWhitespace(workHeading),
-				"Empty interior index",
-			) {
-				t.Error(
-					"empty Interior heading does not use view data",
-				)
-			}
-			if !strings.Contains(
-				normalizeHTMLWhitespace(workElement),
-				escapedEmptyMessage,
-			) {
-				t.Error(
-					"empty Interior section does not escape and state its status",
-				)
-			}
-			if strings.Contains(workElement, emptyMessage) {
-				t.Error(
-					"empty Interior section contains raw status markup",
-				)
-			}
-			if strings.Contains(
-				workElement,
-				`class="interior-portfolio"`,
-			) {
-				t.Error(
-					"empty Interior section must not emit an empty list",
-				)
-			}
-			if len(
-				extractInteriorPreviewArticles(t, workElement),
-			) != 0 {
-				t.Error(
-					"empty Interior section must not emit preview articles",
-				)
-			}
-		})
 	}
 }
 
 // TestInteriorDesignTemplatePreservesSectionWithoutListingData protects the
-// shared aria-labelledby contract if a future handler omits the optional
-// InteriorProjectListing pointer.
-//
-// The fallback is defensive presentation only: it retains a truthful h2 and
-// status without inventing cards or hiding a handler initialization mistake.
+// defensive labelled work section when optional page data is accidentally nil.
 func TestInteriorDesignTemplatePreservesSectionWithoutListingData(t *testing.T) {
 	app := newTestApplication(t)
 	recorder := httptest.NewRecorder()
-
 	app.render(
 		recorder,
 		http.StatusOK,
 		"interior-design.html",
 		pageData{
-			Title:       "Interior fallback",
+			Title:       "Interior Design",
 			CurrentPath: "/interior-design",
 			DisciplinePage: &disciplinePageData{
 				Number:   "01",
-				Name:     "Interior fallback",
-				NextName: "Next Discipline",
-				NextPath: "/next-discipline",
+				Name:     "Interior Design",
+				NextName: "Architecture Design",
+				NextPath: "/architecture-design",
 			},
 		},
 	)
 
-	workElement := extractElementByMarker(
-		t,
-		extractMainElement(t, recorder.Body.String()),
-		`class="discipline-work"`,
-		"section",
-	)
-	workHeading := extractElementByMarker(
-		t,
-		workElement,
-		`id="selected-work-title"`,
-		"h2",
-	)
-
-	if !strings.Contains(
-		normalizeHTMLWhitespace(workHeading),
-		"Interior project index",
-	) {
-		t.Error(
-			"missing InteriorProjectListing fallback does not preserve its h2",
-		)
-	}
-	if len(extractInteriorPreviewArticles(t, workElement)) != 0 {
-		t.Error(
-			"missing InteriorProjectListing fallback must not emit preview articles",
-		)
+	mainElement := extractMainElement(t, recorder.Body.String())
+	work := extractElementByMarker(t, mainElement, `id="selected-work"`, "section")
+	if !strings.Contains(work, `id="selected-work-title"`) ||
+		strings.Contains(work, `class="interior-portfolio"`) {
+		t.Error("nil listing lost its labelled section or emitted an empty list")
 	}
 }
 
-// TestInteriorPresentationDoesNotLeak verifies page-template cache and
-// stylesheet isolation.
-//
-// interior-design.html defines the same named override used by Products.
-// Parsing one template set per page must keep both its markup and stylesheet
-// absent from every unrelated public route.
-func TestInteriorPresentationDoesNotLeak(t *testing.T) {
+// TestInteriorDesignRouteAcceptsHead verifies ServeMux's GET-to-HEAD behavior
+// keeps metadata and repository selection while the real HTTP writer suppresses
+// response bytes. ResponseRecorder alone does not model wire-level suppression.
+func TestInteriorDesignRouteAcceptsHead(t *testing.T) {
+	reader := newRecordingInteriorProjectCatalogueReader()
+	app := newTestApplication(t)
+	app.interiorProjects = reader
+	server := httptest.NewServer(app.routes())
+	defer server.Close()
+
+	request, err := http.NewRequest(http.MethodHead, server.URL+"/interior-design", nil)
+	if err != nil {
+		t.Fatalf("create HEAD request: %v", err)
+	}
+	response, err := server.Client().Do(request)
+	if err != nil {
+		t.Fatalf("perform HEAD request: %v", err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read HEAD response: %v", err)
+	}
+
+	if response.StatusCode != http.StatusOK {
+		t.Errorf("HEAD status: got %d, want 200", response.StatusCode)
+	}
+	if len(body) != 0 {
+		t.Errorf("HEAD body length: got %d, want 0", len(body))
+	}
+	if response.Header.Get("Content-Type") != "text/html; charset=utf-8" {
+		t.Errorf("HEAD Content-Type: got %q", response.Header.Get("Content-Type"))
+	}
+	if calls := reader.listCallSnapshot(); len(calls) != 1 || !calls[0].HasDeadline {
+		t.Errorf("HEAD list calls: got %#v", calls)
+	}
+}
+
+// TestInteriorDesignPresentationIsolationAndStylesheet verifies route-specific
+// CSS loads only on Interior and its static response contains Stage 22 selectors.
+func TestInteriorDesignPresentationIsolationAndStylesheet(t *testing.T) {
 	app := newTestApplication(t)
 	handler := app.routes()
-
-	paths := []string{
-		"/",
-		"/products",
-		"/products/furniture-study-01",
-		"/interior-design/interior-study-01",
-		"/architecture-design",
-	}
-
-	for _, path := range paths {
-		t.Run(path, func(t *testing.T) {
-			recorder := httptest.NewRecorder()
-			request := httptest.NewRequest(
-				http.MethodGet,
-				path,
-				nil,
-			)
-
-			handler.ServeHTTP(recorder, request)
-
-			if recorder.Code != http.StatusOK {
-				t.Fatalf(
-					"status code: got %d, want %d",
-					recorder.Code,
-					http.StatusOK,
-				)
-			}
-
-			body := recorder.Body.String()
-			if strings.Contains(
-				body,
-				`href="/static/css/interior-design.css"`,
-			) {
-				t.Error(
-					"non-listing route loads Interior listing stylesheet",
-				)
-			}
-			if strings.Contains(
-				body,
-				"interior-portfolio",
-			) {
-				t.Error(
-					"non-listing route renders Interior portfolio",
-				)
-			}
-			if strings.Contains(
-				body,
-				"interior-preview",
-			) {
-				t.Error(
-					"non-listing route renders an Interior preview",
-				)
-			}
-		})
-	}
-}
-
-// TestInteriorDesignStylesheetRoute verifies that the shared static file server
-// exposes the new route-specific stylesheet with the correct media type.
-//
-// One stable root selector catches an empty or mismapped response while leaving
-// detailed visual declarations free to evolve after browser review.
-func TestInteriorDesignStylesheetRoute(t *testing.T) {
-	app := newTestApplication(t)
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(
-		http.MethodGet,
-		"/static/css/interior-design.css",
-		nil,
+	interior := httptest.NewRecorder()
+	handler.ServeHTTP(
+		interior,
+		httptest.NewRequest(http.MethodGet, "/interior-design", nil),
 	)
-
-	app.routes().ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf(
-			"status code: got %d, want %d",
-			recorder.Code,
-			http.StatusOK,
-		)
+	if count := strings.Count(
+		interior.Body.String(),
+		`href="/static/css/interior-design.css"`,
+	); count != 1 {
+		t.Errorf("Interior stylesheet count: got %d, want 1", count)
 	}
 
-	contentType := recorder.Header().Get("Content-Type")
-	if !strings.HasPrefix(contentType, "text/css") {
-		t.Errorf(
-			"Content-Type: got %q, want prefix %q",
-			contentType,
-			"text/css",
-		)
+	home := httptest.NewRecorder()
+	handler.ServeHTTP(home, httptest.NewRequest(http.MethodGet, "/", nil))
+	if strings.Contains(home.Body.String(), "interior-design.css") ||
+		strings.Contains(home.Body.String(), `class="interior-portfolio`) {
+		t.Error("Interior listing presentation leaked into homepage")
 	}
 
-	if !strings.Contains(
-		recorder.Body.String(),
+	stylesheet := httptest.NewRecorder()
+	handler.ServeHTTP(
+		stylesheet,
+		httptest.NewRequest(
+			http.MethodGet,
+			"/static/css/interior-design.css",
+			nil,
+		),
+	)
+	if stylesheet.Code != http.StatusOK {
+		t.Fatalf("stylesheet status: got %d, want 200", stylesheet.Code)
+	}
+	for _, selector := range []string{
 		".interior-portfolio",
-	) {
-		t.Error(
-			"Interior stylesheet does not contain its portfolio selector",
-		)
+		".interior-preview__media--image",
+		".interior-preview__image",
+		".interior-portfolio__empty",
+	} {
+		if !strings.Contains(stylesheet.Body.String(), selector) {
+			t.Errorf("stylesheet does not contain %q", selector)
+		}
 	}
 }

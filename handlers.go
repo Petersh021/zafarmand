@@ -219,16 +219,45 @@ func (app *application) productDetailHandler(
 	)
 }
 
-// interiorDesignHandler renders the Interior Design landing page.
+// interiorDesignHandler renders the published Interior Design portfolio.
 //
-// The handler supplies both the shared discipline shell and the Interior-only
-// listing. Stage 9 maps each application-owned source record to a preview with a
-// real detail path, while final descriptions, images, database state, and admin
-// controls remain deferred.
+// Stage 22 reads the ordered public projection through a narrow repository. A
+// new database therefore renders the truthful empty state, while Draft and
+// Archived projects never cross into the public template contract.
 func (app *application) interiorDesignHandler(
 	w http.ResponseWriter,
-	_ *http.Request,
+	r *http.Request,
 ) {
+	if app == nil || app.interiorProjects == nil {
+		log.Print("public interior project catalogue dependency unavailable")
+		http.Error(
+			w,
+			"service temporarily unavailable",
+			http.StatusServiceUnavailable,
+		)
+
+		return
+	}
+
+	readContext, cancel := context.WithTimeout(
+		r.Context(),
+		interiorProjectCatalogueReadTimeout,
+	)
+	projects, err := app.interiorProjects.ListPublished(readContext)
+	cancel()
+	if err != nil || !isValidPublishedInteriorProjectCatalogue(projects) {
+		// Neither driver diagnostics nor rejected stored project content should
+		// cross the public response or fixed-value application log boundary.
+		log.Print("public interior project catalogue list failed")
+		http.Error(
+			w,
+			"service temporarily unavailable",
+			http.StatusServiceUnavailable,
+		)
+
+		return
+	}
+
 	disciplinePage := &disciplinePageData{
 		Number:   "01",
 		Name:     "Interior Design",
@@ -237,8 +266,8 @@ func (app *application) interiorDesignHandler(
 	}
 
 	// Section copy and ordered preview data travel to the template as one value.
-	// The listing and detail handler share app.interiorProjects, which prevents
-	// card destinations and route lookup records from drifting apart.
+	// The listing and detail handlers share the same published-only dependency,
+	// preventing their eligibility and numbering rules from drifting apart.
 	interiorProjectListing := &interiorProjectListingData{
 		Eyebrow: "Zafarmand interiors",
 		Heading: "Interior project index",
@@ -246,7 +275,7 @@ func (app *application) interiorDesignHandler(
 			"workplace, and cultural interior studies.",
 		EmptyMessage: "Interior project entries are being prepared " +
 			"for publication.",
-		Items: interiorProjectPreviews(app.interiorProjects),
+		Items: interiorProjectPreviews(projects),
 	}
 
 	app.render(
@@ -262,24 +291,56 @@ func (app *application) interiorDesignHandler(
 	)
 }
 
-// interiorProjectDetailHandler renders one temporary Interior Design project
+// interiorProjectDetailHandler renders one published Interior Design project
 // selected by the slug captured in GET /interior-design/{slug}.
 //
-// PathValue returns the wildcard already decoded by Go's ServeMux. Looking it
-// up in the application-owned source keeps visitor input away from template
-// names and page content. An unknown or differently cased slug receives a
-// normal 404 response before the detail template is executed.
+// Canonical validation happens before PostgreSQL. Unknown, Draft, Archived, and
+// differently cased slugs deliberately receive the same public 404 response.
 func (app *application) interiorProjectDetailHandler(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
 	slug := r.PathValue("slug")
-	project, exists := findInteriorProjectBySlug(
-		app.interiorProjects,
+	if !isCanonicalInteriorProjectSlug(slug) {
+		http.NotFound(w, r)
+
+		return
+	}
+	if app == nil || app.interiorProjects == nil {
+		log.Print("public interior project catalogue dependency unavailable")
+		http.Error(
+			w,
+			"service temporarily unavailable",
+			http.StatusServiceUnavailable,
+		)
+
+		return
+	}
+
+	readContext, cancel := context.WithTimeout(
+		r.Context(),
+		interiorProjectCatalogueReadTimeout,
+	)
+	project, err := app.interiorProjects.FindPublishedBySlug(
+		readContext,
 		slug,
 	)
-	if !exists {
+	cancel()
+	if errors.Is(err, errInteriorProjectCatalogueNotFound) {
 		http.NotFound(w, r)
+
+		return
+	}
+	if err != nil ||
+		!isValidCatalogueInteriorProject(project) ||
+		project.Slug != slug {
+		log.Print("public interior project catalogue detail failed")
+		http.Error(
+			w,
+			"service temporarily unavailable",
+			http.StatusServiceUnavailable,
+		)
+
 		return
 	}
 

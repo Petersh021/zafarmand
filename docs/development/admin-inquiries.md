@@ -14,9 +14,11 @@ write before the browser returns to the canonical detail page.
 
 This guide supplements the [administrator access guide](admin-access.md) and
 the [database development guide](database.md). Stage 15 authentication must be
-working, and the current migrations 1 through 6 must already be applied before
-starting the complete Stage 18 server. Migration 4 belongs to the separate
-public Product catalogue and does not change inquiry behavior.
+working, and the current migrations 1 through 7 must already be applied before
+starting the Stage 22 server. Migrations 4–6 belong to Products and migration 7
+belongs to Interior projects; none changes inquiry behavior. Their separate
+boundaries are documented in [products.md](products.md) and
+[interior-projects.md](interior-projects.md).
 
 ## Exact route scope
 
@@ -281,10 +283,11 @@ reach a parameterized query.
 Stages 16 and 17 did not alter an inquiry table, constraint, or index. Stage 17
 reuses the existing `status`, `updated_at`, and
 `inquiries_status_supported` constraint; no empty inquiry migration should be
-created merely to mark an application-code stage. In the current Stage 21
-project, `go run . migrate status` should report versions 1 through 6 because
+created merely to mark an application-code stage. In the current Stage 22
+project, `go run . migrate status` should report versions 1 through 7 because
 migrations 4–6 independently add Product storage, revision, and content/cover
-storage. None changes the inquiry schema.
+storage, while migration 7 adds separate Interior-project storage. None changes
+the inquiry schema.
 
 The least-privilege runtime PostgreSQL role does need one deliberate grant
 change: it must be able to `SELECT` the columns required from
@@ -304,7 +307,7 @@ Use a local or disposable development database and an intentionally fictional
 Contact submission. Never copy a real visitor's name, email, message, token, or
 database row into a terminal transcript, screenshot, chat, issue, or test.
 
-1. Confirm migrations 1 through 6 are applied with `go run . migrate status`.
+1. Confirm migrations 1 through 7 are applied with `go run . migrate status`.
 2. Start the application with the local runtime `DATABASE_URL` and sign in as a
    local test owner or editor.
 3. In another private browser context, submit a Contact form using unmistakably
@@ -372,8 +375,9 @@ key.
 The opt-in PostgreSQL suite described in [database.md](database.md) additionally
 checks the real list, detail, and conditional status statements, descending
 page boundaries, field mapping, missing records, timestamp behavior, and
-repository construction. It now tests the complete migration 1-to-4 cycle;
-Stage 17 still has no schema migration, while migrations 4–6 belong to Products.
+repository construction. It now tests the complete migration 1-to-7 cycle;
+Stage 17 still has no schema migration, migrations 4–6 belong to Products, and
+migration 7 belongs to Interior projects.
 
 ## Explicitly deferred work
 

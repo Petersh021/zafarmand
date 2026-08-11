@@ -140,10 +140,13 @@ func newTestApplicationWithRepositories(
 	passwords := newTestAdminPasswordManager(t)
 	app, err := newApplication(
 		products,
+		newRecordingInteriorProjectCatalogueReader(),
 		inquiries,
 		adminRepository,
 		newRecordingAdminProductReader(),
 		newRecordingAdminProductWriter(),
+		newRecordingAdminInteriorProjectReader(),
+		newRecordingAdminInteriorProjectWriter(),
 		newRecordingAdminInquiryReader(),
 		newRecordingAdminInquiryStatusUpdater(),
 		passwords,
@@ -161,12 +164,15 @@ func newTestApplicationWithRepositories(
 func TestNewApplicationRequiresProductCatalogueReader(t *testing.T) {
 	app, err := newApplication(
 		nil,
+		newRecordingInteriorProjectCatalogueReader(),
 		&recordingInquiryRepository{
 			result: inquiryCreateResultCreated,
 		},
 		newRecordingAdminRepository(),
 		newRecordingAdminProductReader(),
 		newRecordingAdminProductWriter(),
+		newRecordingAdminInteriorProjectReader(),
+		newRecordingAdminInteriorProjectWriter(),
 		newRecordingAdminInquiryReader(),
 		newRecordingAdminInquiryStatusUpdater(),
 		newTestAdminPasswordManager(t),
@@ -182,16 +188,50 @@ func TestNewApplicationRequiresProductCatalogueReader(t *testing.T) {
 	}
 }
 
+// TestNewApplicationRequiresInteriorProjectCatalogueReader protects the public
+// Interior persistence boundary. Without a published-only reader, the server
+// must fail construction instead of silently reviving temporary project data or
+// presenting a database-backed page whose source cannot be reached.
+func TestNewApplicationRequiresInteriorProjectCatalogueReader(t *testing.T) {
+	app, err := newApplication(
+		newRecordingProductCatalogueReader(),
+		nil,
+		&recordingInquiryRepository{
+			result: inquiryCreateResultCreated,
+		},
+		newRecordingAdminRepository(),
+		newRecordingAdminProductReader(),
+		newRecordingAdminProductWriter(),
+		newRecordingAdminInteriorProjectReader(),
+		newRecordingAdminInteriorProjectWriter(),
+		newRecordingAdminInquiryReader(),
+		newRecordingAdminInquiryStatusUpdater(),
+		newTestAdminPasswordManager(t),
+	)
+	if !errors.Is(err, errInteriorProjectCatalogueReaderRequired) {
+		t.Fatalf(
+			"nil Interior reader error: got %v, want required sentinel",
+			err,
+		)
+	}
+	if app != nil {
+		t.Error("nil Interior reader returned a usable application")
+	}
+}
+
 // TestNewApplicationRequiresInquiryRepository protects the production
 // composition boundary: a server cannot start with a Contact form that has no
 // persistence dependency.
 func TestNewApplicationRequiresInquiryRepository(t *testing.T) {
 	app, err := newApplication(
 		newRecordingProductCatalogueReader(),
+		newRecordingInteriorProjectCatalogueReader(),
 		nil,
 		newRecordingAdminRepository(),
 		newRecordingAdminProductReader(),
 		newRecordingAdminProductWriter(),
+		newRecordingAdminInteriorProjectReader(),
+		newRecordingAdminInteriorProjectWriter(),
 		newRecordingAdminInquiryReader(),
 		newRecordingAdminInquiryStatusUpdater(),
 		newTestAdminPasswordManager(t),

@@ -1,0 +1,93 @@
+{{/*
+This escaped detail page is a read view. Text editing and cover replacement use
+separate GET and POST routes protected by authentication, role authorization,
+session CSRF, strict validation, and optimistic record revisions.
+
+Only a Published record receives a public link. A stored Draft or Archived slug
+therefore never becomes an accidental discovery path from the admin interface.
+*/}}
+{{define "admin-content"}}
+<main class="admin-product-detail admin-interior-project-detail" id="admin-main-content">
+	<a class="admin-back-link" href="/admin/interior-projects">
+		<span aria-hidden="true">&larr;</span>
+		Interior projects
+	</a>
+
+	<a class="admin-primary-link admin-product-edit-link" href="{{.InteriorProjectDetail.EditPath}}">
+		Edit Interior project
+	</a>
+
+	<article class="admin-product-record admin-interior-project-record" aria-labelledby="admin-interior-project-title">
+		<header class="admin-product-record__header">
+			<div>
+				<p class="admin-eyebrow">Interior project {{.InteriorProjectDetail.Reference}}</p>
+				<h1 id="admin-interior-project-title">{{.InteriorProjectDetail.Title}}</h1>
+			</div>
+
+			<p class="admin-product-status admin-product-status--{{.InteriorProjectDetail.StatusClass}}">
+				Current status: {{.InteriorProjectDetail.StatusLabel}}
+			</p>
+		</header>
+
+		<dl class="admin-product-facts admin-interior-project-facts">
+			<div><dt>Slug</dt><dd>{{.InteriorProjectDetail.Slug}}</dd></div>
+			<div><dt>Typology</dt><dd>{{.InteriorProjectDetail.Typology}}</dd></div>
+			<div>
+				<dt>Location</dt>
+				<dd>{{if .InteriorProjectDetail.Location}}{{.InteriorProjectDetail.Location}}{{else}}Not added{{end}}</dd>
+			</div>
+			<div>
+				<dt>Project year</dt>
+				<dd>{{if .InteriorProjectDetail.ProjectYear}}{{.InteriorProjectDetail.ProjectYear}}{{else}}Not added{{end}}</dd>
+			</div>
+			<div><dt>Project status</dt><dd>{{.InteriorProjectDetail.ProjectStatus}}</dd></div>
+			<div><dt>Sort order</dt><dd>{{.InteriorProjectDetail.SortOrder}}</dd></div>
+			<div><dt>Revision</dt><dd>{{.InteriorProjectDetail.Version}}</dd></div>
+			<div>
+				<dt>Created</dt>
+				<dd><time datetime="{{.InteriorProjectDetail.CreatedAtISO}}">{{.InteriorProjectDetail.CreatedAtLabel}}</time></dd>
+			</div>
+			<div>
+				<dt>Last stored update</dt>
+				<dd><time datetime="{{.InteriorProjectDetail.UpdatedAtISO}}">{{.InteriorProjectDetail.UpdatedAtLabel}}</time></dd>
+			</div>
+		</dl>
+
+		<section class="admin-product-editorial" aria-labelledby="admin-interior-project-editorial-title">
+			<h2 id="admin-interior-project-editorial-title">Editorial content</h2>
+			{{if .InteriorProjectDetail.Description}}
+			<div class="admin-product-editorial__description">
+				<h3>Description</h3>
+				<p>{{.InteriorProjectDetail.Description}}</p>
+			</div>
+			{{else}}
+			<p>No reviewed description has been added.</p>
+			{{end}}
+		</section>
+
+		<section class="admin-product-cover admin-interior-project-cover" aria-labelledby="admin-interior-project-cover-title">
+			<h2 id="admin-interior-project-cover-title">Cover image</h2>
+			{{with .InteriorProjectDetail.Cover}}
+			<figure class="admin-product-cover__figure">
+				<img src="{{.Path}}" alt="{{.AltText}}" width="{{.Width}}" height="{{.Height}}" decoding="async">
+				{{with .Caption}}<figcaption>{{.}}</figcaption>{{end}}
+			</figure>
+			{{else}}
+			<p>No reviewed cover image has been uploaded.</p>
+			{{end}}
+
+			<a class="admin-primary-link" href="{{.InteriorProjectDetail.CoverManagementPath}}">
+				{{if .InteriorProjectDetail.Cover}}Replace cover image{{else}}Upload cover image{{end}}
+			</a>
+		</section>
+
+		<section class="admin-product-visibility" aria-labelledby="admin-interior-project-visibility-title">
+			<h2 id="admin-interior-project-visibility-title">Public visibility</h2>
+			<p>{{.InteriorProjectDetail.VisibilityMessage}}</p>
+			{{if .InteriorProjectDetail.PublicPath}}
+			<a class="admin-primary-link" href="{{.InteriorProjectDetail.PublicPath}}">Open published Interior project</a>
+			{{end}}
+		</section>
+	</article>
+</main>
+{{end}}

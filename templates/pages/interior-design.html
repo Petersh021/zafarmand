@@ -1,8 +1,7 @@
 {{/*
-The Interior Design page remains a separate template-cache entry. Stage 8
-introduced the temporary data-driven project index, and Stage 9 connects each
-preview to its own real server-rendered detail route while preserving the
-shared discipline hero and route navigation.
+The Interior Design page remains a separate template-cache entry. Stage 22 now
+maps PostgreSQL's published-only projection into the established project index
+while preserving the shared discipline hero and real detail navigation.
 */}}
 
 {{/*
@@ -58,7 +57,7 @@ DisciplinePage "with" action.
 	{{/*
 	A nonempty preview slice becomes one semantic ordered list. Go controls the
 	editorial order and html/template escapes every visible field. Each article
-	contains one native anchor supplied by the Stage 9 view model, so ordinary
+	contains one native anchor supplied by the Stage 22 view model, so ordinary
 	browser navigation, new-tab commands, and history work without JavaScript.
 	*/}}
 	{{if .Items}}
@@ -75,12 +74,25 @@ DisciplinePage "with" action.
 					href="{{.Path}}"
 				>
 					{{/*
-					The media field is an honest CSS-only structural placeholder.
-					It reserves the future landscape-image area without serving
-					the reference composite or implying that approved photography
-					exists. The repeated number is decorative, so the whole field
-					is hidden from assistive technology.
+					A reviewed cover is meaningful content and therefore keeps its
+					required alternative text. Only the CSS fallback is decorative
+					and hidden from assistive technology.
 					*/}}
+					{{with .Cover}}
+					<div
+						class="interior-preview__media interior-preview__media--image"
+					>
+						<img
+							class="interior-preview__image"
+							src="{{.Path}}"
+							width="{{.Width}}"
+							height="{{.Height}}"
+							alt="{{.AltText}}"
+							decoding="async"
+							loading="lazy"
+						>
+					</div>
+					{{else}}
 					<div
 						class="interior-preview__media"
 						aria-hidden="true"
@@ -89,10 +101,11 @@ DisciplinePage "with" action.
 							{{.Number}}
 						</span>
 					</div>
+					{{end}}
 
 					<div class="interior-preview__body">
 						<p class="interior-preview__label">
-							{{.Typology}} / Project slot {{.Number}}
+							{{.Typology}} / Project {{.Number}}
 						</p>
 
 						<h3 class="interior-preview__title">
@@ -100,7 +113,7 @@ DisciplinePage "with" action.
 						</h3>
 
 						<p class="interior-preview__status">
-							{{.Status}}
+							{{.ProjectStatus}}{{with .Location}} / {{.}}{{end}}{{with .YearLabel}} / {{.}}{{end}}
 						</p>
 					</div>
 				</a>
@@ -110,7 +123,7 @@ DisciplinePage "with" action.
 	</ol>
 	{{else}}
 	{{/*
-	A visible empty state keeps the h2-labelled work section useful when a future
+	A visible empty state keeps the h2-labelled work section useful when the
 	database query returns no published projects. An empty list is not emitted.
 	*/}}
 	<p class="interior-portfolio__empty">

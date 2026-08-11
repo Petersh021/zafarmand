@@ -85,17 +85,17 @@ func main() {
 	}
 }
 
-// runServer composes the long-lived PostgreSQL pool, public Product and cover
-// reader, Contact writer, private Product reader/writer, inquiry reader/status
-// updater, administrator authentication repository, password manager,
-// templates, routes, and interrupt-aware server.
+// runServer composes the long-lived PostgreSQL pool, public Product and Interior
+// readers, their protected read/write boundaries, Contact and inquiry services,
+// administrator authentication, templates, routes, and interrupt-aware server.
 //
 // Opening and pinging PostgreSQL before ListenAndServe prevents the site from
 // starting when its configured persistence dependency is unreachable. Schema
 // versions remain an explicit migration responsibility; an outdated schema is
-// reported through safe Product, Contact, or administrator service-failure
-// responses until the operator applies migrations. This function owns the pool
-// and closes it only after the server stops using every repository.
+// reported through safe Product, Interior, Contact, or administrator
+// service-failure responses until the operator applies migrations. This
+// function owns the pool and closes it only after the server stops using every
+// repository.
 func runServer(
 	ctx context.Context,
 	lookup environmentLookup,
@@ -120,6 +120,10 @@ func runServer(
 	if err != nil {
 		return err
 	}
+	interiorProjects, err := newPostgresInteriorProjectCatalogueReader(database)
+	if err != nil {
+		return err
+	}
 	inquiries, err := newPostgresInquiryRepository(database)
 	if err != nil {
 		return err
@@ -136,6 +140,14 @@ func runServer(
 	if err != nil {
 		return err
 	}
+	adminInteriorProjects, err := newPostgresAdminInteriorProjectReader(database)
+	if err != nil {
+		return err
+	}
+	adminInteriorProjectWrites, err := newPostgresAdminInteriorProjectWriter(database)
+	if err != nil {
+		return err
+	}
 	adminInquiries, err := newPostgresAdminInquiryReader(database)
 	if err != nil {
 		return err
@@ -147,10 +159,13 @@ func runServer(
 
 	app, err := newApplication(
 		products,
+		interiorProjects,
 		inquiries,
 		admins,
 		adminProducts,
 		adminProductWrites,
+		adminInteriorProjects,
+		adminInteriorProjectWrites,
 		adminInquiries,
 		adminInquiryStatuses,
 		newAdminPasswordManager(),

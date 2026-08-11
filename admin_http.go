@@ -37,7 +37,7 @@ const (
 	// forward, so every browser session eventually requires a fresh login.
 	adminSessionLifetime = 8 * time.Hour
 	// adminRepositoryTimeout prevents an unavailable database from holding a
-	// private authentication, inquiry, or Product request indefinitely.
+	// private authentication, inquiry, Product, or Interior request indefinitely.
 	adminRepositoryTimeout = 5 * time.Second
 	// adminDummyPassword is not an account credential. It exists only to produce
 	// one startup-validated verifier for account-neutral missing-user logins.
@@ -96,6 +96,17 @@ type adminPageData struct {
 	ProductConflict *adminProductConflictPageData
 	// ProductCoverForm contains one protected cover upload/replace contract.
 	ProductCoverForm *adminProductCoverFormPageData
+	// InteriorProjectList contains the protected all-state Interior portfolio.
+	InteriorProjectList *adminInteriorProjectListPageData
+	// InteriorProjectDetail contains one protected Interior project record.
+	InteriorProjectDetail *adminInteriorProjectDetailPageData
+	// InteriorProjectForm contains one protected create/edit form contract.
+	InteriorProjectForm *adminInteriorProjectFormPageData
+	// InteriorProjectConflict contains fixed recovery navigation after a stale
+	// text edit or cover replacement.
+	InteriorProjectConflict *adminInteriorProjectConflictPageData
+	// InteriorProjectCoverForm contains one protected cover upload/replace contract.
+	InteriorProjectCoverForm *adminInteriorProjectCoverFormPageData
 }
 
 // adminIdentityPageData keeps persistence and authorization records out of the
@@ -426,8 +437,8 @@ func requireAdminRoles(
 }
 
 // adminDashboardHandler renders the authenticated overview. It links to the
-// Product and inquiry workflows without querying either table merely to show
-// counts or other dashboard metrics.
+// Product, Interior-project, and inquiry workflows without querying those
+// tables merely to show counts or other dashboard metrics.
 func (app *application) adminDashboardHandler(
 	w http.ResponseWriter,
 	r *http.Request,
