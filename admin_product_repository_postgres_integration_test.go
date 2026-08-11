@@ -6,7 +6,7 @@ import (
 )
 
 // TestPostgresAdminProductReaderIntegration proves the behavior that unit stubs
-// cannot: migrations 4–5 start empty, the protected projection reads all
+// cannot: migrations 4–6 start empty, the protected projection reads all
 // lifecycle states and revisions, PostgreSQL applies `(sort_order, id)` ordering,
 // and positive-ID detail lookup maps a genuine missing row safely.
 //
@@ -124,6 +124,6 @@ func assertAdminProductMatchesPostgresFixture(
 	if actual.CreatedAt.IsZero() ||
 		actual.UpdatedAt.IsZero() ||
 		actual.UpdatedAt.Before(actual.CreatedAt) {
-		t.Error("protected Product timestamps violate migration-5 invariants")
+		t.Error("protected Product timestamps violate Product schema invariants")
 	}
 }

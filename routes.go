@@ -26,6 +26,12 @@ func (app *application) routes() http.Handler {
 	// correct 404 response for URLs the application does not define.
 	mux.HandleFunc("GET /{$}", app.homeHandler)
 	mux.HandleFunc("GET /products", app.productsHandler)
+	// A cover revision is a separate ETag-validated binary response. The route
+	// remains public only while the owning Product is published.
+	mux.HandleFunc(
+		"GET /products/{slug}/cover/{version}",
+		app.productCoverHandler,
+	)
 	// The one-segment wildcard creates a real server-rendered URL for each
 	// product. ServeMux gives the static /products route higher specificity, and
 	// productDetailHandler validates the captured slug before rendering.
@@ -111,10 +117,18 @@ func (app *application) routes() http.Handler {
 			),
 		),
 	)
+	mux.Handle(
+		"GET /admin/products/{id}/cover/{version}",
+		app.requireAdmin(
+			productReaderRoles(
+				http.HandlerFunc(app.adminProductCoverAssetHandler),
+			),
+		),
+	)
 
-	// Product creation and editing use a separate mutation allowlist even though
-	// owner and editor are both permitted in Stage 20. Static /new wins over the
-	// detail wildcard, and every successful POST redirects to a canonical GET.
+	// Product text and cover changes use a separate mutation allowlist. Owner and
+	// editor are named explicitly; static /new wins over the detail wildcard, and
+	// every successful POST redirects to a canonical GET.
 	productWriterRoles := requireAdminRoles(
 		adminRoleOwner,
 		adminRoleEditor,
@@ -148,6 +162,22 @@ func (app *application) routes() http.Handler {
 		app.requireAdmin(
 			productWriterRoles(
 				http.HandlerFunc(app.adminProductUpdateHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"GET /admin/products/{id}/cover",
+		app.requireAdmin(
+			productWriterRoles(
+				http.HandlerFunc(app.adminProductCoverFormHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"POST /admin/products/{id}/cover",
+		app.requireAdmin(
+			productWriterRoles(
+				http.HandlerFunc(app.adminProductCoverUploadHandler),
 			),
 		),
 	)

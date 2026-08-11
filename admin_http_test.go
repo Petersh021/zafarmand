@@ -212,7 +212,7 @@ func assertAdminHTTPSecurityHeaders(
 
 	expected := map[string]string{
 		"Cache-Control":                "no-store",
-		"Content-Security-Policy":      "default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+		"Content-Security-Policy":      "default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
 		"Cross-Origin-Opener-Policy":   "same-origin",
 		"Cross-Origin-Resource-Policy": "same-origin",
 		"Permissions-Policy":           "camera=(), microphone=(), geolocation=()",

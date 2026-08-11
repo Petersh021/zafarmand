@@ -21,9 +21,9 @@ type application struct {
 	// templates maps public filenames such as "home.html" and namespaced private
 	// keys such as "admin/login.html" to their isolated parsed template sets.
 	templates map[string]*template.Template
-	// products is the read-only published-catalogue boundary shared by the public
-	// Product listing and detail handlers. Production supplies PostgreSQL, while
-	// tests inject deterministic records without opening a database connection.
+	// products is the read-only published-catalogue and exact-cover boundary
+	// shared by public Product HTML and media handlers. Production supplies
+	// PostgreSQL, while tests inject records without opening a database.
 	products productCatalogueReader
 	// interiorProjects is the ordered temporary source shared by Interior
 	// listing and detail handlers.
@@ -46,11 +46,11 @@ type application struct {
 	// creation, login, session lookup, and revocation. HTTP handlers never issue
 	// authentication SQL directly.
 	admins adminRepository
-	// adminProducts is the read-only all-status Product boundary used only by
-	// protected catalogue and detail pages.
+	// adminProducts is the read-only all-status Product boundary used by protected
+	// catalogue, detail, edit, and exact-cover preview handlers.
 	adminProducts adminProductReader
-	// adminProductWrites is the separate Product create/edit authority. Keeping
-	// it apart from readers makes mutation permission explicit in composition.
+	// adminProductWrites is the separate Product text and single-cover mutation
+	// authority. Keeping it apart from readers makes permission explicit.
 	adminProductWrites adminProductWriter
 	// adminInquiries is the read-only personal-data boundary used by the private
 	// inquiry inbox. It remains separate from the public Contact write interface.
@@ -163,7 +163,7 @@ type productListingData struct {
 //
 // It receives a complete trusted Path rather than exposing the stored Slug and
 // intentionally omits database identity, publication state, sort order, prices,
-// descriptions, and media that the current public interface does not use.
+// and detail-only content that the catalogue card does not use.
 type productPreviewData struct {
 	// Number is the zero-padded editorial position visible in the media field.
 	Number string
@@ -175,14 +175,31 @@ type productPreviewData struct {
 	Status string
 	// Path is the real server-rendered detail URL used by the card anchor.
 	Path string
+	// Cover contains reviewed image metadata, or nil for the structural fallback.
+	Cover *productCoverPageData
+}
+
+// productCoverPageData is the binary-free HTML image contract shared by public
+// Product pages and protected detail/cover forms.
+type productCoverPageData struct {
+	// Path is the revision-specific cover route.
+	Path string
+	// AltText is the required meaningful image alternative.
+	AltText string
+	// Caption is optional reviewed visible copy.
+	Caption string
+	// Width reserves horizontal layout space before the image loads.
+	Width string
+	// Height reserves vertical layout space before the image loads.
+	Height string
 }
 
 // productDetailData is the complete view model needed by the current published
 // product detail page.
 //
-// It deliberately contains only the Stage 18 repository projection and trusted
-// presentation mapping. Specifications, copy, pricing, imagery, and purchasing
-// controls remain deferred until their public design and data needs are known.
+// It contains only the trusted published repository projection and presentation
+// mapping. Reviewed copy, material, dimensions, and one cover are supported;
+// pricing, purchasing, and richer specifications remain deferred.
 type productDetailData struct {
 	// Number is the catalogue position displayed as editorial context.
 	Number string
@@ -192,6 +209,14 @@ type productDetailData struct {
 	Category string
 	// Status is trusted interface copy derived from the published-only boundary.
 	Status string
+	// Description is optional reviewed long-form Product copy.
+	Description string
+	// Material is an optional reviewed material fact.
+	Material string
+	// Dimensions is an optional reviewed dimensions fact.
+	Dimensions string
+	// Cover contains reviewed image metadata, or nil for the honest fallback.
+	Cover *productCoverPageData
 }
 
 // interiorProjectListingData describes the Interior Design portfolio section.

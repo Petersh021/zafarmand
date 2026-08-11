@@ -31,9 +31,10 @@ var (
 	errAdminProductWriteFailed = errors.New("admin product database write failed")
 )
 
-// adminProductWriteInput contains exactly the five administrator-controlled
-// values supported by the current Product schema. It deliberately excludes ID,
-// version, and timestamps because PostgreSQL owns those concurrency fields.
+// adminProductWriteInput contains exactly the administrator-controlled text,
+// ordering, and lifecycle values supported by the migration-6 Product row. It
+// excludes ID, version, timestamps, and cover bytes because those have separate
+// ownership and validation boundaries.
 type adminProductWriteInput struct {
 	// Slug is the canonical lowercase public route segment.
 	Slug string
@@ -45,6 +46,12 @@ type adminProductWriteInput struct {
 	SortOrder int
 	// PublicationStatus is one exact value from the closed lifecycle vocabulary.
 	PublicationStatus string
+	// Description is optional reviewed long-form public copy.
+	Description string
+	// Material is an optional reviewed material fact.
+	Material string
+	// Dimensions is an optional reviewed dimensions fact.
+	Dimensions string
 }
 
 // adminProductWriteResult returns only the database-owned values required by a
@@ -56,7 +63,7 @@ type adminProductWriteResult struct {
 	Version int64
 }
 
-// adminProductWriter is the narrow Product mutation authority used by Stage 20.
+// adminProductWriter is the narrow Product and single-cover mutation authority.
 // Read handlers retain their separate read-only dependency, and deletion is not
 // included because it needs its own retention and confirmation policy.
 type adminProductWriter interface {
@@ -69,6 +76,14 @@ type adminProductWriter interface {
 		int64,
 		adminProductWriteInput,
 	) (adminProductWriteResult, error)
+	// UpsertCover atomically changes one Product revision and inserts or replaces
+	// its single reviewed cover image.
+	UpsertCover(
+		context.Context,
+		int64,
+		int64,
+		adminProductCoverWriteInput,
+	) (adminProductCoverWriteResult, error)
 }
 
 // createAdminProductSQL binds every editable value and lets PostgreSQL assign
@@ -79,8 +94,11 @@ const createAdminProductSQL = `INSERT INTO public.products (
     name,
     category,
     sort_order,
-    publication_status
-) VALUES ($1, $2, $3, $4, $5)
+    publication_status,
+    description,
+    material,
+    dimensions
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING id, version`
 
 // updateAdminProductSQL performs the existence check and version-guarded edit
@@ -100,6 +118,9 @@ updated_product AS (
         category = $5,
         sort_order = $6,
         publication_status = $7,
+        description = $8,
+        material = $9,
+        dimensions = $10,
         updated_at = CURRENT_TIMESTAMP,
         version = version + 1
     WHERE id = $1 AND version = $2
@@ -179,6 +200,9 @@ func (writer *postgresAdminProductWriter) Create(
 		input.Category,
 		input.SortOrder,
 		input.PublicationStatus,
+		input.Description,
+		input.Material,
+		input.Dimensions,
 	)
 	if row == nil {
 		return adminProductWriteResult{}, errAdminProductWriteFailed
@@ -226,6 +250,9 @@ func (writer *postgresAdminProductWriter) Update(
 		input.Category,
 		input.SortOrder,
 		input.PublicationStatus,
+		input.Description,
+		input.Material,
+		input.Dimensions,
 	)
 	if row == nil {
 		return adminProductWriteResult{}, errAdminProductWriteFailed
@@ -265,7 +292,19 @@ func isValidAdminProductWriteInput(input adminProductWriteInput) bool {
 		isValidProductCatalogueText(input.Name, productNameMaximumLength) &&
 		isValidProductCatalogueText(input.Category, productCategoryMaximumLength) &&
 		input.SortOrder > 0 && input.SortOrder <= math.MaxInt32 &&
-		isValidProductPublicationStatus(input.PublicationStatus)
+		isValidProductPublicationStatus(input.PublicationStatus) &&
+		isValidOptionalProductText(
+			input.Description,
+			productDescriptionMaximumLength,
+		) &&
+		isValidOptionalProductText(
+			input.Material,
+			productMaterialMaximumLength,
+		) &&
+		isValidOptionalProductText(
+			input.Dimensions,
+			productDimensionsMaximumLength,
+		)
 }
 
 // isValidAdminProductWriteResult accepts only database-owned positive values.

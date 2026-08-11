@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strconv"
 )
 
 const (
@@ -27,6 +28,12 @@ func productDetailPath(slug string) string {
 	return "/products/" + slug
 }
 
+// productCoverPath builds the revision-specific public image URL from one
+// canonical slug and positive cover revision.
+func productCoverPath(slug string, version int64) string {
+	return productDetailPath(slug) + "/cover/" + strconv.FormatInt(version, 10)
+}
+
 // productPreviews maps ordered source records into the smaller view model
 // required by products.html.
 //
@@ -41,13 +48,18 @@ func productPreviews(products []catalogueProduct) []productPreviewData {
 	)
 
 	for index, product := range products {
-		previews[index] = productPreviewData{
+		preview := productPreviewData{
 			Number:   formatProductCatalogueNumber(product.CatalogueNumber),
 			Name:     product.Name,
 			Category: product.Category,
 			Status:   publishedProductStatusLabel,
 			Path:     productDetailPath(product.Slug),
 		}
+		if product.Cover != nil {
+			cover := newProductCoverPageData(product.Slug, *product.Cover)
+			preview.Cover = &cover
+		}
+		previews[index] = preview
 	}
 
 	return previews
@@ -91,15 +103,48 @@ func formatProductCatalogueNumber(number int64) string {
 // narrow detail-template view model.
 //
 // Keeping this conversion explicit prevents the template from depending on
-// routing fields such as Slug or internal identity, while leaving room for a
-// future reviewed schema to add richer Product fields deliberately.
+// routing fields such as Slug or internal identity and keeps later Product
+// fields from entering HTML without an explicit presentation decision.
 func newProductDetailData(
 	product catalogueProduct,
 ) productDetailData {
 	return productDetailData{
-		Number:   formatProductCatalogueNumber(product.CatalogueNumber),
-		Name:     product.Name,
-		Category: product.Category,
-		Status:   publishedProductStatusLabel,
+		Number:      formatProductCatalogueNumber(product.CatalogueNumber),
+		Name:        product.Name,
+		Category:    product.Category,
+		Status:      publishedProductStatusLabel,
+		Description: product.Description,
+		Material:    product.Material,
+		Dimensions:  product.Dimensions,
+		Cover:       optionalProductCoverPageData(product.Slug, product.Cover),
+	}
+}
+
+// optionalProductCoverPageData converts a nil repository cover to a nil view
+// model and otherwise returns an isolated trusted image contract.
+func optionalProductCoverPageData(
+	slug string,
+	metadata *productCoverMetadata,
+) *productCoverPageData {
+	if metadata == nil {
+		return nil
+	}
+
+	cover := newProductCoverPageData(slug, *metadata)
+	return &cover
+}
+
+// newProductCoverPageData derives the revision-specific media path outside
+// templates.
+func newProductCoverPageData(
+	slug string,
+	metadata productCoverMetadata,
+) productCoverPageData {
+	return productCoverPageData{
+		Path:    productCoverPath(slug, metadata.Version),
+		AltText: metadata.AltText,
+		Caption: metadata.Caption,
+		Width:   strconv.Itoa(metadata.Width),
+		Height:  strconv.Itoa(metadata.Height),
 	}
 }

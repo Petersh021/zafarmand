@@ -17,10 +17,16 @@ type recordingAdminProductReader struct {
 	listErr error
 	// findErr controls every detail outcome when non-nil.
 	findErr error
+	// coverAsset is the configured complete protected media result.
+	coverAsset productCoverAsset
+	// coverErr controls protected media reads.
+	coverErr error
 	// listCalls records whether each request supplied a deadline.
 	listCalls []recordingAdminProductListCall
 	// findCalls records the exact requested identity and deadline state.
 	findCalls []recordingAdminProductFindCall
+	// coverCalls records protected media identity, revision, and deadline state.
+	coverCalls []recordingAdminProductCoverFindCall
 }
 
 // recordingAdminProductListCall captures one list dependency invocation.
@@ -34,6 +40,16 @@ type recordingAdminProductFindCall struct {
 	// ID is the exact canonical identity supplied by the handler.
 	ID int64
 	// HasDeadline proves the HTTP layer bounded the repository operation.
+	HasDeadline bool
+}
+
+// recordingAdminProductCoverFindCall captures one protected cover lookup.
+type recordingAdminProductCoverFindCall struct {
+	// ProductID is the exact owning Product identity.
+	ProductID int64
+	// Version is the exact requested cover revision.
+	Version int64
+	// HasDeadline proves the handler bounded the repository call.
 	HasDeadline bool
 }
 
@@ -126,6 +142,36 @@ func (reader *recordingAdminProductReader) FindByID(
 	return adminProductRecord{}, errAdminProductNotFound
 }
 
+// FindCoverByProductID implements the protected binary read boundary and
+// returns an isolated byte slice.
+func (reader *recordingAdminProductReader) FindCoverByProductID(
+	ctx context.Context,
+	productID int64,
+	version int64,
+) (productCoverAsset, error) {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+
+	_, hasDeadline := ctx.Deadline()
+	reader.coverCalls = append(
+		reader.coverCalls,
+		recordingAdminProductCoverFindCall{
+			ProductID:   productID,
+			Version:     version,
+			HasDeadline: hasDeadline,
+		},
+	)
+	if reader.coverErr != nil {
+		return productCoverAsset{}, reader.coverErr
+	}
+	if reader.coverAsset.ProductID != productID ||
+		reader.coverAsset.Version != version {
+		return productCoverAsset{}, errProductCoverNotFound
+	}
+
+	return cloneProductCoverAsset(reader.coverAsset), nil
+}
+
 // setProducts replaces the fixture with an isolated slice.
 func (reader *recordingAdminProductReader) setProducts(
 	products []adminProductRecord,
@@ -143,6 +189,26 @@ func (reader *recordingAdminProductReader) setErrors(listErr error, findErr erro
 
 	reader.listErr = listErr
 	reader.findErr = findErr
+}
+
+// setCover configures one isolated protected media result and error category.
+func (reader *recordingAdminProductReader) setCover(
+	asset productCoverAsset,
+	err error,
+) {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+
+	reader.coverAsset = cloneProductCoverAsset(asset)
+	reader.coverErr = err
+}
+
+// coverCallSnapshot returns an isolated protected-media call history.
+func (reader *recordingAdminProductReader) coverCallSnapshot() []recordingAdminProductCoverFindCall {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+
+	return append([]recordingAdminProductCoverFindCall(nil), reader.coverCalls...)
 }
 
 // listCallSnapshot returns an isolated record of list invocations.

@@ -454,15 +454,15 @@ func TestLoadMigrationCatalogRejectsNonRegularEntries(t *testing.T) {
 
 // TestEmbeddedMigrationCatalog verifies the production catalog contains the
 // inquiry table, its idempotency key, the admin-access boundary, and the first
-// Product catalogue table, and its edit revision boundary with exact ordered
-// identities and independently reversible schema changes.
+// Product catalogue table, edit revision, and reviewed content/cover boundary
+// with exact ordered identities and independently reversible schema changes.
 func TestEmbeddedMigrationCatalog(t *testing.T) {
 	catalog, err := loadEmbeddedMigrationCatalog()
 	if err != nil {
 		t.Fatalf("load embedded migration catalog: %v", err)
 	}
-	if len(catalog) != 5 {
-		t.Fatalf("embedded catalog length: got %d, want 5", len(catalog))
+	if len(catalog) != 6 {
+		t.Fatalf("embedded catalog length: got %d, want 6", len(catalog))
 	}
 
 	initialDefinition := catalog[0]
@@ -854,6 +854,103 @@ ALTER TABLE public.products
 	} {
 		if strings.Contains(upperVersionDownSQL, forbiddenSQL) {
 			t.Errorf("product-version down SQL contains forbidden %q", forbiddenSQL)
+		}
+	}
+
+	contentDefinition := catalog[5]
+	if contentDefinition.Version != 6 ||
+		contentDefinition.Name != "add_product_content_and_cover" {
+		t.Errorf(
+			"embedded migration identity: got %06d_%s",
+			contentDefinition.Version,
+			contentDefinition.Name,
+		)
+	}
+
+	// Version 000006 adds only bounded optional editorial fields and the
+	// one-cover child table. It seeds neither Product text nor image bytes.
+	expectedContentUpSQL := []string{
+		"ADD COLUMN description text NOT NULL DEFAULT ''",
+		"ADD COLUMN material text NOT NULL DEFAULT ''",
+		"ADD COLUMN dimensions text NOT NULL DEFAULT ''",
+		"CONSTRAINT products_description_trimmed",
+		"CONSTRAINT products_description_length",
+		"CHECK (char_length(description) <= 6000)",
+		"CONSTRAINT products_material_trimmed",
+		"CONSTRAINT products_material_length",
+		"CHECK (char_length(material) <= 500)",
+		"CONSTRAINT products_dimensions_trimmed",
+		"CONSTRAINT products_dimensions_length",
+		"CHECK (char_length(dimensions) <= 500)",
+		"CREATE TABLE public.product_cover_images",
+		"product_id bigint PRIMARY KEY",
+		"REFERENCES public.products (id)",
+		"ON DELETE CASCADE",
+		"CONSTRAINT product_cover_images_version_positive",
+		"CHECK (content_type IN ('image/jpeg', 'image/png'))",
+		"CHECK (byte_size BETWEEN 1 AND 8388608)",
+		"CHECK (octet_length(content) = byte_size)",
+		"CHECK (width BETWEEN 1 AND 10000)",
+		"CHECK (height BETWEEN 1 AND 10000)",
+		"CHECK ((width::bigint * height::bigint) <= 25000000)",
+		"CHECK (octet_length(sha256) = 32)",
+		"CONSTRAINT product_cover_images_alt_text_trimmed",
+		"CHECK (char_length(alt_text) BETWEEN 1 AND 300)",
+		"CONSTRAINT product_cover_images_caption_trimmed",
+		"CHECK (char_length(caption) <= 500)",
+		"CHECK (updated_at >= created_at)",
+	}
+	for _, expectedSQL := range expectedContentUpSQL {
+		if !strings.Contains(contentDefinition.UpSQL, expectedSQL) {
+			t.Errorf("product-content up SQL does not contain %q", expectedSQL)
+		}
+	}
+	upperContentUpSQL := strings.ToUpper(contentDefinition.UpSQL)
+	for _, forbiddenSQL := range []string{
+		"INSERT INTO PUBLIC.PRODUCTS",
+		"INSERT INTO PUBLIC.PRODUCT_COVER_IMAGES",
+		"DELETE FROM",
+		"CREATE EXTENSION",
+		"SEO",
+		"PRICE",
+		"FEATURED",
+	} {
+		if strings.Contains(upperContentUpSQL, forbiddenSQL) {
+			t.Errorf("product-content up SQL contains forbidden %q", forbiddenSQL)
+		}
+	}
+
+	orderedContentDownSQL := []string{
+		"DROP TABLE public.product_cover_images;",
+		"DROP CONSTRAINT products_dimensions_length",
+		"DROP CONSTRAINT products_description_trimmed",
+		"DROP COLUMN dimensions",
+		"DROP COLUMN material",
+		"DROP COLUMN description;",
+	}
+	previousPosition = -1
+	for _, expectedSQL := range orderedContentDownSQL {
+		position := strings.Index(contentDefinition.DownSQL, expectedSQL)
+		if position < 0 {
+			t.Errorf("product-content down SQL does not contain %q", expectedSQL)
+			continue
+		}
+		if position <= previousPosition {
+			t.Errorf("product-content down SQL has %q out of order", expectedSQL)
+		}
+		previousPosition = position
+	}
+	upperContentDownSQL := strings.ToUpper(contentDefinition.DownSQL)
+	for _, forbiddenSQL := range []string{
+		"CASCADE",
+		"IF EXISTS",
+		"DROP TABLE PUBLIC.PRODUCTS;",
+		"INQUIRIES",
+		"ADMIN_USERS",
+		"ADMIN_SESSIONS",
+	} {
+		if strings.Contains(upperContentDownSQL, forbiddenSQL) {
+			t.Errorf("product-content down SQL contains forbidden %q", forbiddenSQL)
 		}
 	}
 }

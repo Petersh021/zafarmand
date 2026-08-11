@@ -37,19 +37,20 @@ so a stage number never silently changes meaning.
 | 18 | PostgreSQL-backed published Product catalogue and public detail | Complete |
 | 19 | Protected read-only all-state Product catalogue and detail | Complete |
 | 20 | Protected Product create/edit/publication workflow with validation and stale-edit protection | Complete |
+| 21 | Rich Product content and reviewed single-cover-image management | Complete |
 
 ## Remaining focused stages
 
 | Stage | Planned outcome |
 | --- | --- |
-| 21 | Rich Product content and reviewed media-management foundation |
 | 22 | PostgreSQL-backed Interior projects and protected management workflow |
 | 23 | PostgreSQL-backed Architecture projects and protected management workflow |
 | 24 | Homepage, Contact information, featured-content, and SEO management |
 | 25 | Security, privacy, retention, observability, backup, and operational hardening |
 | 26 | End-to-end acceptance, accessibility/performance review, and deployment |
 
-Later stages must remain vertical. Stage 20 finishes one safe Product mutation
-path before Stage 21 broadens the Product schema to media, and Stages 22-23
-should reuse lessons from that completed path rather than generating
-two large administration systems at once.
+Later stages must remain vertical. Stage 21 deliberately stops at one reviewed
+Product cover instead of pretending to solve galleries, cropping, and storage
+operations in the same change. Stages 22-23 should reuse the completed Product
+read/write, accessibility, media-validation, and concurrency boundaries rather
+than generating two large administration systems at once.

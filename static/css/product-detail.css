@@ -1,9 +1,9 @@
 /* --------------------------------------------------
-   Stage 18: Published Product detail page
+   Stages 18–21: Published Product detail and reviewed cover
 
    This file is loaded only by product-detail.html. It creates a premium
-   editorial detail composition without relying on the reference composite,
-   final product imagery, or landing-page-specific discipline.css rules.
+   editorial detail composition for either a reviewed cover or the honest
+   structural fallback, without landing-page-specific discipline.css rules.
 -------------------------------------------------- */
 
 /*
@@ -172,7 +172,7 @@
 }
 
 /*
- * The description list groups only facts supported by migration 4. A top rule
+ * The description list groups reviewed public facts. A top rule
  * separates metadata from the h1 without implying an interactive control.
  */
 .product-detail__facts {
@@ -234,6 +234,32 @@
 	line-height: 1.7;
 }
 
+.product-detail__facts--editorial {
+	margin-top: clamp(1.75rem, 3vw, 2.75rem);
+}
+
+/* Long-form copy preserves authored line breaks but remains escaped plain text. */
+.product-detail__description {
+	max-width: 42rem;
+	margin-top: clamp(2rem, 4vw, 3.5rem);
+}
+
+.product-detail__description h2 {
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: clamp(1.4rem, 2vw, 2rem);
+	font-weight: 400;
+}
+
+.product-detail__description p {
+	margin: 1rem 0 0;
+	color: var(--product-detail-soft);
+	font-family: var(--font-interface);
+	line-height: 1.75;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
 /*
  * The structural media field occupies the first desktop grid area. Layered
  * neutral gradients and a single plane reserve visual space without claiming
@@ -262,6 +288,35 @@
 			var(--product-detail-field) 58%,
 			#a79d8d
 		);
+}
+
+/* A real reviewed cover occupies the same stable media grid area. */
+.product-detail__media--image {
+	grid-template-rows: minmax(0, 1fr) auto;
+	padding: 0;
+	margin: 0;
+	background: #cbc3b6;
+}
+
+.product-detail__media--image::before {
+	display: none;
+}
+
+.product-detail__image {
+	display: block;
+	width: 100%;
+	height: 100%;
+	min-height: 0;
+	object-fit: cover;
+}
+
+.product-detail__caption {
+	padding: 0.9rem 1rem;
+	border-top: 1px solid var(--product-detail-rule);
+	color: var(--product-detail-soft);
+	font-family: var(--font-interface);
+	font-size: 0.85rem;
+	overflow-wrap: anywhere;
 }
 
 /*

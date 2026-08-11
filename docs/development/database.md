@@ -1,4 +1,4 @@
-# Stage 13–20 database development on Windows
+# Stage 13–21 database development on Windows
 
 Stage 13 establishes an explicit PostgreSQL migration workflow. Stage 14 uses
 that foundation for the first database-backed public feature: Contact inquiry
@@ -18,7 +18,8 @@ complete Stage 18 behavior is documented in the
 Stage 19 reuses migration 4 for protected, read-only review of every Product
 lifecycle state. Stage 20 adds migration 5's positive revision column and the
 concurrency-aware Product writer; see the [administrator Product
-guide](admin-products.md).
+guide](admin-products.md). Stage 21 adds migration 6's optional rich content and
+one-cover table, then reuses the same Product revision for safe cover changes.
 
 The boundary is intentional:
 
@@ -41,8 +42,10 @@ The boundary is intentional:
 - The public Products repository can select only published catalogue fields.
   Migration 4 inserts no sample products, and draft or archived records remain
   indistinguishable from missing records on public detail routes.
-- A separate authenticated Product reader can inspect every migration-4 field
-  and lifecycle state without receiving any write method.
+- A separate authenticated Product reader can inspect every current Product
+  field, lifecycle state, and cover preview without receiving any write method.
+- A separate Product writer owns version-guarded text and one-cover mutations;
+  public readers receive neither mutation authority nor unpublished records.
 - The success page claims only that the inquiry was saved for studio review. It
   does not claim email delivery or guarantee a response time.
 
@@ -125,14 +128,17 @@ with a least-privilege runtime role. The current server needs database/schema
 connection privileges; `INSERT` and `SELECT` on `public.inquiries` plus
 column-level `UPDATE` on only its `status` and `updated_at`; `SELECT` on
 the `id`, `slug`, `name`, `category`, `sort_order`, `publication_status`,
-`version`, `created_at`, and `updated_at` columns of `public.products`, plus
-narrow Product INSERT/UPDATE and identity-sequence access described in
+  `description`, `material`, `dimensions`, `version`, `created_at`, and
+  `updated_at` columns of `public.products`; `SELECT`, narrow `INSERT`, and
+  narrow `UPDATE` on `public.product_cover_images`; plus Product INSERT/UPDATE
+  and identity-sequence access described in
 [admin-products.md](admin-products.md); `SELECT` on
 `public.admin_users`; and `SELECT`, `INSERT`, and `UPDATE` on
 `public.admin_sessions`. The broader inquiry read is required by Stage 16's
 protected list and detail statements, while the narrow column update is
-required by Stage 17's status statement. Stage 20 adds the separate Product
-writer but still needs no Product DELETE or schema ownership. Separate
+required by Stage 17's status statement. Stages 20–21 add the separate Product
+writer and one-cover operation but still need no Product DELETE, cover DELETE,
+or schema ownership. Separate
 application-level interfaces keep administrative inquiry
 capabilities unavailable to the public Contact handler and keep unpublished
 Product state outside public templates. Inquiry and administrator identity
@@ -170,7 +176,7 @@ produce no match because `.env.example` is explicitly allowed.
 
 ## Understanding the Go connection lifecycle
 
-Stages 13–20 use `database/sql` with pgx as the PostgreSQL driver. A `*sql.DB` is
+Stages 13–21 use `database/sql` with pgx as the PostgreSQL driver. A `*sql.DB` is
 a concurrency-safe database handle and connection pool, not one permanently
 open socket.
 
@@ -198,9 +204,9 @@ migration code, and closes it once. Individual migration functions do not own
 or close the pool. Opening a new pool for each statement would hide ownership,
 waste connections, and teach the wrong request lifecycle.
 
-In Stages 14-19, the long-running application—not an HTTP handler—owns the
+In Stages 14–21, the long-running application—not an HTTP handler—owns the
 shared pool. The public inquiry writer, public Product reader, private Product
-reader, private inquiry reader, private inquiry status updater, and
+reader/writer, private inquiry reader, private inquiry status updater, and
 administrator authentication repository borrow it and accept request contexts.
 The server opens and pings the pool before listening, stops accepting requests
 on Ctrl+C, waits for active handlers, and then closes the pool.
@@ -257,8 +263,8 @@ Migration history is compiled into the Go executable from `migrations/`. Every
 new schema version must follow one strict contract:
 
 1. Add an exact pair such as
-   `000005_descriptive_name.up.sql` and
-   `000005_descriptive_name.down.sql`.
+   `000007_descriptive_name.up.sql` and
+   `000007_descriptive_name.down.sql`.
 2. Use six digits, the next contiguous positive version, and a globally unique
    lowercase name made from words separated by single underscores.
 3. Put the forward change in `up` and the narrow exact reverse in `down`. Avoid
@@ -339,6 +345,7 @@ psql -X --set ON_ERROR_STOP=on --command '\d inquiries'
 psql -X --set ON_ERROR_STOP=on --command '\d admin_users'
 psql -X --set ON_ERROR_STOP=on --command '\d admin_sessions'
 psql -X --set ON_ERROR_STOP=on --command '\d products'
+psql -X --set ON_ERROR_STOP=on --command '\d product_cover_images'
 psql -X --set ON_ERROR_STOP=on --command '\di products_published_order_idx'
 ```
 
@@ -391,8 +398,9 @@ receive draft or archived state as display data. Use the [Products development
 guide](products.md) for schema details, fictional local verification data, and
 the public list/detail behavior. The separate Stage 19 reader selects every
 state by protected positive ID. Stage 20 adds the protected create/edit writer
-and migration 5 revision without changing public selection; both are documented
-in [admin-products.md](admin-products.md).
+and migration 5 revision. Stage 21 adds optional rich content and the separate
+one-cover table. Public Product and cover reads still require Published state;
+the complete workflow is documented in [admin-products.md](admin-products.md).
 
 To exercise rollback, first switch `DATABASE_URL` to a separate disposable
 database. Reconfirm the connection before doing anything destructive:
@@ -427,7 +435,9 @@ status writer's transition, no-op, and safe-failure behavior. Stage 18 adds the
 real Product schema plus published-list and published-detail repository checks;
 Stage 19 adds protected all-state ordering and ID-detail checks. Stage 20 adds
 real Product creation, slug conflict, publication, revision increments, and
-stale-write rejection.
+stale-write rejection. Stage 21 adds real rich-content persistence,
+decoder-verified cover insertion/replacement, revision increments,
+published-only binary reads, and stale-cover rejection.
 
 On the verified local Windows PostgreSQL 18 installation, the guarded helper
 can run the same acceptance cycle without persisting or printing a password:
@@ -437,12 +447,13 @@ can run the same acceptance cycle without persisting or printing a password:
 ```
 
 The helper keeps its historical Stage 14 filename and disposable database name,
-but its `Postgres` test selection runs the complete current v1-to-v5 suite,
+but its `Postgres` test selection runs the complete current v1-to-v6 suite,
 including Stage 15 admin schema/repository checks and Stage 16 inquiry reads.
 It also checks Stage 17 status updates and Stage 18's unseeded Product schema,
 published ordering, numbering, detail mapping, and non-public exclusion. Stage
 19 additionally checks the all-state administrator projection and missing ID;
-Stage 20 checks the revision-backed writer and conflict behavior.
+Stage 20 checks the revision-backed writer and conflict behavior; Stage 21
+checks migration-6 content and cover persistence through the guarded suite.
 
 The helper uses a visible secure password prompt, refuses to reuse a database,
 creates only `zafarmand_stage14_codex_test`, runs the opt-in integration tests
@@ -453,7 +464,7 @@ target.
 
 Create a dedicated empty database whose name ends in `_test`. It must not
 contain `public.inquiries`, `public.admin_users`, `public.admin_sessions`,
-`public.products`, `public.schema_migrations`,
+`public.product_cover_images`, `public.products`, `public.schema_migrations`,
 `public.stage13_atomicity_probe`, or
 `public.stage13_intentionally_missing_table`. Then opt in with two test-only
 variables:
@@ -467,10 +478,11 @@ go test -count=1 -run 'Postgres' ./...
 The test never falls back to `DATABASE_URL`, verifies both the configured and
 server-reported database names, and checks every reserved relation before
 mutation. It cleans up only `public.admin_sessions`, `public.admin_users`,
-`public.products`, `public.inquiries`, `public.schema_migrations`, and its exact
-atomicity-probe table; the intentionally missing relation is checked but never
-dropped. Still use a database created solely for this test; the confirmation
-is a safety gate, not a backup.
+`public.product_cover_images`, `public.products`, `public.inquiries`,
+`public.schema_migrations`, and its exact atomicity-probe table; the
+intentionally missing relation is checked but never dropped. Still use a
+database created solely for this test; the confirmation is a safety gate, not
+a backup.
 
 Remove the test credentials afterward:
 
@@ -489,8 +501,9 @@ result before treating the local database runtime as verified.
 ## Normal development checks
 
 The ordinary automated suite, including Stage 16 reads, Stage 17 status
-authorization, Stage 18 public Products, Stage 19 protected Product reads, and
-Stage 20 Product form/writer checks, must remain database-independent. It
+authorization, Stage 18 public Products, Stage 19 protected Product reads,
+Stage 20 Product forms/writes, and Stage 21 rich-content/cover checks, must
+remain database-independent. It
 should pass even when PostgreSQL is stopped or absent:
 
 ```powershell
@@ -522,6 +535,8 @@ git check-attr eol -- migrations/000004_create_products.up.sql
 git check-attr eol -- migrations/000004_create_products.down.sql
 git check-attr eol -- migrations/000005_add_product_version.up.sql
 git check-attr eol -- migrations/000005_add_product_version.down.sql
+git check-attr eol -- migrations/000006_add_product_content_and_cover.up.sql
+git check-attr eol -- migrations/000006_add_product_content_and_cover.down.sql
 ```
 
 The reported value should be `lf`. Use the actual migration filename if it

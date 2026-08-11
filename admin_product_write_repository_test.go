@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -47,6 +48,8 @@ type adminProductWriteRowStub struct {
 	result adminProductWriteResult
 	// productExists is the third UPDATE result column.
 	productExists bool
+	// coverResult contains the three cover-write revision columns.
+	coverResult adminProductCoverWriteResult
 	// scanError is returned before any destination is changed.
 	scanError error
 }
@@ -75,6 +78,18 @@ func (row *adminProductWriteRowStub) Scan(destinations ...any) error {
 		}
 		*id = row.result.ID
 		*version = row.result.Version
+		*exists = row.productExists
+	case 4:
+		productID, productIDOK := destinations[0].(*int64)
+		productVersion, productVersionOK := destinations[1].(*int64)
+		coverVersion, coverVersionOK := destinations[2].(*int64)
+		exists, existsOK := destinations[3].(*bool)
+		if !productIDOK || !productVersionOK || !coverVersionOK || !existsOK {
+			return errors.New("cover scan received unexpected destinations")
+		}
+		*productID = row.coverResult.ProductID
+		*productVersion = row.coverResult.ProductVersion
+		*coverVersion = row.coverResult.CoverVersion
 		*exists = row.productExists
 	default:
 		return errors.New("write scan received unexpected column count")
@@ -141,6 +156,9 @@ func TestPostgresAdminProductWriterCreate(t *testing.T) {
 		input.Category,
 		input.SortOrder,
 		input.PublicationStatus,
+		input.Description,
+		input.Material,
+		input.Dimensions,
 	}
 	if !reflect.DeepEqual(query.arguments, wantArguments) {
 		t.Errorf("create arguments: got %#v, want %#v", query.arguments, wantArguments)
@@ -163,6 +181,25 @@ func TestPostgresAdminProductWriterCreateRejectsInvalidInput(t *testing.T) {
 		{name: "zero order", ctx: context.Background(), input: func() adminProductWriteInput { value := valid; value.SortOrder = 0; return value }()},
 		{name: "large order", ctx: context.Background(), input: func() adminProductWriteInput { value := valid; value.SortOrder = math.MaxInt32 + 1; return value }()},
 		{name: "unsupported state", ctx: context.Background(), input: func() adminProductWriteInput { value := valid; value.PublicationStatus = "deleted"; return value }()},
+		{name: "untrimmed description", ctx: context.Background(), input: func() adminProductWriteInput { value := valid; value.Description = " description "; return value }()},
+		{name: "description contains nul", ctx: context.Background(), input: func() adminProductWriteInput { value := valid; value.Description = "description\x00tail"; return value }()},
+		{name: "long description", ctx: context.Background(), input: func() adminProductWriteInput {
+			value := valid
+			value.Description = strings.Repeat("d", productDescriptionMaximumLength+1)
+			return value
+		}()},
+		{name: "untrimmed material", ctx: context.Background(), input: func() adminProductWriteInput { value := valid; value.Material = " oak "; return value }()},
+		{name: "long material", ctx: context.Background(), input: func() adminProductWriteInput {
+			value := valid
+			value.Material = strings.Repeat("m", productMaterialMaximumLength+1)
+			return value
+		}()},
+		{name: "untrimmed dimensions", ctx: context.Background(), input: func() adminProductWriteInput { value := valid; value.Dimensions = " 800 mm "; return value }()},
+		{name: "long dimensions", ctx: context.Background(), input: func() adminProductWriteInput {
+			value := valid
+			value.Dimensions = strings.Repeat("x", productDimensionsMaximumLength+1)
+			return value
+		}()},
 	}
 
 	for _, test := range tests {
@@ -241,6 +278,9 @@ func TestPostgresAdminProductWriterUpdate(t *testing.T) {
 		input.Category,
 		input.SortOrder,
 		input.PublicationStatus,
+		input.Description,
+		input.Material,
+		input.Dimensions,
 	}
 	if query.calls != 1 || query.context != ctx || query.query != updateAdminProductSQL ||
 		!reflect.DeepEqual(query.arguments, wantArguments) {

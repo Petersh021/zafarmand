@@ -94,6 +94,8 @@ type adminPageData struct {
 	ProductForm *adminProductFormPageData
 	// ProductConflict contains only fixed navigation after a stale edit.
 	ProductConflict *adminProductConflictPageData
+	// ProductCoverForm contains one protected cover upload/replace contract.
+	ProductCoverForm *adminProductCoverFormPageData
 }
 
 // adminIdentityPageData keeps persistence and authorization records out of the
@@ -702,6 +704,29 @@ func parseStrictAdminForm(
 	r *http.Request,
 	expectedFields []string,
 ) (mapFormValues, bool) {
+	return parseStrictAdminFormWithMaximum(
+		w,
+		r,
+		expectedFields,
+		adminMaximumFormBytes,
+	)
+}
+
+// parseStrictAdminFormWithMaximum preserves the exact field/cardinality rules
+// while allowing a specifically reviewed form to declare a larger byte limit.
+// Callers must still validate each decoded field's semantic character bound.
+func parseStrictAdminFormWithMaximum(
+	w http.ResponseWriter,
+	r *http.Request,
+	expectedFields []string,
+	maximumBytes int64,
+) (mapFormValues, bool) {
+	if maximumBytes <= 0 {
+		http.Error(w, "invalid form submission", http.StatusBadRequest)
+
+		return nil, false
+	}
+
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/x-www-form-urlencoded" {
 		http.Error(
@@ -713,7 +738,7 @@ func parseStrictAdminForm(
 		return nil, false
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, adminMaximumFormBytes)
+	r.Body = http.MaxBytesReader(w, r.Body, maximumBytes)
 	if err := r.ParseForm(); err != nil {
 		status := http.StatusBadRequest
 		var maximumBytesError *http.MaxBytesError
@@ -803,7 +828,7 @@ func adminSecurityHeaders(next http.Handler) http.Handler {
 			headers.Set("Cache-Control", "no-store")
 			headers.Set(
 				"Content-Security-Policy",
-				"default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+				"default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
 			)
 			headers.Set("Cross-Origin-Opener-Policy", "same-origin")
 			headers.Set("Cross-Origin-Resource-Policy", "same-origin")

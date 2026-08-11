@@ -70,6 +70,54 @@ cannot accidentally turn their stored slug into a discoverable public route.
 			</div>
 		</dl>
 
+		<section class="admin-product-editorial" aria-labelledby="admin-product-editorial-title">
+			<h2 id="admin-product-editorial-title">Editorial content</h2>
+
+			{{if .ProductDetail.Description}}
+			<div class="admin-product-editorial__description">
+				<h3>Description</h3>
+				<p>{{.ProductDetail.Description}}</p>
+			</div>
+			{{else}}
+			<p>No reviewed description has been added.</p>
+			{{end}}
+
+			<dl class="admin-product-facts">
+				<div>
+					<dt>Material</dt>
+					<dd>{{if .ProductDetail.Material}}{{.ProductDetail.Material}}{{else}}Not added{{end}}</dd>
+				</div>
+
+				<div>
+					<dt>Dimensions</dt>
+					<dd>{{if .ProductDetail.Dimensions}}{{.ProductDetail.Dimensions}}{{else}}Not added{{end}}</dd>
+				</div>
+			</dl>
+		</section>
+
+		<section class="admin-product-cover" aria-labelledby="admin-product-cover-title">
+			<h2 id="admin-product-cover-title">Cover image</h2>
+
+			{{with .ProductDetail.Cover}}
+			<figure class="admin-product-cover__figure">
+				<img
+					src="{{.Path}}"
+					alt="{{.AltText}}"
+					width="{{.Width}}"
+					height="{{.Height}}"
+					decoding="async"
+				>
+				{{with .Caption}}<figcaption>{{.}}</figcaption>{{end}}
+			</figure>
+			{{else}}
+			<p>No reviewed cover image has been uploaded.</p>
+			{{end}}
+
+			<a class="admin-primary-link" href="{{.ProductDetail.CoverManagementPath}}">
+				{{if .ProductDetail.Cover}}Replace cover image{{else}}Upload cover image{{end}}
+			</a>
+		</section>
+
 		<section class="admin-product-visibility" aria-labelledby="admin-product-visibility-title">
 			<h2 id="admin-product-visibility-title">Public visibility</h2>
 

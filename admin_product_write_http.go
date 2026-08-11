@@ -13,6 +13,10 @@ const (
 	adminProductNewPath = "/admin/products/new"
 	// adminProductCreatePath is the fixed collection POST destination.
 	adminProductCreatePath = "/admin/products"
+	// adminProductFormMaximumBytes accommodates every semantically valid field
+	// even when four-byte UTF-8 characters expand to twelve bytes under percent
+	// encoding. The reviewed fixed cap still rejects an unbounded request body.
+	adminProductFormMaximumBytes = 128 * 1024
 )
 
 // adminProductFormPageData is the complete create/edit template contract. All
@@ -61,6 +65,12 @@ type adminProductFormValues struct {
 	SortOrder string
 	// PublicationStatus is compared only with trusted option values.
 	PublicationStatus string
+	// Description restores optional long-form public copy exactly as entered.
+	Description string
+	// Material restores the optional reviewed material fact.
+	Material string
+	// Dimensions restores the optional reviewed dimensions fact.
+	Dimensions string
 }
 
 // adminProductFormErrors stores field-level semantic validation messages. Empty
@@ -76,6 +86,12 @@ type adminProductFormErrors struct {
 	SortOrder string
 	// PublicationStatus explains the closed lifecycle choice.
 	PublicationStatus string
+	// Description explains the optional trimming and length boundary.
+	Description string
+	// Material explains the optional trimming and length boundary.
+	Material string
+	// Dimensions explains the optional trimming and length boundary.
+	Dimensions string
 }
 
 // adminProductStatusOptionPageData pairs one trusted machine value with visible
@@ -96,6 +112,10 @@ type adminProductConflictPageData struct {
 	DetailPath string
 	// EditPath fetches a fresh form carrying the latest revision.
 	EditPath string
+	// ActionLabel optionally specializes the primary recovery-link text.
+	ActionLabel string
+	// Guidance optionally specializes the fixed recovery explanation.
+	Guidance string
 }
 
 // adminProductNewHandler renders a database-free Draft form. Opening or
@@ -129,6 +149,9 @@ func (app *application) adminProductNewHandler(
 		adminProductFormValues{
 			SortOrder:         "1",
 			PublicationStatus: productPublicationStatusDraft,
+			Description:       "",
+			Material:          "",
+			Dimensions:        "",
 		},
 		adminProductFormErrors{},
 	)
@@ -203,6 +226,9 @@ func (app *application) adminProductEditHandler(
 			Category:          product.Category,
 			SortOrder:         strconv.Itoa(product.SortOrder),
 			PublicationStatus: product.PublicationStatus,
+			Description:       product.Description,
+			Material:          product.Material,
+			Dimensions:        product.Dimensions,
 		},
 		adminProductFormErrors{},
 	)
@@ -232,7 +258,7 @@ func (app *application) adminProductCreateHandler(
 		return
 	}
 
-	form, parsed := parseStrictAdminForm(
+	form, parsed := parseStrictAdminFormWithMaximum(
 		w,
 		r,
 		[]string{
@@ -242,7 +268,11 @@ func (app *application) adminProductCreateHandler(
 			"category",
 			"sort_order",
 			"publication_status",
+			"description",
+			"material",
+			"dimensions",
 		},
+		adminProductFormMaximumBytes,
 	)
 	if !parsed {
 		return
@@ -332,7 +362,7 @@ func (app *application) adminProductUpdateHandler(
 		return
 	}
 
-	form, parsed := parseStrictAdminForm(
+	form, parsed := parseStrictAdminFormWithMaximum(
 		w,
 		r,
 		[]string{
@@ -343,7 +373,11 @@ func (app *application) adminProductUpdateHandler(
 			"category",
 			"sort_order",
 			"publication_status",
+			"description",
+			"material",
+			"dimensions",
 		},
+		adminProductFormMaximumBytes,
 	)
 	if !parsed {
 		return
@@ -506,6 +540,9 @@ func adminProductValuesFromForm(form mapFormValues) adminProductFormValues {
 		Category:          form.Get("category"),
 		SortOrder:         form.Get("sort_order"),
 		PublicationStatus: form.Get("publication_status"),
+		Description:       form.Get("description"),
+		Material:          form.Get("material"),
+		Dimensions:        form.Get("dimensions"),
 	}
 }
 
@@ -533,6 +570,24 @@ func validateAdminProductFormValues(
 	if !isValidProductPublicationStatus(values.PublicationStatus) {
 		validationErrors.PublicationStatus = "Choose Draft, Published, or Archived."
 	}
+	if !isValidOptionalProductText(
+		values.Description,
+		productDescriptionMaximumLength,
+	) {
+		validationErrors.Description = "Use at most 6000 characters and remove leading or trailing whitespace."
+	}
+	if !isValidOptionalProductText(
+		values.Material,
+		productMaterialMaximumLength,
+	) {
+		validationErrors.Material = "Use at most 500 characters and remove leading or trailing whitespace."
+	}
+	if !isValidOptionalProductText(
+		values.Dimensions,
+		productDimensionsMaximumLength,
+	) {
+		validationErrors.Dimensions = "Use at most 500 characters and remove leading or trailing whitespace."
+	}
 
 	if validationErrors != (adminProductFormErrors{}) {
 		return adminProductWriteInput{}, validationErrors
@@ -544,6 +599,9 @@ func validateAdminProductFormValues(
 		Category:          values.Category,
 		SortOrder:         int(sortOrder64),
 		PublicationStatus: values.PublicationStatus,
+		Description:       values.Description,
+		Material:          values.Material,
+		Dimensions:        values.Dimensions,
 	}, adminProductFormErrors{}
 }
 
@@ -560,7 +618,7 @@ func newAdminProductFormPageData(
 	form := adminProductFormPageData{
 		Eyebrow:       "New catalogue record",
 		Heading:       "Create Product",
-		Introduction:  "Create the durable catalogue facts and choose whether this Product is publicly visible.",
+		Introduction:  "Create the durable catalogue facts, reviewed editorial content, and publication state.",
 		Action:        action,
 		CancelPath:    cancelPath,
 		SubmitLabel:   "Create Product",
@@ -577,7 +635,7 @@ func newAdminProductFormPageData(
 	if isEdit {
 		form.Eyebrow = "Catalogue revision " + version
 		form.Heading = "Edit Product"
-		form.Introduction = "Save a deliberate catalogue or publication-state change. A stale form cannot overwrite a newer revision."
+		form.Introduction = "Save deliberate catalogue, editorial, or publication-state changes. A stale form cannot overwrite a newer revision."
 		form.SubmitLabel = "Save Product"
 	}
 

@@ -16,6 +16,9 @@ func validAdminProductHTTPForm() url.Values {
 		"category":           {"Furniture"},
 		"sort_order":         {"7"},
 		"publication_status": {productPublicationStatusDraft},
+		"description":        {""},
+		"material":           {""},
+		"dimensions":         {""},
 	}
 }
 
@@ -141,6 +144,9 @@ func TestAdminProductCreateAcceptsValidatedForm(t *testing.T) {
 	writer.setCreateOutcome(adminProductWriteResult{ID: 37, Version: 1}, nil)
 	fixture.app.adminProductWrites = writer
 	values := addAdminProductHTTPToken(validAdminProductHTTPForm(), fixture.csrfToken)
+	values.Set("description", "A reviewed Stage 21 chair description.")
+	values.Set("material", "Oak and linen")
+	values.Set("dimensions", "800 × 520 × 600 mm")
 
 	request := adminHTTPPostFormRequest(
 		adminProductCreatePath,
@@ -164,9 +170,52 @@ func TestAdminProductCreateAcceptsValidatedForm(t *testing.T) {
 		Category:          "Furniture",
 		SortOrder:         7,
 		PublicationStatus: productPublicationStatusDraft,
+		Description:       "A reviewed Stage 21 chair description.",
+		Material:          "Oak and linen",
+		Dimensions:        "800 × 520 × 600 mm",
 	}
 	if calls[0].Input != wantInput || !calls[0].HasDeadline {
 		t.Errorf("create call: got %#v, want input %#v with deadline", calls[0], wantInput)
+	}
+}
+
+// TestAdminProductCreateAcceptsMaximumMultibyteContent proves the transport
+// cap remains larger than every semantically valid form after URL percent
+// encoding expands four-byte Unicode characters.
+func TestAdminProductCreateAcceptsMaximumMultibyteContent(t *testing.T) {
+	fixture := newAdminHTTPAuthenticatedFixture(t, adminRoleEditor)
+	writer := newRecordingAdminProductWriter()
+	writer.setCreateOutcome(adminProductWriteResult{ID: 38, Version: 1}, nil)
+	fixture.app.adminProductWrites = writer
+
+	values := addAdminProductHTTPToken(validAdminProductHTTPForm(), fixture.csrfToken)
+	values.Set("description", strings.Repeat("\U0001F4A0", productDescriptionMaximumLength))
+	values.Set("material", strings.Repeat("\U0001F4A0", productMaterialMaximumLength))
+	values.Set("dimensions", strings.Repeat("\U0001F4A0", productDimensionsMaximumLength))
+	encodedLength := len(values.Encode())
+	if encodedLength <= 64*1024 || encodedLength > adminProductFormMaximumBytes {
+		t.Fatalf(
+			"encoded maximum form length: got %d, want above old cap and within current cap",
+			encodedLength,
+		)
+	}
+
+	response := stage16ServeAdminRequest(
+		t,
+		fixture.app,
+		adminHTTPPostFormRequest(
+			adminProductCreatePath,
+			values,
+			false,
+			fixture.cookies()...,
+		),
+	)
+	assertStage16AdminStatus(t, response, http.StatusSeeOther)
+	if calls := writer.createCallSnapshot(); len(calls) != 1 ||
+		calls[0].Input.Description != values.Get("description") ||
+		calls[0].Input.Material != values.Get("material") ||
+		calls[0].Input.Dimensions != values.Get("dimensions") {
+		t.Errorf("maximum multibyte form writer calls: %#v", calls)
 	}
 }
 
@@ -216,6 +265,7 @@ func TestAdminProductFormValidationIsEscaped(t *testing.T) {
 	values.Set("category", " Furniture ")
 	values.Set("sort_order", "01")
 	values.Set("publication_status", "Published")
+	values.Set("description", "safe prefix\x00hidden tail")
 
 	request := adminHTTPPostFormRequest(
 		adminProductCreatePath,
@@ -233,6 +283,7 @@ func TestAdminProductFormValidationIsEscaped(t *testing.T) {
 		"trimmed category",
 		"whole number",
 		"Choose Draft, Published, or Archived",
+		"Use at most 6000 characters",
 		`&lt;script&gt;alert(`,
 	)
 	assertStage16BodyOmits(t, response.Body, `<script>alert(`)
@@ -263,6 +314,9 @@ func TestAdminProductMutationsCheckCSRFFirst(t *testing.T) {
 					"category":           {""},
 					"sort_order":         {"0"},
 					"publication_status": {"future"},
+					"description":        {""},
+					"material":           {""},
+					"dimensions":         {""},
 				},
 				wrongToken,
 			),

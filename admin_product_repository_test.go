@@ -89,7 +89,7 @@ func (stub *adminProductRowsStub) Next() bool {
 	return true
 }
 
-// Scan copies one Product into the nine exact destinations selected by the
+// Scan copies one Product into the seventeen exact destinations selected by the
 // protected list query or returns the configured failure.
 func (stub *adminProductRowsStub) Scan(destinations ...any) error {
 	if stub.currentIndex < 0 || stub.currentIndex >= len(stub.products) {
@@ -98,8 +98,8 @@ func (stub *adminProductRowsStub) Scan(destinations ...any) error {
 	if stub.currentIndex == stub.scanErrorAt {
 		return stub.scanError
 	}
-	if len(destinations) != 9 {
-		return errors.New("admin product list scan expected nine destinations")
+	if len(destinations) != 17 {
+		return errors.New("admin product list scan expected seventeen destinations")
 	}
 
 	product := stub.products[stub.currentIndex]
@@ -109,11 +109,15 @@ func (stub *adminProductRowsStub) Scan(destinations ...any) error {
 	category, categoryOK := destinations[3].(*string)
 	sortOrder, sortOrderOK := destinations[4].(*int)
 	status, statusOK := destinations[5].(*string)
-	version, versionOK := destinations[6].(*int64)
-	createdAt, createdAtOK := destinations[7].(*time.Time)
-	updatedAt, updatedAtOK := destinations[8].(*time.Time)
+	description, descriptionOK := destinations[6].(*string)
+	material, materialOK := destinations[7].(*string)
+	dimensions, dimensionsOK := destinations[8].(*string)
+	version, versionOK := destinations[14].(*int64)
+	createdAt, createdAtOK := destinations[15].(*time.Time)
+	updatedAt, updatedAtOK := destinations[16].(*time.Time)
 	if !idOK || !slugOK || !nameOK || !categoryOK || !sortOrderOK ||
-		!statusOK || !versionOK || !createdAtOK || !updatedAtOK {
+		!statusOK || !descriptionOK || !materialOK || !dimensionsOK ||
+		!versionOK || !createdAtOK || !updatedAtOK {
 		return errors.New("admin product list scan received unexpected destinations")
 	}
 
@@ -123,6 +127,15 @@ func (stub *adminProductRowsStub) Scan(destinations ...any) error {
 	*category = product.Category
 	*sortOrder = product.SortOrder
 	*status = product.PublicationStatus
+	*description = product.Description
+	*material = product.Material
+	*dimensions = product.Dimensions
+	if err := setProductCoverMetadataDestinations(
+		product.Cover,
+		destinations[9:14],
+	); err != nil {
+		return err
+	}
 	*version = product.Version
 	*createdAt = product.CreatedAt
 	*updatedAt = product.UpdatedAt
@@ -180,13 +193,22 @@ type adminProductRowStub struct {
 	scanError error
 }
 
-// Scan implements the nine-column detail projection used by FindByID.
+// adminProductScannerFunc adapts one focused closure to the protected Product
+// scanner interface for malformed nullable-projection tests.
+type adminProductScannerFunc func(...any) error
+
+// Scan delegates to the configured focused scanner behavior.
+func (scanner adminProductScannerFunc) Scan(destinations ...any) error {
+	return scanner(destinations...)
+}
+
+// Scan implements the seventeen-column detail projection used by FindByID.
 func (stub *adminProductRowStub) Scan(destinations ...any) error {
 	if stub.scanError != nil {
 		return stub.scanError
 	}
-	if len(destinations) != 9 {
-		return errors.New("admin product detail scan expected nine destinations")
+	if len(destinations) != 17 {
+		return errors.New("admin product detail scan expected seventeen destinations")
 	}
 
 	id, idOK := destinations[0].(*int64)
@@ -195,11 +217,15 @@ func (stub *adminProductRowStub) Scan(destinations ...any) error {
 	category, categoryOK := destinations[3].(*string)
 	sortOrder, sortOrderOK := destinations[4].(*int)
 	status, statusOK := destinations[5].(*string)
-	version, versionOK := destinations[6].(*int64)
-	createdAt, createdAtOK := destinations[7].(*time.Time)
-	updatedAt, updatedAtOK := destinations[8].(*time.Time)
+	description, descriptionOK := destinations[6].(*string)
+	material, materialOK := destinations[7].(*string)
+	dimensions, dimensionsOK := destinations[8].(*string)
+	version, versionOK := destinations[14].(*int64)
+	createdAt, createdAtOK := destinations[15].(*time.Time)
+	updatedAt, updatedAtOK := destinations[16].(*time.Time)
 	if !idOK || !slugOK || !nameOK || !categoryOK || !sortOrderOK ||
-		!statusOK || !versionOK || !createdAtOK || !updatedAtOK {
+		!statusOK || !descriptionOK || !materialOK || !dimensionsOK ||
+		!versionOK || !createdAtOK || !updatedAtOK {
 		return errors.New("admin product detail scan received unexpected destinations")
 	}
 
@@ -209,6 +235,15 @@ func (stub *adminProductRowStub) Scan(destinations ...any) error {
 	*category = stub.product.Category
 	*sortOrder = stub.product.SortOrder
 	*status = stub.product.PublicationStatus
+	*description = stub.product.Description
+	*material = stub.product.Material
+	*dimensions = stub.product.Dimensions
+	if err := setProductCoverMetadataDestinations(
+		stub.product.Cover,
+		destinations[9:14],
+	); err != nil {
+		return err
+	}
 	*version = stub.product.Version
 	*createdAt = stub.product.CreatedAt
 	*updatedAt = stub.product.UpdatedAt
@@ -216,7 +251,7 @@ func (stub *adminProductRowStub) Scan(destinations ...any) error {
 	return nil
 }
 
-// validAdminProductRecord returns one deterministic migration-5 record. Tests
+// validAdminProductRecord returns one deterministic migration-6 record. Tests
 // vary one field at a time to isolate a defensive rule.
 func validAdminProductRecord(
 	id int64,
@@ -345,6 +380,16 @@ func TestPostgresAdminProductReaderRejectsUnsafeLists(t *testing.T) {
 			invalid.Version = 0
 			return newAdminProductRowsStub([]adminProductRecord{invalid}), nil
 		}}},
+		{name: "invalid description", reader: &postgresAdminProductReader{query: func(context.Context, string, ...any) (adminProductRows, error) {
+			invalid := valid
+			invalid.Description = strings.Repeat("d", productDescriptionMaximumLength+1)
+			return newAdminProductRowsStub([]adminProductRecord{invalid}), nil
+		}}},
+		{name: "invalid cover metadata", reader: &postgresAdminProductReader{query: func(context.Context, string, ...any) (adminProductRows, error) {
+			invalid := valid
+			invalid.Cover = &productCoverMetadata{Version: 1, Width: 4, Height: 3}
+			return newAdminProductRowsStub([]adminProductRecord{invalid}), nil
+		}}},
 		{name: "unordered", reader: &postgresAdminProductReader{query: func(context.Context, string, ...any) (adminProductRows, error) {
 			later := validAdminProductRecord(2, "later-product", 2, publishedProductStatus)
 			return newAdminProductRowsStub([]adminProductRecord{later, valid}), nil
@@ -466,6 +511,11 @@ func TestPostgresAdminProductReaderFindFailures(t *testing.T) {
 			product := validAdminProductRecord(1, "valid-product", 1, "future")
 			return &adminProductRowStub{product: product}
 		}}},
+		{name: "malformed rich content", reader: &postgresAdminProductReader{queryRow: func(context.Context, string, ...any) adminProductRowScanner {
+			product := validAdminProductRecord(1, "valid-product", 1, publishedProductStatus)
+			product.Material = " untrimmed"
+			return &adminProductRowStub{product: product}
+		}}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			product, err := test.reader.FindByID(t.Context(), 1)
@@ -479,6 +529,29 @@ func TestPostgresAdminProductReaderFindFailures(t *testing.T) {
 				t.Error("safe error exposes private dependency detail")
 			}
 		})
+	}
+}
+
+// TestScanAdminProductRejectsPartialCoverProjection proves a corrupt LEFT JOIN
+// cannot turn one present nullable cover column into an absent or valid cover.
+func TestScanAdminProductRejectsPartialCoverProjection(t *testing.T) {
+	expected := validAdminProductRecord(1, "valid-product", 1, publishedProductStatus)
+	base := &adminProductRowStub{product: expected}
+	scanner := adminProductScannerFunc(func(destinations ...any) error {
+		if err := base.Scan(destinations...); err != nil {
+			return err
+		}
+		version := destinations[9].(*sql.NullInt64)
+		*version = sql.NullInt64{Int64: 1, Valid: true}
+
+		return nil
+	})
+
+	if product, err := scanAdminProduct(scanner); !errors.Is(
+		err,
+		errAdminProductReadFailed,
+	) || product != (adminProductRecord{}) {
+		t.Fatalf("partial protected cover projection: product=%#v err=%v", product, err)
 	}
 }
 

@@ -19,10 +19,16 @@ type recordingProductCatalogueReader struct {
 	listErr error
 	// findErr is the configured FindPublishedBySlug failure.
 	findErr error
+	// coverAsset is the configured complete public media result.
+	coverAsset productCoverAsset
+	// coverErr is the configured FindPublishedCover failure.
+	coverErr error
 	// listCalls records the deadline state observed by each list operation.
 	listCalls []recordingProductListCall
 	// findCalls records each canonical detail lookup and its deadline state.
 	findCalls []recordingProductFindCall
+	// coverCalls records exact public media lookups and deadline state.
+	coverCalls []recordingProductCoverFindCall
 }
 
 // recordingProductListCall captures the context property that proves the HTTP
@@ -41,6 +47,16 @@ type recordingProductFindCall struct {
 	// Deadline is the absolute context deadline when one was present.
 	Deadline time.Time
 	// HasDeadline distinguishes a real deadline from time.Time's zero value.
+	HasDeadline bool
+}
+
+// recordingProductCoverFindCall captures one published cover dependency call.
+type recordingProductCoverFindCall struct {
+	// Slug is the canonical owning Product path value.
+	Slug string
+	// Version is the requested exact cover revision.
+	Version int64
+	// HasDeadline proves the HTTP layer bounded the media read.
 	HasDeadline bool
 }
 
@@ -136,6 +152,36 @@ func (reader *recordingProductCatalogueReader) FindPublishedBySlug(
 	return catalogueProduct{}, errProductCatalogueNotFound
 }
 
+// FindPublishedCover implements the binary public-read boundary without a
+// database and returns an isolated byte slice.
+func (reader *recordingProductCatalogueReader) FindPublishedCover(
+	ctx context.Context,
+	slug string,
+	version int64,
+) (productCoverAsset, error) {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+
+	_, hasDeadline := ctx.Deadline()
+	reader.coverCalls = append(
+		reader.coverCalls,
+		recordingProductCoverFindCall{
+			Slug:        slug,
+			Version:     version,
+			HasDeadline: hasDeadline,
+		},
+	)
+	if reader.coverErr != nil {
+		return productCoverAsset{}, reader.coverErr
+	}
+	if reader.coverAsset.ProductID <= 0 ||
+		reader.coverAsset.Version != version {
+		return productCoverAsset{}, errProductCoverNotFound
+	}
+
+	return cloneProductCoverAsset(reader.coverAsset), nil
+}
+
 // setProducts replaces the fixture with an isolated copy.
 func (reader *recordingProductCatalogueReader) setProducts(
 	products []catalogueProduct,
@@ -156,6 +202,26 @@ func (reader *recordingProductCatalogueReader) setErrors(
 
 	reader.listErr = listErr
 	reader.findErr = findErr
+}
+
+// setCover configures one isolated public media result and error category.
+func (reader *recordingProductCatalogueReader) setCover(
+	asset productCoverAsset,
+	err error,
+) {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+
+	reader.coverAsset = cloneProductCoverAsset(asset)
+	reader.coverErr = err
+}
+
+// coverCallSnapshot returns an isolated record of public media lookups.
+func (reader *recordingProductCatalogueReader) coverCallSnapshot() []recordingProductCoverFindCall {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+
+	return append([]recordingProductCoverFindCall(nil), reader.coverCalls...)
 }
 
 // listCallSnapshot returns an isolated record of list invocations.

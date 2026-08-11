@@ -1,6 +1,6 @@
 {{/*
 The product detail page is a separate template-cache entry discovered by the
-existing templates/pages glob. Stage 18 renders one repository-validated
+existing templates/pages glob. It renders one repository-validated
 published record and does not reuse the landing-page discipline shell, which
 keeps detail semantics and presentation independent from /products.
 */}}
@@ -99,23 +99,56 @@ has found one published slug; the optional record controls only the article.
 					</div>
 				</dl>
 
-				{{/*
-				This interface note is intentionally truthful and generic. Migration 4
-				does not store materials, dimensions, designers, prices, descriptions,
-				or media, so the template does not invent those future fields.
-				*/}}
+				{{if .Material}}
+				<dl class="product-detail__facts product-detail__facts--editorial">
+					<div class="product-detail__fact">
+						<dt>Material</dt>
+						<dd>{{.Material}}</dd>
+					</div>
+					{{if .Dimensions}}
+					<div class="product-detail__fact">
+						<dt>Dimensions</dt>
+						<dd>{{.Dimensions}}</dd>
+					</div>
+					{{end}}
+				</dl>
+				{{else if .Dimensions}}
+				<dl class="product-detail__facts product-detail__facts--editorial">
+					<div class="product-detail__fact">
+						<dt>Dimensions</dt>
+						<dd>{{.Dimensions}}</dd>
+					</div>
+				</dl>
+				{{end}}
+
+				{{with .Description}}
+				<div class="product-detail__description">
+					<h2>About this Product</h2>
+					<p>{{.}}</p>
+				</div>
+				{{end}}
+
+				{{if and (not .Description) (not .Material) (not .Dimensions)}}
 				<p class="product-detail__notice">
-					Additional product information and media are not
-					available in this catalogue stage.
+					Additional reviewed Product information is not available yet.
 				</p>
+				{{end}}
 			</div>
 
-			{{/*
-			The visual field reserves future product-media space without
-			publishing or cropping an unapproved reference image. Everything inside
-			is decorative and repeated as visible text elsewhere, so the complete
-			field is hidden from assistive technology.
-			*/}}
+			{{with .Cover}}
+			<figure class="product-detail__media product-detail__media--image">
+				<img
+					class="product-detail__image"
+					src="{{.Path}}"
+					alt="{{.AltText}}"
+					width="{{.Width}}"
+					height="{{.Height}}"
+					decoding="async"
+					fetchpriority="high"
+				>
+				{{with .Caption}}<figcaption class="product-detail__caption">{{.}}</figcaption>{{end}}
+			</figure>
+			{{else}}
 			<div
 				class="product-detail__media"
 				aria-hidden="true"
@@ -128,6 +161,7 @@ has found one published slug; the optional record controls only the article.
 					{{.Number}}
 				</span>
 			</div>
+			{{end}}
 		</div>
 	</article>
 	{{/* End the optional product detail record and restore pageData as dot. */}}

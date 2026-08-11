@@ -1,4 +1,4 @@
-# Stage 18 database-backed public Products
+# Stages 18–21 database-backed public Products
 
 Stage 18 replaces the temporary in-memory Product catalogue with the first
 PostgreSQL-backed public content reader. It is intentionally one vertical,
@@ -10,14 +10,17 @@ read-only slice:
 - `GET /products` renders those rows in deterministic catalogue order;
 - `GET /products/{slug}` renders one published row at the same catalogue
   number shown by the list; and
+- `GET /products/{slug}/cover/{version}` serves one normalized cover only while
+  the owning Product remains Published; and
 - a fresh database truthfully renders an empty catalogue because the migration
   inserts no sample business content.
 
 Stages 19–20 add protected all-state review and a concurrency-aware Product
-create/edit/publication workflow without changing this published-only public
+create/edit/publication workflow. Stage 21 adds optional reviewed editorial
+content and one cover image without weakening the published-only public
 contract. Their routes, authorization, validation, and verification steps are
-documented in [admin-products.md](admin-products.md). Media and final Zafarmand
-content remain future reviewed stages.
+documented in [admin-products.md](admin-products.md). Galleries and final
+Zafarmand content remain future reviewed stages.
 
 ## Migration 4 schema
 
@@ -44,6 +47,12 @@ The up migration creates `public.products` with these columns:
 Migration 5 later adds the positive `version bigint` used only by protected
 optimistic editing. The public reader does not select or expose that revision;
 see [admin-products.md](admin-products.md).
+
+Migration 6 adds optional `description`, `material`, and `dimensions` columns
+plus the separate one-row-per-Product `product_cover_images` table. The public
+list/detail queries join only cover revision, dimensions, alt text, and caption;
+encoded image bytes are fetched only by an exact cover route. The migration is
+schema-only and still inserts no Product or image content.
 
 Named constraints protect stored rows. Go independently validates the smaller,
 SQL-derived public projection before handlers receive it:
@@ -92,9 +101,10 @@ must return zero. This is a feature, not a migration failure:
   returns the ordinary `404 Not Found`; and
 - no fictional item appears merely to make the page look populated.
 
-Real content must wait for a reviewed Product management and publication
-workflow. Automated and manual Stage 18 checks use unmistakably synthetic rows
-in disposable or local development databases only.
+Real content should enter through the protected Product management and
+publication workflow, not through a schema migration. Automated and manual
+checks use unmistakably synthetic rows in disposable or local development
+databases only.
 
 ## Narrow public repository
 
@@ -104,6 +114,7 @@ The handlers depend on a read-only `productCatalogueReader` rather than on
 ```text
 ListPublished(ctx)                 return all published catalogue rows
 FindPublishedBySlug(ctx, slug)     return one published row or not found
+FindPublishedCover(ctx, slug, version) return one published cover revision
 ```
 
 The repository result contains only:
@@ -114,6 +125,10 @@ CatalogueNumber
 Slug
 Name
 Category
+Description
+Material
+Dimensions
+optional Cover metadata
 ```
 
 `sort_order` and `publication_status` never cross that boundary. They are used
@@ -125,6 +140,18 @@ filter.
 Both list and detail queries bind `published` as a positional parameter. SQL is
 fixed; neither a URL slug nor stored text is interpolated into a statement.
 Draft and archived records do not enter the public numbering window.
+
+The cover query repeats the canonical slug, `published` status, and positive
+cover revision predicates. Missing covers, old revisions, Draft Products, and
+Archived Products therefore share one public not-found result. The handler
+serves only decoder-revalidated JPEG/PNG bytes with a strong SHA-256 ETag and
+`Cache-Control: public, max-age=0, must-revalidate`. Revalidation avoids
+retransmitting unchanged bytes while ensuring that an archive action is checked
+on the next request instead of being hidden behind a long immutable cache.
+Errors use `Cache-Control: no-store`, preventing a pre-publication 404 from
+surviving a later publish. Uploads are re-encoded before storage to strip
+ancillary metadata; JPEG normalization uses quality 90 and administrators must
+bake orientation into pixels before verifying the protected preview.
 
 ### List ordering and numbering
 
@@ -167,7 +194,11 @@ templates receive them:
 - list IDs and slugs are not duplicated;
 - slugs match the same canonical lowercase grammar and bound as PostgreSQL;
 - names and categories are valid, nonempty, trimmed UTF-8 within their schema
-  limits; and
+  limits;
+- optional description, material, and dimensions are trimmed valid UTF-8 within
+  their migration-6 limits;
+- joined cover metadata is all present or all absent and satisfies the positive
+  revision, pixel-dimension, alt-text, and caption constraints; and
 - a detail row's returned slug exactly matches the requested slug.
 
 The list closes its row iterator on success and on every failure path. Nil
@@ -203,7 +234,7 @@ database pool.
 Application construction rejects a nil Product reader. The request handlers
 also fail safely if a manually assembled application bypasses normal
 construction. Repository construction itself performs no query, so operators
-must apply the current migrations through version 5 before serving traffic. If
+must apply the current migrations through version 6 before serving traffic. If
 the table or revision is absent, Product requests fail generically rather than
 falling back to temporary records or disabling concurrency checks.
 
@@ -213,8 +244,10 @@ The existing template presentation boundary remains useful:
 - catalogue paths are constructed from validated slugs in Go;
 - published ordering determines the displayed number;
 - the listing retains semantic ordered-list and native-link behavior;
-- the detail retains one real server-rendered URL and its native back link; and
-- media and descriptive areas remain honest structural placeholders.
+- the detail retains one real server-rendered URL and its native back link;
+- reviewed rich content renders as escaped ordinary text; and
+- an uploaded cover uses native responsive image markup while a Product without
+  one retains the honest structural fallback.
 
 No JavaScript is required for list or detail navigation. Browser Back,
 Forward, copied URLs, new tabs, and HEAD behavior continue to use real routes.
@@ -234,9 +267,10 @@ sort_order
 publication_status
 ```
 
-The Stage 18 public reader does not need Product writes and does not select
-timestamps or revision data. Stages 19–20 expand the shared application runtime
-for protected reads and narrow create/edit authority; their least-privilege
+The original Stage 18 public reader did not need Product writes or select
+timestamps/revision data. Stages 19–21 expand the shared application runtime
+for protected reads, narrow create/edit authority, and one cover; their current
+least-privilege
 grant is documented in [admin-products.md](admin-products.md). Define grants in
 deployment automation rather than hard-coding a role name in application code.
 
@@ -250,10 +284,15 @@ GRANT SELECT (
     category,
     sort_order,
     publication_status,
+    description,
+    material,
+    dimensions,
     version,
     created_at,
     updated_at
 ) ON TABLE public.products TO chosen_runtime_role;
+
+GRANT SELECT ON TABLE public.product_cover_images TO chosen_runtime_role;
 ```
 
 Replace `chosen_runtime_role` with the real quoted or unquoted identifier used
@@ -262,9 +301,9 @@ source code, documentation transcripts, screenshots, or commits.
 
 ## Manual verification
 
-Use only a local development database with disposable synthetic Product rows.
-Do not enter genuine Zafarmand content before a reviewed management and
-publication workflow exists.
+Use only a local development database with disposable synthetic Product rows
+for these verification steps. Add genuine Zafarmand content only through the
+reviewed protected workflow and its deployment-specific backup policy.
 
 1. In one PowerShell process, set `DATABASE_URL` to the migration-role URL by
    following [database.md](database.md). Do not print the value.
@@ -276,7 +315,7 @@ publication workflow exists.
    go run . migrate status
    ```
 
-   Versions 1, 2, 3, and 4 should be applied.
+   Versions 1 through 6 should be applied.
 3. Let `psql` read the same URL from `PGDATABASE`, verify the database identity,
    and inspect schema rather than content:
 
@@ -388,9 +427,10 @@ It covers:
 - the rule that no temporary Product collection or unpublished state reaches a
   public response.
 
-Stages 19–20 extend that suite with the all-state administrator reader, strict
-Owner/Editor routes, version-guarded writer, Product forms, and public-link
-separation described in [admin-products.md](admin-products.md).
+Stages 19–21 extend that suite with the all-state administrator reader, strict
+Owner/Editor routes, version-guarded writer, rich Product and cover forms,
+decoder/digest validation, and public-link separation described in
+[admin-products.md](admin-products.md).
 
 The opt-in PostgreSQL suite additionally proves the real migration and window
 queries against a guarded disposable database. It confirms that migration 4
@@ -398,7 +438,7 @@ seeds zero rows, inserts synthetic rows out of editorial order, produces
 consecutive published-only numbers, uses ID to break equal sort positions,
 keeps detail numbering consistent with the list, hides draft, archived, and
 missing public slugs, and separately verifies protected all-state reads plus
-real create, publication, and stale-version behavior.
+real create, publication, stale-version behavior, and cover replacement.
 
 Follow the two-variable destructive opt-in in [database.md](database.md), then
 run:
@@ -422,18 +462,20 @@ git check-attr eol -- migrations/000004_create_products.up.sql
 git check-attr eol -- migrations/000004_create_products.down.sql
 git check-attr eol -- migrations/000005_add_product_version.up.sql
 git check-attr eol -- migrations/000005_add_product_version.down.sql
+git check-attr eol -- migrations/000006_add_product_content_and_cover.up.sql
+git check-attr eol -- migrations/000006_add_product_content_and_cover.down.sql
 ```
 
 ## Explicitly deferred to future Product stages
 
-Stages 18–20 do not implement:
+Stages 18–21 do not implement:
 
 - administrator Product deletion or retention;
-- preview-before-publishing;
+- shareable full-public-page preview tokens for non-public Products;
 - durable change history or actor attribution;
-- descriptions, materials, dimensions, designers, prices, purchasing, or stock;
-- Product images, galleries, uploads, alt text, captions, ordering, cropping, or
-  focal points;
+- designers, prices, purchasing, or stock;
+- multiple Product images, gallery ordering, cover removal, cropping, focal
+  points, or external object storage;
 - featured-homepage placement;
 - Product SEO title or description;
 - search, filtering, public pagination, or catalogue counts;

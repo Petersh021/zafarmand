@@ -1,0 +1,123 @@
+{{/*
+The cover form is separate from Product text editing because multipart image
+bytes need a larger, format-specific request boundary. Authentication, the
+Owner/Editor allowlist, session CSRF, and optimistic Product revision still
+protect the POST. The browser filename is never persisted or echoed.
+*/}}
+{{define "admin-content"}}
+<main class="admin-product-cover-form-page" id="admin-main-content">
+	<a class="admin-back-link" href="{{.ProductCoverForm.CancelPath}}">
+		<span aria-hidden="true">&larr;</span>
+		Cancel and return
+	</a>
+
+	<header class="admin-page-header">
+		<p class="admin-eyebrow">Product {{.ProductCoverForm.Reference}}</p>
+		<h1>Manage cover for {{.ProductCoverForm.ProductName}}</h1>
+		<p class="admin-page-header__lede">
+			Upload one reviewed JPEG or PNG. Replacing it creates a new cover revision.
+			A successful change to a Published Product is public immediately; keep the
+			Product Draft while reviewing a new cover.
+		</p>
+	</header>
+
+	{{with .ProductCoverForm.ExistingCover}}
+	<section class="admin-product-cover-form__current" aria-labelledby="current-cover-title">
+		<h2 id="current-cover-title">Current cover</h2>
+		<figure class="admin-product-cover__figure">
+			<img
+				src="{{.Path}}"
+				alt="{{.AltText}}"
+				width="{{.Width}}"
+				height="{{.Height}}"
+				decoding="async"
+			>
+			{{with .Caption}}<figcaption>{{.}}</figcaption>{{end}}
+		</figure>
+	</section>
+	{{end}}
+
+	{{if .ProductCoverForm.HasErrors}}
+	<section class="admin-alert admin-alert--error" aria-labelledby="admin-cover-errors-title">
+		<h2 id="admin-cover-errors-title">Check the cover fields</h2>
+		<p>No cover was saved. Choose the image again, correct the marked fields, and submit.</p>
+		<ul>
+			{{with .ProductCoverForm.Errors.Image}}<li><a href="#product-cover-image">{{.}}</a></li>{{end}}
+			{{with .ProductCoverForm.Errors.AltText}}<li><a href="#product-cover-alt-text">{{.}}</a></li>{{end}}
+			{{with .ProductCoverForm.Errors.Caption}}<li><a href="#product-cover-caption">{{.}}</a></li>{{end}}
+		</ul>
+	</section>
+	{{end}}
+
+	<form
+		class="admin-product-form admin-product-cover-form"
+		action="{{.ProductCoverForm.Action}}"
+		method="post"
+		enctype="multipart/form-data"
+	>
+		<input type="hidden" name="csrf_token" value="{{.SessionCSRFToken}}">
+		<input type="hidden" name="version" value="{{.ProductCoverForm.ProductVersion}}">
+
+		<div class="admin-product-form__field admin-product-form__field--wide">
+			<label for="product-cover-image">JPEG or PNG image</label>
+			<p class="admin-product-form__hint" id="product-cover-image-hint">
+				Maximum 8 MiB and 25 megapixels. The server re-encodes pixels to remove embedded metadata;
+				export rotation into the pixels first, then verify the protected preview. Select the file
+				again after any validation error.
+			</p>
+			<input
+				id="product-cover-image"
+				name="image"
+				type="file"
+				accept="image/jpeg,image/png"
+				aria-describedby="product-cover-image-hint{{if .ProductCoverForm.Errors.Image}} product-cover-image-error{{end}}"
+				{{if .ProductCoverForm.Errors.Image}}aria-invalid="true"{{end}}
+				required
+			>
+			{{with .ProductCoverForm.Errors.Image}}
+			<p class="admin-product-form__error" id="product-cover-image-error">{{.}}</p>
+			{{end}}
+		</div>
+
+		<div class="admin-product-form__field admin-product-form__field--wide">
+			<label for="product-cover-alt-text">Alternative text</label>
+			<p class="admin-product-form__hint" id="product-cover-alt-text-hint">
+				Describe meaningful visible content without starting with “image of”. Maximum 300 characters.
+			</p>
+			<input
+				id="product-cover-alt-text"
+				name="alt_text"
+				type="text"
+				value="{{.ProductCoverForm.Values.AltText}}"
+				maxlength="300"
+				aria-describedby="product-cover-alt-text-hint{{if .ProductCoverForm.Errors.AltText}} product-cover-alt-text-error{{end}}"
+				{{if .ProductCoverForm.Errors.AltText}}aria-invalid="true"{{end}}
+				required
+			>
+			{{with .ProductCoverForm.Errors.AltText}}
+			<p class="admin-product-form__error" id="product-cover-alt-text-error">{{.}}</p>
+			{{end}}
+		</div>
+
+		<div class="admin-product-form__field admin-product-form__field--wide">
+			<label for="product-cover-caption">Caption <span>(optional)</span></label>
+			<input
+				id="product-cover-caption"
+				name="caption"
+				type="text"
+				value="{{.ProductCoverForm.Values.Caption}}"
+				maxlength="500"
+				{{if .ProductCoverForm.Errors.Caption}}aria-describedby="product-cover-caption-error" aria-invalid="true"{{end}}
+			>
+			{{with .ProductCoverForm.Errors.Caption}}
+			<p class="admin-product-form__error" id="product-cover-caption-error">{{.}}</p>
+			{{end}}
+		</div>
+
+		<div class="admin-product-form__actions">
+			<button class="admin-status-button" type="submit">{{.ProductCoverForm.SubmitLabel}}</button>
+			<a class="admin-secondary-link" href="{{.ProductCoverForm.CancelPath}}">Cancel</a>
+		</div>
+	</form>
+</main>
+{{end}}

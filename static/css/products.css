@@ -1,5 +1,5 @@
 /* --------------------------------------------------
-   Stage 18: PostgreSQL-backed Products catalogue entrances
+   Stages 18–21: PostgreSQL-backed Products catalogue entrances and covers
 
    This stylesheet specializes only the warm selected-work region on
    /products. The shared discipline hero remains owned by discipline.css.
@@ -85,9 +85,9 @@
 }
 
 /*
- * The near-portrait field reserves stable future media space with aspect-ratio.
- * Layered neutral gradients create depth without pretending to be a product
- * photograph or exposing a reference screenshot as production content.
+ * The near-portrait field reserves stable cover space with aspect-ratio.
+ * When a Product has no reviewed cover, layered neutral gradients create depth
+ * without pretending to be a photograph or production content.
  */
 .product-preview__media {
 	position: relative;
@@ -109,6 +109,37 @@
 			#bdb4a5 58%,
 			#a69c8c
 		);
+}
+
+/* A reviewed cover replaces only the decorative planes, not card geometry. */
+.product-preview__media--image {
+	background: #cbc3b6;
+}
+
+.product-preview__media--image::before {
+	display: none;
+}
+
+.product-preview__image {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.product-preview__media--image .product-preview__number {
+	position: relative;
+	z-index: 1;
+	align-self: end;
+	justify-self: end;
+	margin: 0.75rem;
+	padding: 0.35rem 0.55rem;
+	background: rgba(244, 239, 229, 0.88);
+	color: var(--discipline-light-ink);
+	font-size: clamp(1.5rem, 3vw, 3rem);
 }
 
 /*

@@ -1,10 +1,11 @@
 /* --------------------------------------------------
-   Stages 15–20: Secure administration and focused private workflows
+   Stages 15–21: Secure administration and focused private workflows
 
    The admin interface has its own restrained document shell and does not load
    public navigation or route-specific presentation. Stages 16–17 add inquiry
-   review and explicit status changes; Stages 19–20 add Product review and a
-   concurrency-aware create/edit workflow while retaining login presentation.
+   review and explicit status changes; Stages 19–21 add Product review, a
+   concurrency-aware editor, and single-cover management while retaining login
+   presentation.
 -------------------------------------------------- */
 
 :root {
@@ -271,6 +272,7 @@ a {
 .admin-status-button:focus-visible,
 .admin-product-form input:focus,
 .admin-product-form select:focus,
+.admin-product-form textarea:focus,
 .admin-product-form .admin-alert a:focus-visible {
 	outline: 3px solid var(--admin-focus);
 	outline-offset: 3px;
@@ -284,6 +286,7 @@ a {
 .admin-product-record .admin-primary-link:focus-visible,
 .admin-product-form input:focus,
 .admin-product-form select:focus,
+.admin-product-form textarea:focus,
 .admin-product-form .admin-alert a:focus-visible,
 .admin-conflict-panel .admin-primary-link:focus-visible,
 .admin-conflict-panel .admin-secondary-link:focus-visible {
@@ -429,6 +432,7 @@ a {
 }
 
 .admin-product-form-page,
+.admin-product-cover-form-page,
 .admin-product-conflict {
 	width: 100%;
 	max-width: 68rem;
@@ -445,6 +449,7 @@ a {
 .admin-inquiry-record h2,
 .admin-product-record h1,
 .admin-product-record h2,
+.admin-product-record h3,
 .admin-empty-state h2 {
 	margin: 0;
 	font-family: var(--admin-serif);
@@ -856,16 +861,62 @@ a {
 	color: var(--admin-ink-soft);
 }
 
+.admin-product-editorial,
+.admin-product-cover,
 .admin-product-visibility,
 .admin-read-only-note {
 	margin-top: clamp(2.5rem, 6vw, 5rem);
 }
 
+.admin-product-editorial > p,
+.admin-product-cover > p,
 .admin-product-visibility p,
 .admin-read-only-note p {
 	max-width: 62ch;
 	margin: 1rem 0 0;
 	color: var(--admin-ink-soft);
+}
+
+/* Stored line breaks remain readable without interpreting Product copy as HTML. */
+.admin-product-editorial__description p {
+	max-width: 70ch;
+	margin: 1rem 0 0;
+	color: var(--admin-ink-soft);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.admin-product-editorial__description h3 {
+	margin: 1.5rem 0 0;
+	font-size: 1rem;
+}
+
+/* Cover previews use their real ratio within a bounded, no-overflow frame. */
+.admin-product-cover__figure {
+	display: grid;
+	width: min(100%, 48rem);
+	margin: 1.25rem 0 0;
+	border: 1px solid var(--admin-rule);
+	background: #d8d0c2;
+}
+
+.admin-product-cover__figure img {
+	display: block;
+	width: 100%;
+	height: auto;
+	max-height: 70vh;
+	object-fit: contain;
+}
+
+.admin-product-cover__figure figcaption {
+	padding: 0.9rem 1rem;
+	border-top: 1px solid var(--admin-rule);
+	color: var(--admin-ink-soft);
+	overflow-wrap: anywhere;
+}
+
+.admin-product-cover .admin-primary-link {
+	margin-top: 1.25rem;
 }
 
 .admin-read-only-note {
@@ -906,7 +957,8 @@ a {
 }
 
 .admin-product-form__field input,
-.admin-product-form__field select {
+.admin-product-form__field select,
+.admin-product-form__field textarea {
 	width: 100%;
 	min-width: 0;
 	min-height: 3rem;
@@ -915,6 +967,39 @@ a {
 	border-radius: 0;
 	background: transparent;
 	color: var(--admin-ink);
+}
+
+.admin-product-form__field textarea {
+	min-height: 7rem;
+	resize: vertical;
+	line-height: 1.55;
+}
+
+.admin-product-form__field input[type="file"] {
+	height: auto;
+	padding: 0.85rem;
+	background: rgba(26, 24, 20, 0.04);
+}
+
+.admin-product-form__field label span {
+	color: var(--admin-ink-soft);
+	font-weight: 400;
+	letter-spacing: 0;
+	text-transform: none;
+}
+
+/* The cover form's current preview precedes replacement controls in source order. */
+.admin-product-cover-form__current {
+	margin-top: clamp(2rem, 5vw, 4rem);
+	padding: clamp(1.25rem, 4vw, 2.5rem);
+	background: var(--admin-surface);
+	color: var(--admin-ink);
+}
+
+.admin-product-cover-form__current h2 {
+	margin: 0;
+	font-family: var(--admin-serif);
+	font-weight: 400;
 }
 
 .admin-product-form__hint,
@@ -1181,6 +1266,8 @@ a {
 	.admin-form__field input,
 	.admin-product-form__field input,
 	.admin-product-form__field select,
+	.admin-product-form__field textarea,
+	.admin-product-cover__figure,
 	.admin-button,
 	.admin-alert,
 	.admin-inquiry-status,

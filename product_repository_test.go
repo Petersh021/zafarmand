@@ -93,7 +93,7 @@ func (stub *productCatalogueRowsStub) Next() bool {
 	return true
 }
 
-// Scan copies one product into the five destination types used by the list
+// Scan copies one product into the thirteen destination types used by the list
 // query or returns the configured failure.
 func (stub *productCatalogueRowsStub) Scan(destinations ...any) error {
 	stub.scanCalls++
@@ -103,8 +103,8 @@ func (stub *productCatalogueRowsStub) Scan(destinations ...any) error {
 	if stub.currentIndex == stub.scanErrorAt {
 		return stub.scanError
 	}
-	if len(destinations) != 5 {
-		return errors.New("product list scan expected five destinations")
+	if len(destinations) != 13 {
+		return errors.New("product list scan expected thirteen destinations")
 	}
 
 	product := stub.products[stub.currentIndex]
@@ -113,7 +113,11 @@ func (stub *productCatalogueRowsStub) Scan(destinations ...any) error {
 	slug, slugOK := destinations[2].(*string)
 	name, nameOK := destinations[3].(*string)
 	category, categoryOK := destinations[4].(*string)
-	if !idOK || !catalogueNumberOK || !slugOK || !nameOK || !categoryOK {
+	description, descriptionOK := destinations[5].(*string)
+	material, materialOK := destinations[6].(*string)
+	dimensions, dimensionsOK := destinations[7].(*string)
+	if !idOK || !catalogueNumberOK || !slugOK || !nameOK || !categoryOK ||
+		!descriptionOK || !materialOK || !dimensionsOK {
 		return errors.New("product list scan received unexpected destinations")
 	}
 
@@ -122,6 +126,12 @@ func (stub *productCatalogueRowsStub) Scan(destinations ...any) error {
 	*slug = product.Slug
 	*name = product.Name
 	*category = product.Category
+	*description = product.Description
+	*material = product.Material
+	*dimensions = product.Dimensions
+	if err := setProductCoverMetadataDestinations(product.Cover, destinations[8:]); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -178,14 +188,23 @@ type productCatalogueRowStub struct {
 	calls int
 }
 
-// Scan implements productCatalogueRowScanner for the five-column detail query.
+// productCatalogueScannerFunc adapts one focused closure to the repository
+// scanner interface for malformed nullable-projection tests.
+type productCatalogueScannerFunc func(...any) error
+
+// Scan delegates to the configured focused scanner behavior.
+func (scanner productCatalogueScannerFunc) Scan(destinations ...any) error {
+	return scanner(destinations...)
+}
+
+// Scan implements productCatalogueRowScanner for the thirteen-column detail query.
 func (stub *productCatalogueRowStub) Scan(destinations ...any) error {
 	stub.calls++
 	if stub.scanError != nil {
 		return stub.scanError
 	}
-	if len(destinations) != 5 {
-		return errors.New("product detail scan expected five destinations")
+	if len(destinations) != 13 {
+		return errors.New("product detail scan expected thirteen destinations")
 	}
 
 	id, idOK := destinations[0].(*int64)
@@ -193,7 +212,11 @@ func (stub *productCatalogueRowStub) Scan(destinations ...any) error {
 	slug, slugOK := destinations[2].(*string)
 	name, nameOK := destinations[3].(*string)
 	category, categoryOK := destinations[4].(*string)
-	if !idOK || !catalogueNumberOK || !slugOK || !nameOK || !categoryOK {
+	description, descriptionOK := destinations[5].(*string)
+	material, materialOK := destinations[6].(*string)
+	dimensions, dimensionsOK := destinations[7].(*string)
+	if !idOK || !catalogueNumberOK || !slugOK || !nameOK || !categoryOK ||
+		!descriptionOK || !materialOK || !dimensionsOK {
 		return errors.New("product detail scan received unexpected destinations")
 	}
 
@@ -202,6 +225,51 @@ func (stub *productCatalogueRowStub) Scan(destinations ...any) error {
 	*slug = stub.product.Slug
 	*name = stub.product.Name
 	*category = stub.product.Category
+	*description = stub.product.Description
+	*material = stub.product.Material
+	*dimensions = stub.product.Dimensions
+	if err := setProductCoverMetadataDestinations(
+		stub.product.Cover,
+		destinations[8:],
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// setProductCoverMetadataDestinations writes the five nullable LEFT JOIN
+// columns shared by public and protected repository scanner stubs.
+func setProductCoverMetadataDestinations(
+	cover *productCoverMetadata,
+	destinations []any,
+) error {
+	if len(destinations) != 5 {
+		return errors.New("product cover scan expected five destinations")
+	}
+	version, versionOK := destinations[0].(*sql.NullInt64)
+	width, widthOK := destinations[1].(*sql.NullInt64)
+	height, heightOK := destinations[2].(*sql.NullInt64)
+	altText, altTextOK := destinations[3].(*sql.NullString)
+	caption, captionOK := destinations[4].(*sql.NullString)
+	if !versionOK || !widthOK || !heightOK || !altTextOK || !captionOK {
+		return errors.New("product cover scan received unexpected destinations")
+	}
+	if cover == nil {
+		*version = sql.NullInt64{}
+		*width = sql.NullInt64{}
+		*height = sql.NullInt64{}
+		*altText = sql.NullString{}
+		*caption = sql.NullString{}
+
+		return nil
+	}
+
+	*version = sql.NullInt64{Int64: cover.Version, Valid: true}
+	*width = sql.NullInt64{Int64: int64(cover.Width), Valid: true}
+	*height = sql.NullInt64{Int64: int64(cover.Height), Valid: true}
+	*altText = sql.NullString{String: cover.AltText, Valid: true}
+	*caption = sql.NullString{String: cover.Caption, Valid: true}
 
 	return nil
 }
@@ -451,6 +519,36 @@ func TestPostgresProductCatalogueReaderRejectsInvalidListResults(t *testing.T) {
 						"C",
 						productCategoryMaximumLength+1,
 					)
+					return product
+				}(),
+			},
+		},
+		{
+			name: "description exceeds rune bound",
+			products: []catalogueProduct{
+				func() catalogueProduct {
+					product := validCatalogueProduct(1, 1, "chair-study")
+					product.Description = strings.Repeat("d", productDescriptionMaximumLength+1)
+					return product
+				}(),
+			},
+		},
+		{
+			name: "material has surrounding whitespace",
+			products: []catalogueProduct{
+				func() catalogueProduct {
+					product := validCatalogueProduct(1, 1, "chair-study")
+					product.Material = " oak "
+					return product
+				}(),
+			},
+		},
+		{
+			name: "invalid cover metadata",
+			products: []catalogueProduct{
+				func() catalogueProduct {
+					product := validCatalogueProduct(1, 1, "chair-study")
+					product.Cover = &productCoverMetadata{Version: 1, Width: 4, Height: 3}
 					return product
 				}(),
 			},
@@ -824,6 +922,27 @@ func TestPostgresProductCatalogueReaderDetailFailures(t *testing.T) {
 				return product
 			}(),
 		},
+		{
+			name: "invalid description",
+			product: func() catalogueProduct {
+				product := validCatalogueProduct(1, 1, slug)
+				product.Description = " untrimmed description"
+				return product
+			}(),
+		},
+		{
+			name: "invalid cover metadata",
+			product: func() catalogueProduct {
+				product := validCatalogueProduct(1, 1, slug)
+				product.Cover = &productCoverMetadata{
+					Version: 1,
+					Width:   productCoverMaximumDimension + 1,
+					Height:  1,
+					AltText: "Synthetic cover",
+				}
+				return product
+			}(),
+		},
 	}
 
 	for _, test := range invalidProducts {
@@ -843,6 +962,30 @@ func TestPostgresProductCatalogueReaderDetailFailures(t *testing.T) {
 				t.Errorf("invalid result exposed product: %#v", product)
 			}
 		})
+	}
+}
+
+// TestScanCatalogueProductRejectsPartialCoverProjection proves a corrupt LEFT
+// JOIN cannot turn one present nullable cover column into a seemingly absent or
+// valid cover.
+func TestScanCatalogueProductRejectsPartialCoverProjection(t *testing.T) {
+	expected := validCatalogueProduct(1, 1, "chair-study")
+	base := &productCatalogueRowStub{product: expected}
+	scanner := productCatalogueScannerFunc(func(destinations ...any) error {
+		if err := base.Scan(destinations...); err != nil {
+			return err
+		}
+		version := destinations[8].(*sql.NullInt64)
+		*version = sql.NullInt64{Int64: 1, Valid: true}
+
+		return nil
+	})
+
+	if product, err := scanCatalogueProduct(scanner); !errors.Is(
+		err,
+		errProductCatalogueReadFailed,
+	) || product != (catalogueProduct{}) {
+		t.Fatalf("partial cover projection: product=%#v err=%v", product, err)
 	}
 }
 

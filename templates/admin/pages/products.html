@@ -1,7 +1,7 @@
 {{/*
 The protected Product catalogue renders all lifecycle states supplied by the
-reader. Stage 20 adds one trusted create route while the public catalogue stays
-a separate published-only query.
+reader. Product creation, editing, and cover management remain separate trusted
+mutations while the public catalogue stays a published-only query.
 
 Go validates and formats every reference, status modifier, timestamp, and path
 before this template runs. html/template still contextually escapes stored

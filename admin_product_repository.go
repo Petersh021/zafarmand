@@ -37,9 +37,9 @@ var (
 	)
 )
 
-// adminProductRecord is the complete migration-5 Product projection needed by
-// protected list and detail pages. It contains no future descriptions, media,
-// SEO fields, or pricing fields that the schema does not own.
+// adminProductRecord is the complete migration-6 Product projection needed by
+// protected list, detail, and edit pages. Binary cover bytes remain on a
+// separate media-read path so ordinary HTML queries stay small.
 type adminProductRecord struct {
 	// ID is PostgreSQL's positive internal Product identity.
 	ID int64
@@ -53,6 +53,14 @@ type adminProductRecord struct {
 	SortOrder int
 	// PublicationStatus is one value from the migration's closed lifecycle set.
 	PublicationStatus string
+	// Description is optional reviewed long-form public copy.
+	Description string
+	// Material is an optional reviewed material fact.
+	Material string
+	// Dimensions is an optional reviewed dimensions fact.
+	Dimensions string
+	// Cover contains binary-free image metadata, or nil when no cover exists.
+	Cover *productCoverMetadata
 	// Version is the positive revision used to reject stale administrator edits.
 	Version int64
 	// CreatedAt is the stored database creation timestamp.
@@ -61,59 +69,112 @@ type adminProductRecord struct {
 	UpdatedAt time.Time
 }
 
-// adminProductReader is the narrow, read-only persistence behavior required by
-// Stage 19. It deliberately has no create, update, publish, archive, or delete
-// method, keeping later mutation authority visible at the application boundary.
+// adminProductReader is the protected all-state Product and cover-read contract.
+// It deliberately has no create, update, publish, archive, or delete method,
+// keeping mutation authority visible at the application boundary.
 type adminProductReader interface {
 	// List returns every Product state in deterministic editorial order.
 	List(context.Context) ([]adminProductRecord, error)
 	// FindByID returns one complete protected Product or a safe not-found category.
 	FindByID(context.Context, int64) (adminProductRecord, error)
+	// FindCoverByProductID returns one exact cover revision for an authenticated
+	// preview regardless of the Product publication state.
+	FindCoverByProductID(
+		context.Context,
+		int64,
+		int64,
+	) (productCoverAsset, error)
 }
 
-// listAdminProductsSQL selects only migration-5 fields. All lifecycle states
+// listAdminProductsSQL selects only migration-6 fields. All lifecycle states
 // are visible to authenticated administrators, while the public reader remains
 // separately constrained to published rows.
 const listAdminProductsSQL = `SELECT
-    id,
-    slug,
-    name,
-    category,
-    sort_order,
-    publication_status,
-    version,
-    created_at,
-    updated_at
-FROM public.products
-ORDER BY sort_order ASC, id ASC`
+    products.id,
+    products.slug,
+    products.name,
+    products.category,
+    products.sort_order,
+    products.publication_status,
+    products.description,
+    products.material,
+    products.dimensions,
+    cover.version,
+    cover.width,
+    cover.height,
+    cover.alt_text,
+    cover.caption,
+    products.version,
+    products.created_at,
+    products.updated_at
+FROM public.products AS products
+LEFT JOIN public.product_cover_images AS cover
+    ON cover.product_id = products.id
+ORDER BY products.sort_order ASC, products.id ASC`
 
 // findAdminProductByIDSQL uses the internal positive identity only inside the
 // protected area. It does not accept a slug because draft and archived slugs
 // must never become public-route lookups.
 const findAdminProductByIDSQL = `SELECT
-    id,
-    slug,
-    name,
-    category,
-    sort_order,
-    publication_status,
+    products.id,
+    products.slug,
+    products.name,
+    products.category,
+    products.sort_order,
+    products.publication_status,
+    products.description,
+    products.material,
+    products.dimensions,
+    cover.version,
+    cover.width,
+    cover.height,
+    cover.alt_text,
+    cover.caption,
+    products.version,
+    products.created_at,
+    products.updated_at
+FROM public.products AS products
+LEFT JOIN public.product_cover_images AS cover
+    ON cover.product_id = products.id
+WHERE products.id = $1`
+
+// findAdminProductCoverSQL supplies binary media only to an authenticated exact
+// Product-and-revision request. Publication state is intentionally irrelevant
+// inside the protected preview boundary.
+const findAdminProductCoverSQL = `SELECT
+    product_id,
     version,
+    content_type,
+    content,
+    byte_size,
+    width,
+    height,
+    sha256,
+    alt_text,
+    caption,
     created_at,
     updated_at
-FROM public.products
-WHERE id = $1`
+FROM public.product_cover_images
+WHERE product_id = $1 AND version = $2`
 
 // adminProductRows is the smallest database/sql iterator surface required by
 // the protected Product list. Tests can implement it without a mocking library.
 type adminProductRows interface {
 	// Next advances to the next result row when one exists.
 	Next() bool
-	// Scan copies the current nine projected columns into Go destinations.
+	// Scan copies the current Product and optional cover projection into Go
+	// destinations.
 	Scan(...any) error
 	// Err reports an iteration failure that happened after the last Scan.
 	Err() error
 	// Close releases the result and returns its connection to the shared pool.
 	Close() error
+}
+
+// adminProductScanner is shared by all-status list and detail result scans.
+type adminProductScanner interface {
+	// Scan copies the fixed protected Product projection into destinations.
+	Scan(...any) error
 }
 
 // adminProductQuery adapts *sql.DB.QueryContext to the narrow list-test seam.
@@ -208,18 +269,8 @@ func (reader *postgresAdminProductReader) List(
 	seenSlugs := make(map[string]struct{})
 	var previous adminProductRecord
 	for rows.Next() {
-		var product adminProductRecord
-		if err := rows.Scan(
-			&product.ID,
-			&product.Slug,
-			&product.Name,
-			&product.Category,
-			&product.SortOrder,
-			&product.PublicationStatus,
-			&product.Version,
-			&product.CreatedAt,
-			&product.UpdatedAt,
-		); err != nil {
+		product, err := scanAdminProduct(rows)
+		if err != nil {
 			_ = rows.Close()
 
 			return nil, errAdminProductReadFailed
@@ -279,18 +330,8 @@ func (reader *postgresAdminProductReader) FindByID(
 		return adminProductRecord{}, errAdminProductReadFailed
 	}
 
-	var product adminProductRecord
-	if err := row.Scan(
-		&product.ID,
-		&product.Slug,
-		&product.Name,
-		&product.Category,
-		&product.SortOrder,
-		&product.PublicationStatus,
-		&product.Version,
-		&product.CreatedAt,
-		&product.UpdatedAt,
-	); err != nil {
+	product, err := scanAdminProduct(row)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return adminProductRecord{}, errAdminProductNotFound
 		}
@@ -304,6 +345,101 @@ func (reader *postgresAdminProductReader) FindByID(
 	return product, nil
 }
 
+// FindCoverByProductID returns one exact protected cover revision. A missing
+// Product, absent cover, and stale media path share one not-found category.
+func (reader *postgresAdminProductReader) FindCoverByProductID(
+	ctx context.Context,
+	productID int64,
+	version int64,
+) (productCoverAsset, error) {
+	if ctx == nil || productID <= 0 || version <= 0 {
+		return productCoverAsset{}, errAdminProductInvalidQuery
+	}
+	if reader == nil || reader.queryRow == nil {
+		return productCoverAsset{}, errProductCoverReadFailed
+	}
+
+	row := reader.queryRow(
+		ctx,
+		findAdminProductCoverSQL,
+		productID,
+		version,
+	)
+	if row == nil {
+		return productCoverAsset{}, errProductCoverReadFailed
+	}
+
+	asset, err := scanProductCoverAsset(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return productCoverAsset{}, errProductCoverNotFound
+	}
+	if err != nil || asset.ProductID != productID || asset.Version != version {
+		return productCoverAsset{}, errProductCoverReadFailed
+	}
+
+	return asset, nil
+}
+
+// scanAdminProduct converts nullable cover columns into an all-or-none metadata
+// pointer and preserves sql.ErrNoRows for the caller's safe 404 mapping.
+func scanAdminProduct(scanner adminProductScanner) (adminProductRecord, error) {
+	if scanner == nil {
+		return adminProductRecord{}, errAdminProductReadFailed
+	}
+
+	var product adminProductRecord
+	var coverVersion sql.NullInt64
+	var coverWidth sql.NullInt64
+	var coverHeight sql.NullInt64
+	var coverAltText sql.NullString
+	var coverCaption sql.NullString
+	err := scanner.Scan(
+		&product.ID,
+		&product.Slug,
+		&product.Name,
+		&product.Category,
+		&product.SortOrder,
+		&product.PublicationStatus,
+		&product.Description,
+		&product.Material,
+		&product.Dimensions,
+		&coverVersion,
+		&coverWidth,
+		&coverHeight,
+		&coverAltText,
+		&coverCaption,
+		&product.Version,
+		&product.CreatedAt,
+		&product.UpdatedAt,
+	)
+	if err != nil {
+		return adminProductRecord{}, err
+	}
+
+	hasCover := coverVersion.Valid || coverWidth.Valid || coverHeight.Valid ||
+		coverAltText.Valid || coverCaption.Valid
+	completeCover := coverVersion.Valid && coverWidth.Valid && coverHeight.Valid &&
+		coverAltText.Valid && coverCaption.Valid
+	if hasCover && !completeCover {
+		return adminProductRecord{}, errAdminProductReadFailed
+	}
+	if completeCover {
+		if coverWidth.Int64 > int64(math.MaxInt) ||
+			coverHeight.Int64 > int64(math.MaxInt) {
+			return adminProductRecord{}, errAdminProductReadFailed
+		}
+		product.Cover = &productCoverMetadata{
+			Version: coverVersion.Int64,
+			Width:   int(coverWidth.Int64),
+			Height:  int(coverHeight.Int64),
+			AltText: coverAltText.String,
+			Caption: coverCaption.String,
+		}
+	}
+
+	return product, nil
+}
+
 // isValidProductPublicationStatus recognizes only the lifecycle vocabulary
 // protected by products_publication_status_supported.
 func isValidProductPublicationStatus(status string) bool {
@@ -312,13 +448,26 @@ func isValidProductPublicationStatus(status string) bool {
 		status == productPublicationStatusArchived
 }
 
-// isValidStoredAdminProduct rechecks every migration-5 field before a stored
+// isValidStoredAdminProduct rechecks every migration-6 field before a stored
 // row can influence protected HTML or navigation.
 func isValidStoredAdminProduct(product adminProductRecord) bool {
 	return product.ID > 0 &&
 		isCanonicalProductSlug(product.Slug) &&
 		isValidProductCatalogueText(product.Name, productNameMaximumLength) &&
 		isValidProductCatalogueText(product.Category, productCategoryMaximumLength) &&
+		isValidOptionalProductText(
+			product.Description,
+			productDescriptionMaximumLength,
+		) &&
+		isValidOptionalProductText(
+			product.Material,
+			productMaterialMaximumLength,
+		) &&
+		isValidOptionalProductText(
+			product.Dimensions,
+			productDimensionsMaximumLength,
+		) &&
+		(product.Cover == nil || isValidProductCoverMetadata(*product.Cover)) &&
 		product.SortOrder > 0 &&
 		product.SortOrder <= math.MaxInt32 &&
 		isValidProductPublicationStatus(product.PublicationStatus) &&

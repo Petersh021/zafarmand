@@ -1,6 +1,6 @@
 {{/*
 The Products page remains a separate cache entry and composes the shared
-discipline shell with the Stage 18 PostgreSQL-backed public catalogue.
+discipline shell with the PostgreSQL-backed public catalogue.
 Interior and Architecture use their own separately parsed overrides, so none
 of those discipline-specific work sections can leak into Products.
 */}}
@@ -60,7 +60,7 @@ PostgreSQL or decides whether a stored record is public.
 
 	{{/*
 	A nonempty []productPreviewData slice becomes one semantic ordered list.
-	Its order and consecutive catalogue numbers come from the validated Stage 18
+	Its order and consecutive catalogue numbers come from the validated public
 	repository result and remain meaningful without JavaScript. Each article
 	contains one native canonical anchor supplied by Go, so opening a detail in
 	the same tab, a new tab, or browser history follows normal web behavior
@@ -79,13 +79,21 @@ PostgreSQL or decides whether a stored record is public.
 					class="product-preview__link"
 					href="{{.Path}}"
 				>
-					{{/*
-					The media field is an honest CSS-only structural placeholder.
-					Stage 18 stores no media, so this area reserves the later image
-					composition without inventing or cropping product photography.
-					aria-hidden prevents its repeated catalogue number from adding
-					noise for assistive-technology users.
-					*/}}
+					{{/* A reviewed cover is meaningful content; the fallback remains decorative. */}}
+					{{if .Cover}}
+					<div class="product-preview__media product-preview__media--image">
+						<img
+							class="product-preview__image"
+							src="{{.Cover.Path}}"
+							alt="{{.Cover.AltText}}"
+							width="{{.Cover.Width}}"
+							height="{{.Cover.Height}}"
+							loading="lazy"
+							decoding="async"
+						>
+						<span class="product-preview__number" aria-hidden="true">{{.Number}}</span>
+					</div>
+					{{else}}
 					<div
 						class="product-preview__media"
 						aria-hidden="true"
@@ -94,6 +102,7 @@ PostgreSQL or decides whether a stored record is public.
 							{{.Number}}
 						</span>
 					</div>
+					{{end}}
 
 					<div class="product-preview__body">
 						<p class="product-preview__label">

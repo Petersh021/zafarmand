@@ -34,6 +34,9 @@ every POST before the writer receives a Product value.
 			{{with .ProductForm.Errors.Category}}<li><a href="#product-category">{{.}}</a></li>{{end}}
 			{{with .ProductForm.Errors.SortOrder}}<li><a href="#product-sort-order">{{.}}</a></li>{{end}}
 			{{with .ProductForm.Errors.PublicationStatus}}<li><a href="#product-publication-status">{{.}}</a></li>{{end}}
+			{{with .ProductForm.Errors.Description}}<li><a href="#product-description">{{.}}</a></li>{{end}}
+			{{with .ProductForm.Errors.Material}}<li><a href="#product-material">{{.}}</a></li>{{end}}
+			{{with .ProductForm.Errors.Dimensions}}<li><a href="#product-dimensions">{{.}}</a></li>{{end}}
 		</ul>
 	</section>
 	{{end}}
@@ -145,6 +148,57 @@ every POST before the writer receives a Product value.
 			</select>
 			{{with .ProductForm.Errors.PublicationStatus}}
 			<p class="admin-product-form__error" id="product-publication-status-error">{{.}}</p>
+			{{end}}
+		</div>
+
+		{{/*
+		These optional editorial fields remain ordinary escaped text. The description
+		textarea preserves internal line breaks, while Go rejects outer whitespace and
+		values beyond the migration-6 character limits.
+		*/}}
+		<div class="admin-product-form__field admin-product-form__field--wide">
+			<label for="product-description">Description <span>(optional)</span></label>
+			<p class="admin-product-form__hint" id="product-description-hint">
+				Reviewed public copy. Internal line breaks are preserved; maximum 6000 characters.
+			</p>
+			<textarea
+				id="product-description"
+				name="description"
+				rows="10"
+				maxlength="6000"
+				aria-describedby="product-description-hint{{if .ProductForm.Errors.Description}} product-description-error{{end}}"
+				{{if .ProductForm.Errors.Description}}aria-invalid="true"{{end}}
+			>{{.ProductForm.Values.Description}}</textarea>
+			{{with .ProductForm.Errors.Description}}
+			<p class="admin-product-form__error" id="product-description-error">{{.}}</p>
+			{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="product-material">Material <span>(optional)</span></label>
+			<textarea
+				id="product-material"
+				name="material"
+				rows="4"
+				maxlength="500"
+				{{if .ProductForm.Errors.Material}}aria-describedby="product-material-error" aria-invalid="true"{{end}}
+			>{{.ProductForm.Values.Material}}</textarea>
+			{{with .ProductForm.Errors.Material}}
+			<p class="admin-product-form__error" id="product-material-error">{{.}}</p>
+			{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="product-dimensions">Dimensions <span>(optional)</span></label>
+			<textarea
+				id="product-dimensions"
+				name="dimensions"
+				rows="4"
+				maxlength="500"
+				{{if .ProductForm.Errors.Dimensions}}aria-describedby="product-dimensions-error" aria-invalid="true"{{end}}
+			>{{.ProductForm.Values.Dimensions}}</textarea>
+			{{with .ProductForm.Errors.Dimensions}}
+			<p class="admin-product-form__error" id="product-dimensions-error">{{.}}</p>
 			{{end}}
 		</div>
 

@@ -237,14 +237,15 @@ func applyRepositoryIntegrationMigrations(t *testing.T, database *sql.DB) {
 	if err != nil {
 		t.Fatalf("load repository integration migration catalog: %v", err)
 	}
-	if len(catalog) != 5 ||
+	if len(catalog) != 6 ||
 		catalog[0].Version != 1 ||
 		catalog[1].Version != 2 ||
 		catalog[2].Version != 3 ||
 		catalog[3].Version != 4 ||
-		catalog[4].Version != 5 {
+		catalog[4].Version != 5 ||
+		catalog[5].Version != 6 {
 		t.Fatalf(
-			"migration catalog: got %#v, want versions 1 through 5",
+			"migration catalog: got %#v, want versions 1 through 6",
 			catalog,
 		)
 	}

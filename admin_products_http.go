@@ -25,7 +25,7 @@ var errAdminProductReaderRequired = errors.New(
 )
 
 // errAdminProductWriterRequired prevents protected Product mutation routes
-// from starting without their explicit create/edit dependency.
+// from starting without their explicit text/cover write dependency.
 var errAdminProductWriterRequired = errors.New(
 	"create application: admin product writer is required",
 )
@@ -65,8 +65,8 @@ type adminProductSummaryPageData struct {
 	UpdatedAtLabel string
 }
 
-// adminProductDetailPageData contains migration-5 read fields and trusted
-// presentation/navigation values. Mutation remains on a separate POST form.
+// adminProductDetailPageData contains migration-6 read fields and trusted
+// presentation/navigation values. Mutations remain on separate forms.
 type adminProductDetailPageData struct {
 	// Reference is the stable administrative label derived from the internal ID.
 	Reference string
@@ -90,6 +90,16 @@ type adminProductDetailPageData struct {
 	VisibilityMessage string
 	// PublicPath is present only for a published record.
 	PublicPath string
+	// Description is optional reviewed long-form public copy.
+	Description string
+	// Material is an optional reviewed material fact.
+	Material string
+	// Dimensions is an optional reviewed dimensions fact.
+	Dimensions string
+	// Cover contains protected preview metadata, or nil when no cover exists.
+	Cover *productCoverPageData
+	// CoverManagementPath opens the authenticated upload-or-replace form.
+	CoverManagementPath string
 	// CreatedAtISO is the machine-readable UTC creation timestamp.
 	CreatedAtISO string
 	// CreatedAtLabel is concise, human-readable UTC creation text.
@@ -355,13 +365,32 @@ func newAdminProductDetailPageData(
 		StatusLabel:       statusLabel,
 		StatusClass:       statusClass,
 		VisibilityMessage: visibilityMessage,
-		CreatedAtISO:      createdAt.Format(time.RFC3339),
-		CreatedAtLabel:    createdAt.Format(adminProductTimeLayout),
-		UpdatedAtISO:      updatedAt.Format(time.RFC3339),
-		UpdatedAtLabel:    updatedAt.Format(adminProductTimeLayout),
+		Description:       product.Description,
+		Material:          product.Material,
+		Dimensions:        product.Dimensions,
+		CoverManagementPath: adminProductCoverPath(
+			product.ID,
+		),
+		CreatedAtISO:   createdAt.Format(time.RFC3339),
+		CreatedAtLabel: createdAt.Format(adminProductTimeLayout),
+		UpdatedAtISO:   updatedAt.Format(time.RFC3339),
+		UpdatedAtLabel: updatedAt.Format(adminProductTimeLayout),
 	}
 	if product.PublicationStatus == publishedProductStatus {
 		detail.PublicPath = productDetailPath(product.Slug)
+	}
+	if product.Cover != nil {
+		cover := productCoverPageData{
+			Path: adminProductCoverAssetPath(
+				product.ID,
+				product.Cover.Version,
+			),
+			AltText: product.Cover.AltText,
+			Caption: product.Cover.Caption,
+			Width:   strconv.Itoa(product.Cover.Width),
+			Height:  strconv.Itoa(product.Cover.Height),
+		}
+		detail.Cover = &cover
 	}
 
 	return detail, true

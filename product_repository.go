@@ -74,10 +74,19 @@ type catalogueProduct struct {
 	Name string
 	// Category is the public product-family label.
 	Category string
+	// Description is optional reviewed long-form public copy.
+	Description string
+	// Material is an optional reviewed material fact.
+	Material string
+	// Dimensions is an optional reviewed dimensions fact.
+	Dimensions string
+	// Cover contains binary-free public image metadata, or nil when no reviewed
+	// cover has been uploaded.
+	Cover *productCoverMetadata
 }
 
-// productCatalogueReader is the narrow read behavior required by the public
-// Products list and detail handlers. It provides no draft access or mutation
+// productCatalogueReader is the narrow read behavior required by public Product
+// HTML and exact-cover handlers. It provides no draft access or mutation
 // authority and therefore cannot grow into an accidental administration API.
 type productCatalogueReader interface {
 	// ListPublished returns every currently published record in catalogue order.
@@ -88,6 +97,13 @@ type productCatalogueReader interface {
 		context.Context,
 		string,
 	) (catalogueProduct, error)
+	// FindPublishedCover returns one exact cover revision only while its owning
+	// Product remains published.
+	FindPublishedCover(
+		context.Context,
+		string,
+		int64,
+	) (productCoverAsset, error)
 }
 
 // listPublishedProductsSQL computes numbering only after excluding non-public
@@ -102,17 +118,35 @@ const listPublishedProductsSQL = `SELECT
     catalogue_number,
     slug,
     name,
-    category
+    category,
+    description,
+    material,
+    dimensions,
+    cover_version,
+    cover_width,
+    cover_height,
+    cover_alt_text,
+    cover_caption
 FROM (
     SELECT
-        id,
-        ROW_NUMBER() OVER (ORDER BY sort_order ASC, id ASC)
+        products.id,
+        ROW_NUMBER() OVER (ORDER BY products.sort_order ASC, products.id ASC)
             AS catalogue_number,
-        slug,
-        name,
-        category
-    FROM public.products
-    WHERE publication_status = $1
+        products.slug,
+        products.name,
+        products.category,
+        products.description,
+        products.material,
+        products.dimensions,
+        cover.version AS cover_version,
+        cover.width AS cover_width,
+        cover.height AS cover_height,
+        cover.alt_text AS cover_alt_text,
+        cover.caption AS cover_caption
+    FROM public.products AS products
+    LEFT JOIN public.product_cover_images AS cover
+        ON cover.product_id = products.id
+    WHERE products.publication_status = $1
 ) AS published_products
 ORDER BY catalogue_number ASC`
 
@@ -126,31 +160,79 @@ const findPublishedProductBySlugSQL = `SELECT
     catalogue_number,
     slug,
     name,
-    category
+    category,
+    description,
+    material,
+    dimensions,
+    cover_version,
+    cover_width,
+    cover_height,
+    cover_alt_text,
+    cover_caption
 FROM (
     SELECT
-        id,
-        ROW_NUMBER() OVER (ORDER BY sort_order ASC, id ASC)
+        products.id,
+        ROW_NUMBER() OVER (ORDER BY products.sort_order ASC, products.id ASC)
             AS catalogue_number,
-        slug,
-        name,
-        category
-    FROM public.products
-    WHERE publication_status = $1
+        products.slug,
+        products.name,
+        products.category,
+        products.description,
+        products.material,
+        products.dimensions,
+        cover.version AS cover_version,
+        cover.width AS cover_width,
+        cover.height AS cover_height,
+        cover.alt_text AS cover_alt_text,
+        cover.caption AS cover_caption
+    FROM public.products AS products
+    LEFT JOIN public.product_cover_images AS cover
+        ON cover.product_id = products.id
+    WHERE products.publication_status = $1
 ) AS published_products
 WHERE slug = $2`
+
+// findPublishedProductCoverSQL reads binary media only for the exact canonical
+// Product slug, published state, and exact cover revision in the URL.
+const findPublishedProductCoverSQL = `SELECT
+    cover.product_id,
+    cover.version,
+    cover.content_type,
+    cover.content,
+    cover.byte_size,
+    cover.width,
+    cover.height,
+    cover.sha256,
+    cover.alt_text,
+    cover.caption,
+    cover.created_at,
+    cover.updated_at
+FROM public.product_cover_images AS cover
+INNER JOIN public.products AS products
+    ON products.id = cover.product_id
+WHERE products.slug = $1
+  AND products.publication_status = $2
+  AND cover.version = $3`
 
 // productCatalogueRows is the smallest database/sql iterator surface required
 // by ListPublished. Tests can implement it without a SQL mocking dependency.
 type productCatalogueRows interface {
 	// Next advances to the next product when one is available.
 	Next() bool
-	// Scan copies the current five projected columns into Go destinations.
+	// Scan copies the current Product and optional cover projection into Go
+	// destinations.
 	Scan(...any) error
 	// Err reports an iteration failure that occurs after the last Scan.
 	Err() error
 	// Close releases the result and returns its borrowed connection to the pool.
 	Close() error
+}
+
+// productCatalogueScanner is shared by multi-row and single-row Product scans.
+// Both database/sql result types satisfy this one-method interface.
+type productCatalogueScanner interface {
+	// Scan copies one fixed Product projection into supplied destinations.
+	Scan(...any) error
 }
 
 // productCatalogueQuery adapts database/sql's concrete QueryContext result to
@@ -254,14 +336,8 @@ func (reader *postgresProductCatalogueReader) ListPublished(
 	seenIDs := make(map[int64]struct{})
 	seenSlugs := make(map[string]struct{})
 	for rows.Next() {
-		var product catalogueProduct
-		if err := rows.Scan(
-			&product.ID,
-			&product.CatalogueNumber,
-			&product.Slug,
-			&product.Name,
-			&product.Category,
-		); err != nil {
+		product, err := scanCatalogueProduct(rows)
+		if err != nil {
 			_ = rows.Close()
 
 			return nil, errProductCatalogueReadFailed
@@ -327,14 +403,7 @@ func (reader *postgresProductCatalogueReader) FindPublishedBySlug(
 		return catalogueProduct{}, errProductCatalogueReadFailed
 	}
 
-	var product catalogueProduct
-	err := row.Scan(
-		&product.ID,
-		&product.CatalogueNumber,
-		&product.Slug,
-		&product.Name,
-		&product.Category,
-	)
+	product, err := scanCatalogueProduct(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return catalogueProduct{}, errProductCatalogueNotFound
 	}
@@ -345,6 +414,100 @@ func (reader *postgresProductCatalogueReader) FindPublishedBySlug(
 		// A mismatched row indicates a broken substituted reader or violated query
 		// contract. It must never create a canonical URL for the wrong record.
 		return catalogueProduct{}, errProductCatalogueReadFailed
+	}
+
+	return product, nil
+}
+
+// FindPublishedCover loads one complete image only when its Product is public
+// and the requested revision exactly matches the current cover revision.
+func (reader *postgresProductCatalogueReader) FindPublishedCover(
+	ctx context.Context,
+	slug string,
+	version int64,
+) (productCoverAsset, error) {
+	if ctx == nil || !isCanonicalProductSlug(slug) || version <= 0 {
+		return productCoverAsset{}, errProductCatalogueInvalidQuery
+	}
+	if reader == nil || reader.queryRow == nil {
+		return productCoverAsset{}, errProductCoverReadFailed
+	}
+
+	row := reader.queryRow(
+		ctx,
+		findPublishedProductCoverSQL,
+		slug,
+		publishedProductStatus,
+		version,
+	)
+	if row == nil {
+		return productCoverAsset{}, errProductCoverReadFailed
+	}
+
+	asset, err := scanProductCoverAsset(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return productCoverAsset{}, errProductCoverNotFound
+	}
+	if err != nil || asset.Version != version {
+		return productCoverAsset{}, errProductCoverReadFailed
+	}
+
+	return asset, nil
+}
+
+// scanCatalogueProduct converts nullable LEFT JOIN columns into an all-or-none
+// cover pointer so a partially malformed database projection fails closed.
+func scanCatalogueProduct(
+	scanner productCatalogueScanner,
+) (catalogueProduct, error) {
+	if scanner == nil {
+		return catalogueProduct{}, errProductCatalogueReadFailed
+	}
+
+	var product catalogueProduct
+	var coverVersion sql.NullInt64
+	var coverWidth sql.NullInt64
+	var coverHeight sql.NullInt64
+	var coverAltText sql.NullString
+	var coverCaption sql.NullString
+	err := scanner.Scan(
+		&product.ID,
+		&product.CatalogueNumber,
+		&product.Slug,
+		&product.Name,
+		&product.Category,
+		&product.Description,
+		&product.Material,
+		&product.Dimensions,
+		&coverVersion,
+		&coverWidth,
+		&coverHeight,
+		&coverAltText,
+		&coverCaption,
+	)
+	if err != nil {
+		return catalogueProduct{}, err
+	}
+
+	hasCover := coverVersion.Valid || coverWidth.Valid || coverHeight.Valid ||
+		coverAltText.Valid || coverCaption.Valid
+	completeCover := coverVersion.Valid && coverWidth.Valid && coverHeight.Valid &&
+		coverAltText.Valid && coverCaption.Valid
+	if hasCover && !completeCover {
+		return catalogueProduct{}, errProductCatalogueReadFailed
+	}
+	if completeCover {
+		if coverWidth.Int64 > int64(^uint(0)>>1) ||
+			coverHeight.Int64 > int64(^uint(0)>>1) {
+			return catalogueProduct{}, errProductCatalogueReadFailed
+		}
+		product.Cover = &productCoverMetadata{
+			Version: coverVersion.Int64,
+			Width:   int(coverWidth.Int64),
+			Height:  int(coverHeight.Int64),
+			AltText: coverAltText.String,
+			Caption: coverCaption.String,
+		}
 	}
 
 	return product, nil
@@ -363,7 +526,20 @@ func isValidCatalogueProduct(product catalogueProduct) bool {
 		isValidProductCatalogueText(
 			product.Category,
 			productCategoryMaximumLength,
-		)
+		) &&
+		isValidOptionalProductText(
+			product.Description,
+			productDescriptionMaximumLength,
+		) &&
+		isValidOptionalProductText(
+			product.Material,
+			productMaterialMaximumLength,
+		) &&
+		isValidOptionalProductText(
+			product.Dimensions,
+			productDimensionsMaximumLength,
+		) &&
+		(product.Cover == nil || isValidProductCoverMetadata(*product.Cover))
 }
 
 // isCanonicalProductSlug mirrors the database slug grammar for both request
@@ -376,12 +552,14 @@ func isCanonicalProductSlug(slug string) bool {
 }
 
 // isValidProductCatalogueText accepts nonempty, valid UTF-8 text with no
-// leading or trailing Unicode whitespace and a bounded code-point count.
+// leading or trailing Unicode whitespace, no PostgreSQL-incompatible NUL, and
+// a bounded code-point count.
 // html/template remains responsible for contextual output escaping.
 func isValidProductCatalogueText(value string, maximumLength int) bool {
 	if maximumLength <= 0 ||
 		!utf8.ValidString(value) ||
 		value == "" ||
+		strings.ContainsRune(value, '\x00') ||
 		value != strings.TrimSpace(value) {
 		return false
 	}
