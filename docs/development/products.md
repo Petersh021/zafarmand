@@ -22,10 +22,12 @@ contract. Their routes, authorization, validation, and verification steps are
 documented in [admin-products.md](admin-products.md). Galleries and final
 Zafarmand content remain future reviewed stages.
 
-Stage 22 leaves this Product slice unchanged. It applies similar reviewed
-mechanics to separate Interior-project tables, repositories, routes, and forms;
-see [interior-projects.md](interior-projects.md). Shared validation mechanics do
-not make Product and Interior records interchangeable.
+Stages 22 and 23 leave this Product slice unchanged. They apply similar reviewed
+mechanics to separate Interior-project and Architecture-project tables,
+repositories, routes, and forms; see
+[interior-projects.md](interior-projects.md) and
+[architecture-projects.md](architecture-projects.md). Shared image-validation
+mechanics do not make records from the three disciplines interchangeable.
 
 ## Migration 4 schema
 
@@ -86,10 +88,11 @@ DROP TABLE public.products;
 
 It intentionally omits `IF EXISTS` and `CASCADE`, so unexpected schema drift or
 dependencies fail visibly. Rolling migration 4 down destroys every Product row
-and its index. In the current catalog, migrations 7, 6, and 5 must first be
-reversed in order; migration 7 removes only the separate Interior tables, while
-migration 6 removes Product's dependent cover relation. Run any rollback only
-against a confirmed disposable database, never as a content-cleanup command.
+and its index. In the current catalog, migrations 8, 7, 6, and 5 must first be
+reversed in order; migrations 8 and 7 remove only the separate Architecture and
+Interior tables, while migration 6 removes Product's dependent cover relation.
+Run any rollback only against a confirmed disposable database, never as a
+content-cleanup command.
 
 ## No seed data
 
@@ -241,11 +244,12 @@ database pool.
 Application construction rejects a nil Product reader. The request handlers
 also fail safely if a manually assembled application bypasses normal
 construction. Repository construction itself performs no query, so operators
-must apply the current application catalog through version 7 before serving
-traffic. Product storage itself is complete at version 6; version 7 adds the
-separate Interior dependency required by the same application. If
-the table or revision is absent, Product requests fail generically rather than
-falling back to temporary records or disabling concurrency checks.
+must apply the current application catalog through version 8 before serving
+traffic. Product storage itself is complete at version 6; versions 7 and 8 add
+the separate Interior and Architecture dependencies required by the same
+application. If the Product table or revision is absent, Product requests fail
+generically rather than falling back to temporary records or disabling
+concurrency checks.
 
 The existing template presentation boundary remains useful:
 
@@ -324,8 +328,9 @@ reviewed protected workflow and its deployment-specific backup policy.
    go run . migrate status
    ```
 
-   Versions 1 through 7 should be applied. Migration 7 owns the separate
-   Interior-project schema and does not change these Product checks.
+   Versions 1 through 8 should be applied. Migrations 7 and 8 own the separate
+   Interior-project and Architecture-project schemas and do not change these
+   Product checks.
 3. Let `psql` read the same URL from `PGDATABASE`, verify the database identity,
    and inspect schema rather than content:
 
@@ -449,8 +454,8 @@ consecutive published-only numbers, uses ID to break equal sort positions,
 keeps detail numbering consistent with the list, hides draft, archived, and
 missing public slugs, and separately verifies protected all-state reads plus
 real create, publication, stale-version behavior, and cover replacement. Its
-complete migration lifecycle now reaches version 7, whose separate Interior
-assertions do not replace the Product checks.
+complete migration lifecycle now reaches version 8. Its separate Interior and
+Architecture assertions do not replace the Product checks.
 
 Follow the two-variable destructive opt-in in [database.md](database.md), then
 run:
@@ -491,8 +496,7 @@ Stages 18–21 do not implement:
 - featured-homepage placement;
 - Product SEO title or description;
 - search, filtering, public pagination, or catalogue counts;
-- real Zafarmand Product records; or
-- Architecture database migration.
+- real Zafarmand Product records.
 
 Those changes expand mutation authority, validation, media security, content
 modeling, or public navigation. Future reviewed stages should design them from

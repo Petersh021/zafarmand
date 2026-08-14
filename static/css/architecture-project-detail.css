@@ -1,10 +1,11 @@
 /* --------------------------------------------------
-   Stage 11: Structural Architecture project detail page
+   Stage 23: Published Architecture project detail page
 
    This stylesheet is loaded only by architecture-project-detail.html. It uses
    a monumental dark hero followed by a warm project-information band, keeping
    Architecture visually distinct from the Product and Interior detail pages.
-   All visual massing is CSS-generated and does not represent final imagery.
+   A reviewed cover fills the hero when present; CSS-generated massing remains
+   the honest fallback when a published project has no cover.
 -------------------------------------------------- */
 
 /*
@@ -33,9 +34,8 @@
 }
 
 /*
- * Route-local tokens prevent this temporary palette from becoming a global
- * design decision. The warm surface is also a truthful fallback if generated
- * hero geometry is unavailable.
+ * Route-local tokens keep this Architecture palette from becoming a global
+ * design decision. The warm surface also remains a dependable media fallback.
  */
 .architecture-project-detail {
 	--architecture-detail-surface: #e8e3d9;
@@ -205,9 +205,8 @@
 }
 
 /*
- * The CSS-only massing field occupies the same hero area below real content.
- * Its minimum height supports the track, while the template hides the entire
- * decorative field from assistive technology.
+ * The media field occupies the hero area below real identity content. Its
+ * minimum height supports both a reviewed image and the aria-hidden fallback.
  */
 .architecture-project-detail__media {
 	position: relative;
@@ -234,6 +233,31 @@
 			#2e302e 48%,
 			var(--architecture-detail-dark)
 		);
+}
+
+/*
+ * A reviewed image uses the same hero track but drops figure defaults and the
+ * fallback padding. The image is meaningful content, keeps its template alt
+ * text, and crops visually without changing its intrinsic dimensions.
+ */
+.architecture-project-detail__media--image {
+	margin: 0;
+	padding: 0;
+}
+
+.architecture-project-detail__image {
+	position: absolute;
+	inset: 0;
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+/* Architectural pseudo-elements belong only to the no-cover fallback. */
+.architecture-project-detail__media--image::before,
+.architecture-project-detail__media--image::after {
+	display: none;
 }
 
 /*
@@ -370,8 +394,8 @@
 }
 
 /*
- * Facts and the truthful notice share one bounded column, preserving readable
- * line lengths beside the shorter information heading.
+ * Facts, reviewed description, and optional cover caption share one bounded
+ * column, preserving readable line lengths beside the shorter heading.
  */
 .architecture-project-detail__information-body {
 	display: grid;
@@ -428,9 +452,10 @@
 }
 
 /*
- * The notice is interface copy, not an invented project description. Its soft
- * ink and bounded measure preserve the hierarchy beneath known facts.
+ * Reviewed description preserves author-entered line breaks. The notice uses
+ * the same measure when a published project has no description.
  */
+.architecture-project-detail__description,
 .architecture-project-detail__notice {
 	max-width: 36rem;
 	margin: 0;
@@ -439,6 +464,34 @@
 	font-size: clamp(0.9rem, 0.86rem + 0.18vw, 1.05rem);
 	line-height: 1.7;
 	overflow-wrap: anywhere;
+}
+
+.architecture-project-detail__description {
+	color: var(--architecture-detail-ink);
+	white-space: pre-wrap;
+}
+
+/*
+ * The optional reviewed caption remains ordinary selectable text outside the
+ * cropped hero, so its full 500-character boundary can reflow without clipping.
+ */
+.architecture-project-detail__caption {
+	display: grid;
+	max-width: 36rem;
+	min-width: 0;
+	gap: 0.45rem;
+	margin: 0;
+	color: var(--architecture-detail-soft);
+	font-family: var(--font-interface);
+	font-size: 0.9rem;
+	line-height: 1.6;
+	overflow-wrap: anywhere;
+}
+
+.architecture-project-detail__caption span {
+	font-size: 0.72rem;
+	letter-spacing: 0.15em;
+	text-transform: uppercase;
 }
 
 /*
@@ -588,13 +641,14 @@
 
 	.architecture-project-detail__information-eyebrow,
 	.architecture-project-detail__fact dt,
-	.architecture-project-detail__notice {
+	.architecture-project-detail__notice,
+	.architecture-project-detail__caption {
 		color: var(--architecture-detail-ink);
 	}
 }
 
 /*
- * Stage 11 adds no animation, transition, parallax, autoplay, or smooth
+ * Stage 23 adds no animation, transition, parallax, autoplay, or smooth
  * scrolling. Native route and fragment navigation therefore remain immediate
  * under prefers-reduced-motion without requiring a compensating override.
  */

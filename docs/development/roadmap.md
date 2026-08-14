@@ -39,18 +39,18 @@ so a stage number never silently changes meaning.
 | 20 | Protected Product create/edit/publication workflow with validation and stale-edit protection | Complete |
 | 21 | Rich Product content and reviewed single-cover-image management | Complete |
 | 22 | PostgreSQL-backed Interior projects and protected management workflow | Complete |
+| 23 | PostgreSQL-backed Architecture projects and protected management workflow | Complete |
 
 ## Remaining focused stages
 
 | Stage | Planned outcome |
 | --- | --- |
-| 23 | PostgreSQL-backed Architecture projects and protected management workflow |
 | 24 | Homepage, Contact information, featured-content, and SEO management |
 | 25 | Security, privacy, retention, observability, backup, and operational hardening |
 | 26 | End-to-end acceptance, accessibility/performance review, and deployment |
 
-Later stages must remain vertical. Stages 21–22 deliberately stop at one
-reviewed cover per Product or Interior project instead of pretending to solve
-galleries, cropping, and storage operations in the same change. Stage 23 should
-reuse the completed read/write, accessibility, media-validation, and concurrency
-boundaries for Architecture without prematurely merging the discipline models.
+Later stages must remain vertical. Stages 21-23 deliberately stop at one
+reviewed cover per Product, Interior project, or Architecture project instead
+of pretending to solve galleries, cropping, and storage operations in the same
+change. Each discipline keeps an independent persistence and authorization
+boundary while sharing only reviewed-image mechanics.

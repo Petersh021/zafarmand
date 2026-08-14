@@ -1,8 +1,7 @@
 {{/*
-The Architecture Design page remains a separate template-cache entry. Stage 10
-added the temporary data-driven project index, and Stage 11 connects every
-preview to its own real server-rendered detail route while preserving the
-shared discipline hero, route navigation, and selected-work section boundary.
+The Architecture Design page remains a separate template-cache entry. Stage 23
+maps PostgreSQL's published-only projection into real list, detail, and exact
+cover routes while preserving the discipline's monumental visual language.
 */}}
 
 {{/*
@@ -34,7 +33,7 @@ parsed Architecture Design template set. newTemplateCache parses each page
 independently, preventing this markup from appearing on either sibling route.
 
 discipline-page.html calls the block with root $, so ArchitectureProjectListing
-remains available even while the shared outer template is inside its temporary
+remains available even while the shared outer template is inside its
 "with .DisciplinePage" context.
 */}}
 {{define "disciplineWorkContent"}}
@@ -60,8 +59,8 @@ remains available even while the shared outer template is inside its temporary
 	A nonempty preview slice becomes one semantic ordered list. Its source order
 	identifies the first entry as the featured structural field without changing
 	the document's reading order. Each article contains one native anchor supplied
-	by the Stage 11 view model, so normal navigation, browser history, new-tab
-	commands, and copied URLs work without JavaScript.
+	by the Stage 23 published view model, so normal navigation, browser history,
+	new-tab commands, and copied URLs work without JavaScript.
 	*/}}
 	{{if .Items}}
 	<ol
@@ -76,12 +75,23 @@ remains available even while the shared outer template is inside its temporary
 					class="architecture-preview__link"
 					href="{{.Path}}"
 				>
-					{{/*
-					The media field is a CSS-only architectural study, not a
-					published project image. Its repeated sequence number is
-					decorative because the same value appears in visible metadata,
-					so aria-hidden prevents a duplicate announcement.
-					*/}}
+					{{/* A reviewed cover is meaningful content and therefore keeps
+					its required alternative text. Projects without one use the
+					decorative structural fallback, whose repeated number is hidden
+					from assistive technology. */}}
+					{{with .Cover}}
+					<figure class="architecture-preview__media architecture-preview__media--image">
+						<img
+							class="architecture-preview__image"
+							src="{{.Path}}"
+							width="{{.Width}}"
+							height="{{.Height}}"
+							alt="{{.AltText}}"
+							loading="lazy"
+							decoding="async"
+						>
+					</figure>
+					{{else}}
 					<div
 						class="architecture-preview__media"
 						aria-hidden="true"
@@ -90,6 +100,7 @@ remains available even while the shared outer template is inside its temporary
 							{{.Number}}
 						</span>
 					</div>
+					{{end}}
 
 					{{/*
 					Real text remains in normal document structure and gives the
@@ -99,7 +110,7 @@ remains available even while the shared outer template is inside its temporary
 					*/}}
 					<div class="architecture-preview__body">
 						<p class="architecture-preview__label">
-							{{.Typology}} / Project slot {{.Number}}
+							{{.Typology}} / Project {{.Number}}
 						</p>
 
 						<h3 class="architecture-preview__title">
@@ -107,7 +118,7 @@ remains available even while the shared outer template is inside its temporary
 						</h3>
 
 						<p class="architecture-preview__status">
-							{{.Status}}
+							{{.ProjectStatus}}{{if .Location}} / {{.Location}}{{end}}{{if .YearLabel}} / {{.YearLabel}}{{end}}
 						</p>
 					</div>
 				</a>

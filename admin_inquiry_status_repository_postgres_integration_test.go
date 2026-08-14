@@ -36,9 +36,9 @@ func TestPostgresAdminInquiryStatusUpdaterIntegration(t *testing.T) {
 
 	// Stage 17 reuses the status, updated_at, timestamp constraint, and primary
 	// key introduced by migration 1. Applying the complete catalog proves its
-	// focused inquiry mutation remains compatible with the independent Product
-	// Product and Interior tables, revisions, and content/cover storage introduced
-	// by versions 000004-000007.
+	// focused inquiry mutation remains compatible with the independent Product,
+	// Interior, and Architecture tables, revisions, and content/cover
+	// storage introduced by versions 000004-000008.
 	applyRepositoryIntegrationMigrations(t, database)
 
 	var migrationCount int
@@ -50,9 +50,9 @@ FROM public.schema_migrations`,
 	).Scan(&migrationCount, &newestMigration); err != nil {
 		t.Fatal("inspect synthetic status integration migration state")
 	}
-	if migrationCount != 7 || newestMigration != 7 {
+	if migrationCount != 8 || newestMigration != 8 {
 		t.Fatalf(
-			"migration state: got count=%d newest=%d, want 7/7",
+			"migration state: got count=%d newest=%d, want 8/8",
 			migrationCount,
 			newestMigration,
 		)

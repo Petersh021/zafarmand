@@ -141,12 +141,15 @@ func newTestApplicationWithRepositories(
 	app, err := newApplication(
 		products,
 		newRecordingInteriorProjectCatalogueReader(),
+		newRecordingArchitectureProjectCatalogueReader(),
 		inquiries,
 		adminRepository,
 		newRecordingAdminProductReader(),
 		newRecordingAdminProductWriter(),
 		newRecordingAdminInteriorProjectReader(),
 		newRecordingAdminInteriorProjectWriter(),
+		newRecordingAdminArchitectureProjectReader(),
+		newRecordingAdminArchitectureProjectWriter(),
 		newRecordingAdminInquiryReader(),
 		newRecordingAdminInquiryStatusUpdater(),
 		passwords,
@@ -165,6 +168,7 @@ func TestNewApplicationRequiresProductCatalogueReader(t *testing.T) {
 	app, err := newApplication(
 		nil,
 		newRecordingInteriorProjectCatalogueReader(),
+		newRecordingArchitectureProjectCatalogueReader(),
 		&recordingInquiryRepository{
 			result: inquiryCreateResultCreated,
 		},
@@ -173,6 +177,8 @@ func TestNewApplicationRequiresProductCatalogueReader(t *testing.T) {
 		newRecordingAdminProductWriter(),
 		newRecordingAdminInteriorProjectReader(),
 		newRecordingAdminInteriorProjectWriter(),
+		newRecordingAdminArchitectureProjectReader(),
+		newRecordingAdminArchitectureProjectWriter(),
 		newRecordingAdminInquiryReader(),
 		newRecordingAdminInquiryStatusUpdater(),
 		newTestAdminPasswordManager(t),
@@ -196,6 +202,7 @@ func TestNewApplicationRequiresInteriorProjectCatalogueReader(t *testing.T) {
 	app, err := newApplication(
 		newRecordingProductCatalogueReader(),
 		nil,
+		newRecordingArchitectureProjectCatalogueReader(),
 		&recordingInquiryRepository{
 			result: inquiryCreateResultCreated,
 		},
@@ -204,6 +211,8 @@ func TestNewApplicationRequiresInteriorProjectCatalogueReader(t *testing.T) {
 		newRecordingAdminProductWriter(),
 		newRecordingAdminInteriorProjectReader(),
 		newRecordingAdminInteriorProjectWriter(),
+		newRecordingAdminArchitectureProjectReader(),
+		newRecordingAdminArchitectureProjectWriter(),
 		newRecordingAdminInquiryReader(),
 		newRecordingAdminInquiryStatusUpdater(),
 		newTestAdminPasswordManager(t),
@@ -219,6 +228,39 @@ func TestNewApplicationRequiresInteriorProjectCatalogueReader(t *testing.T) {
 	}
 }
 
+// TestNewApplicationRequiresArchitectureProjectCatalogueReader protects the
+// public Architecture persistence boundary. Construction must fail instead of
+// reviving temporary records when the published-only reader is unavailable.
+func TestNewApplicationRequiresArchitectureProjectCatalogueReader(t *testing.T) {
+	app, err := newApplication(
+		newRecordingProductCatalogueReader(),
+		newRecordingInteriorProjectCatalogueReader(),
+		nil,
+		&recordingInquiryRepository{
+			result: inquiryCreateResultCreated,
+		},
+		newRecordingAdminRepository(),
+		newRecordingAdminProductReader(),
+		newRecordingAdminProductWriter(),
+		newRecordingAdminInteriorProjectReader(),
+		newRecordingAdminInteriorProjectWriter(),
+		newRecordingAdminArchitectureProjectReader(),
+		newRecordingAdminArchitectureProjectWriter(),
+		newRecordingAdminInquiryReader(),
+		newRecordingAdminInquiryStatusUpdater(),
+		newTestAdminPasswordManager(t),
+	)
+	if !errors.Is(err, errArchitectureProjectCatalogueReaderRequired) {
+		t.Fatalf(
+			"nil Architecture reader error: got %v, want required sentinel",
+			err,
+		)
+	}
+	if app != nil {
+		t.Error("nil Architecture reader returned a usable application")
+	}
+}
+
 // TestNewApplicationRequiresInquiryRepository protects the production
 // composition boundary: a server cannot start with a Contact form that has no
 // persistence dependency.
@@ -226,12 +268,15 @@ func TestNewApplicationRequiresInquiryRepository(t *testing.T) {
 	app, err := newApplication(
 		newRecordingProductCatalogueReader(),
 		newRecordingInteriorProjectCatalogueReader(),
+		newRecordingArchitectureProjectCatalogueReader(),
 		nil,
 		newRecordingAdminRepository(),
 		newRecordingAdminProductReader(),
 		newRecordingAdminProductWriter(),
 		newRecordingAdminInteriorProjectReader(),
 		newRecordingAdminInteriorProjectWriter(),
+		newRecordingAdminArchitectureProjectReader(),
+		newRecordingAdminArchitectureProjectWriter(),
 		newRecordingAdminInquiryReader(),
 		newRecordingAdminInquiryStatusUpdater(),
 		newTestAdminPasswordManager(t),

@@ -61,6 +61,12 @@ func (app *application) routes() http.Handler {
 		"GET /architecture-design",
 		app.architectureDesignHandler,
 	)
+	// Architecture cover URLs carry the current revision and recheck the owning
+	// project's Published state before any reviewed bytes leave PostgreSQL.
+	mux.HandleFunc(
+		"GET /architecture-design/{slug}/cover/{version}",
+		app.architectureProjectCoverHandler,
+	)
 	// The one-segment Architecture wildcard creates a real URL for each project.
 	// ServeMux keeps the exact listing route above more specific, while the
 	// handler validates the captured slug before rendering any detail content.
@@ -274,6 +280,96 @@ func (app *application) routes() http.Handler {
 		app.requireAdmin(
 			interiorProjectWriterRoles(
 				http.HandlerFunc(app.adminInteriorProjectCoverUploadHandler),
+			),
+		),
+	)
+
+	// Architecture reads have an explicit allowlist separate from Product and
+	// Interior access. Owner and Editor may inspect every lifecycle state and an
+	// exact protected cover revision; a future role remains denied until it is
+	// deliberately reviewed and named here.
+	architectureProjectReaderRoles := requireAdminRoles(
+		adminRoleOwner,
+		adminRoleEditor,
+	)
+	mux.Handle(
+		"GET /admin/architecture-projects",
+		app.requireAdmin(
+			architectureProjectReaderRoles(
+				http.HandlerFunc(app.adminArchitectureProjectListHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"GET /admin/architecture-projects/{id}",
+		app.requireAdmin(
+			architectureProjectReaderRoles(
+				http.HandlerFunc(app.adminArchitectureProjectDetailHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"GET /admin/architecture-projects/{id}/cover/{version}",
+		app.requireAdmin(
+			architectureProjectReaderRoles(
+				http.HandlerFunc(app.adminArchitectureProjectCoverAssetHandler),
+			),
+		),
+	)
+
+	// Architecture mutations use a distinct Owner/Editor allowlist so write
+	// authority never follows implicitly from read access. Each GET only renders
+	// a form; each validated POST applies one revision-aware mutation and then
+	// redirects to the canonical detail GET using Post/Redirect/Get.
+	architectureProjectWriterRoles := requireAdminRoles(
+		adminRoleOwner,
+		adminRoleEditor,
+	)
+	mux.Handle(
+		"GET /admin/architecture-projects/new",
+		app.requireAdmin(
+			architectureProjectWriterRoles(
+				http.HandlerFunc(app.adminArchitectureProjectNewHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"POST /admin/architecture-projects",
+		app.requireAdmin(
+			architectureProjectWriterRoles(
+				http.HandlerFunc(app.adminArchitectureProjectCreateHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"GET /admin/architecture-projects/{id}/edit",
+		app.requireAdmin(
+			architectureProjectWriterRoles(
+				http.HandlerFunc(app.adminArchitectureProjectEditHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"POST /admin/architecture-projects/{id}",
+		app.requireAdmin(
+			architectureProjectWriterRoles(
+				http.HandlerFunc(app.adminArchitectureProjectUpdateHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"GET /admin/architecture-projects/{id}/cover",
+		app.requireAdmin(
+			architectureProjectWriterRoles(
+				http.HandlerFunc(app.adminArchitectureProjectCoverFormHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"POST /admin/architecture-projects/{id}/cover",
+		app.requireAdmin(
+			architectureProjectWriterRoles(
+				http.HandlerFunc(app.adminArchitectureProjectCoverUploadHandler),
 			),
 		),
 	)

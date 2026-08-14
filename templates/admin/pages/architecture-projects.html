@@ -1,0 +1,75 @@
+{{/*
+The protected Architecture workspace deliberately includes Draft, Published, and
+Archived records. Go has already validated ordering, identities, lifecycle
+values, timestamps, and every route before this escaped template is executed.
+
+Creation and editing remain separate requests. Consequently, opening or
+refreshing this list is a read-only operation and works without JavaScript.
+*/}}
+{{define "admin-content"}}
+<main class="admin-products admin-architecture-projects" id="admin-main-content">
+	<header class="admin-page-header">
+		<a class="admin-back-link" href="/admin">
+			<span aria-hidden="true">&larr;</span>
+			Overview
+		</a>
+
+		<p class="admin-eyebrow">Architecture portfolio workspace</p>
+		<h1>Architecture projects</h1>
+		<p class="admin-page-header__lede">
+			Review project facts, publication state, and ordering before opening a record to edit it.
+		</p>
+
+		<a class="admin-primary-link admin-page-header__action" href="{{.ArchitectureProjectList.NewPath}}">
+			Create Architecture project
+		</a>
+	</header>
+
+	{{/* A successful zero-row read is a normal starting state, not an error. */}}
+	{{if .ArchitectureProjectList.Items}}
+	<ol class="admin-product-list admin-architecture-project-list" role="list">
+		{{range .ArchitectureProjectList.Items}}
+		<li class="admin-product-list__item admin-architecture-project-list__item">
+			<article class="admin-product-card admin-architecture-project-card">
+				<div class="admin-product-card__heading">
+					<p class="admin-product-reference">Architecture project {{.Reference}}</p>
+					<p class="admin-product-status admin-product-status--{{.StatusClass}}">
+						{{.StatusLabel}}
+					</p>
+				</div>
+
+				<h2><a href="{{.Path}}">{{.Title}}</a></h2>
+
+				<dl class="admin-product-card__facts admin-architecture-project-card__facts">
+					<div>
+						<dt>Slug</dt>
+						<dd>{{.Slug}}</dd>
+					</div>
+					<div>
+						<dt>Typology</dt>
+						<dd>{{.Typology}}</dd>
+					</div>
+					<div>
+						<dt>Sort order</dt>
+						<dd>{{.SortOrder}}</dd>
+					</div>
+					<div>
+						<dt>Last stored update</dt>
+						<dd><time datetime="{{.UpdatedAtISO}}">{{.UpdatedAtLabel}}</time></dd>
+					</div>
+				</dl>
+			</article>
+		</li>
+		{{end}}
+	</ol>
+	{{else}}
+	<section class="admin-empty-state" aria-labelledby="admin-architecture-projects-empty-title">
+		<h2 id="admin-architecture-projects-empty-title">No Architecture projects to display</h2>
+		<p>{{.ArchitectureProjectList.EmptyMessage}}</p>
+		<a class="admin-primary-link" href="{{.ArchitectureProjectList.NewPath}}">
+			Create the first Architecture project
+		</a>
+	</section>
+	{{end}}
+</main>
+{{end}}

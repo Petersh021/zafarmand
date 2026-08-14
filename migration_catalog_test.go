@@ -455,15 +455,15 @@ func TestLoadMigrationCatalogRejectsNonRegularEntries(t *testing.T) {
 // TestEmbeddedMigrationCatalog verifies the production catalog contains the
 // inquiry table, its idempotency key, the admin-access boundary, and the first
 // Product catalogue table, edit revision, reviewed Product content/cover, and
-// the independent Interior project/content/cover boundary with exact ordered
-// identities and independently reversible schema changes.
+// the independent Interior and Architecture project/content/cover boundaries
+// with exact ordered identities and independently reversible schema changes.
 func TestEmbeddedMigrationCatalog(t *testing.T) {
 	catalog, err := loadEmbeddedMigrationCatalog()
 	if err != nil {
 		t.Fatalf("load embedded migration catalog: %v", err)
 	}
-	if len(catalog) != 7 {
-		t.Fatalf("embedded catalog length: got %d, want 7", len(catalog))
+	if len(catalog) != 8 {
+		t.Fatalf("embedded catalog length: got %d, want 8", len(catalog))
 	}
 
 	initialDefinition := catalog[0]
@@ -1064,8 +1064,8 @@ ALTER TABLE public.products
 		}
 	}
 
-	// Migration 7 establishes structure only. Architecture, homepage selection,
-	// galleries, and business records remain later explicit decisions.
+	// Migration 7 establishes structure only. Its separate Architecture sibling,
+	// homepage selection, galleries, and business records remain explicit changes.
 	upperInteriorUpSQL := strings.ToUpper(interiorDefinition.UpSQL)
 	if count := strings.Count(
 		upperInteriorUpSQL,
@@ -1127,6 +1127,180 @@ ALTER TABLE public.products
 	} {
 		if strings.Contains(upperInteriorDownSQL, forbiddenSQL) {
 			t.Errorf("Interior-project down SQL contains forbidden %q", forbiddenSQL)
+		}
+	}
+
+	architectureDefinition := catalog[7]
+	if architectureDefinition.Version != 8 ||
+		architectureDefinition.Name != "create_architecture_projects" {
+		t.Errorf(
+			"embedded migration identity: got %06d_%s",
+			architectureDefinition.Version,
+			architectureDefinition.Name,
+		)
+	}
+
+	// Version 000008 gives Architecture its own complete vertical boundary. The
+	// explicit fragments protect every public-content, lifecycle, optimistic-
+	// concurrency, media, and ordering guarantee without coupling the new schema
+	// to the pre-existing Interior relation merely because their current shapes
+	// are intentionally parallel.
+	expectedArchitectureUpSQL := []string{
+		"CREATE TABLE public.architecture_projects",
+		"id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY",
+		"slug text NOT NULL",
+		"title text NOT NULL",
+		"typology text NOT NULL",
+		"location text NOT NULL DEFAULT ''",
+		"project_year integer",
+		"project_status text NOT NULL",
+		"description text NOT NULL DEFAULT ''",
+		"sort_order integer NOT NULL",
+		"publication_status text NOT NULL DEFAULT 'draft'",
+		"version bigint NOT NULL DEFAULT 1",
+		"created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP",
+		"updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP",
+		"CONSTRAINT architecture_projects_slug_length",
+		"CHECK (char_length(slug) BETWEEN 1 AND 120)",
+		"CONSTRAINT architecture_projects_slug_format",
+		"CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$')",
+		"CONSTRAINT architecture_projects_slug_unique",
+		"UNIQUE (slug)",
+		"CONSTRAINT architecture_projects_title_trimmed",
+		"CHECK (title = btrim(title))",
+		"CONSTRAINT architecture_projects_title_length",
+		"CHECK (char_length(title) BETWEEN 1 AND 160)",
+		"CONSTRAINT architecture_projects_typology_trimmed",
+		"CHECK (typology = btrim(typology))",
+		"CONSTRAINT architecture_projects_typology_length",
+		"CHECK (char_length(typology) BETWEEN 1 AND 80)",
+		"CONSTRAINT architecture_projects_location_trimmed",
+		"CHECK (location = btrim(location))",
+		"CONSTRAINT architecture_projects_location_length",
+		"CHECK (char_length(location) <= 160)",
+		"CONSTRAINT architecture_projects_project_year_supported",
+		"project_year IS NULL OR",
+		"project_year BETWEEN 1000 AND 9999",
+		"CONSTRAINT architecture_projects_project_status_trimmed",
+		"CHECK (project_status = btrim(project_status))",
+		"CONSTRAINT architecture_projects_project_status_length",
+		"CHECK (char_length(project_status) BETWEEN 1 AND 80)",
+		"CONSTRAINT architecture_projects_description_trimmed",
+		"CHECK (description = btrim(description))",
+		"CONSTRAINT architecture_projects_description_length",
+		"CHECK (char_length(description) <= 6000)",
+		"CONSTRAINT architecture_projects_sort_order_positive",
+		"CHECK (sort_order > 0)",
+		"CONSTRAINT architecture_projects_publication_status_supported",
+		"CHECK (publication_status IN ('draft', 'published', 'archived'))",
+		"CONSTRAINT architecture_projects_version_positive",
+		"CHECK (version > 0)",
+		"CONSTRAINT architecture_projects_timestamp_order",
+		"CHECK (updated_at >= created_at)",
+		"CREATE INDEX architecture_projects_published_order_idx",
+		"ON public.architecture_projects (sort_order, id)",
+		"WHERE publication_status = 'published'",
+		"CREATE TABLE public.architecture_project_cover_images",
+		"architecture_project_id bigint NOT NULL",
+		"CONSTRAINT architecture_project_cover_images_pkey",
+		"PRIMARY KEY (architecture_project_id)",
+		"CONSTRAINT architecture_project_cover_images_project_id_foreign",
+		"FOREIGN KEY (architecture_project_id)",
+		"REFERENCES public.architecture_projects (id)",
+		"ON DELETE CASCADE",
+		"CONSTRAINT architecture_project_cover_images_version_positive",
+		"CONSTRAINT architecture_project_cover_images_content_type_supported",
+		"CHECK (content_type IN ('image/jpeg', 'image/png'))",
+		"CONSTRAINT architecture_project_cover_images_byte_size_supported",
+		"CHECK (byte_size BETWEEN 1 AND 8388608)",
+		"CONSTRAINT architecture_project_cover_images_content_size_matches",
+		"CHECK (octet_length(content) = byte_size)",
+		"CONSTRAINT architecture_project_cover_images_width_supported",
+		"CHECK (width BETWEEN 1 AND 10000)",
+		"CONSTRAINT architecture_project_cover_images_height_supported",
+		"CHECK (height BETWEEN 1 AND 10000)",
+		"CONSTRAINT architecture_project_cover_images_pixel_count_supported",
+		"CHECK ((width::bigint * height::bigint) <= 25000000)",
+		"CONSTRAINT architecture_project_cover_images_sha256_length",
+		"CHECK (octet_length(sha256) = 32)",
+		"CONSTRAINT architecture_project_cover_images_alt_text_trimmed",
+		"CHECK (alt_text = btrim(alt_text))",
+		"CONSTRAINT architecture_project_cover_images_alt_text_length",
+		"CHECK (char_length(alt_text) BETWEEN 1 AND 300)",
+		"CONSTRAINT architecture_project_cover_images_caption_trimmed",
+		"CHECK (caption = btrim(caption))",
+		"CONSTRAINT architecture_project_cover_images_caption_length",
+		"CHECK (char_length(caption) <= 500)",
+		"CONSTRAINT architecture_project_cover_images_timestamp_order",
+	}
+	for _, expectedSQL := range expectedArchitectureUpSQL {
+		if !strings.Contains(architectureDefinition.UpSQL, expectedSQL) {
+			t.Errorf("Architecture-project up SQL does not contain %q", expectedSQL)
+		}
+	}
+
+	// Stage 23 establishes only empty Architecture structure. It must neither
+	// manufacture portfolio content nor alter another discipline's durable data.
+	upperArchitectureUpSQL := strings.ToUpper(architectureDefinition.UpSQL)
+	if count := strings.Count(
+		upperArchitectureUpSQL,
+		"CREATE TABLE PUBLIC.",
+	); count != 2 {
+		t.Errorf("Architecture-project CREATE TABLE count: got %d, want 2", count)
+	}
+	if count := strings.Count(
+		upperArchitectureUpSQL,
+		"ON DELETE CASCADE",
+	); count != 1 {
+		t.Errorf("Architecture-project ON DELETE CASCADE count: got %d, want 1", count)
+	}
+	for _, forbiddenSQL := range []string{
+		"INSERT INTO",
+		"UPDATE PUBLIC.ARCHITECTURE_PROJECTS",
+		"DELETE FROM",
+		"CREATE EXTENSION",
+		"ALTER TABLE PUBLIC.INTERIOR_PROJECTS",
+		"CREATE TABLE PUBLIC.ARCHITECTURE_PROJECT_GALLERY",
+		"PROJECT_YEAR INTEGER NOT NULL",
+		"PROJECT_YEAR INTEGER DEFAULT",
+		"FEATURED",
+		"SEO",
+	} {
+		if strings.Contains(upperArchitectureUpSQL, forbiddenSQL) {
+			t.Errorf("Architecture-project up SQL contains forbidden %q", forbiddenSQL)
+		}
+	}
+
+	// Strict child-first rollback keeps the foreign-key dependency visible and
+	// proves version 8 cannot remove Interior, Product, inquiry, or access data.
+	orderedArchitectureDownSQL := []string{
+		"DROP TABLE public.architecture_project_cover_images;",
+		"DROP TABLE public.architecture_projects;",
+	}
+	previousPosition = -1
+	for _, expectedSQL := range orderedArchitectureDownSQL {
+		position := strings.Index(architectureDefinition.DownSQL, expectedSQL)
+		if position < 0 {
+			t.Errorf("Architecture-project down SQL does not contain %q", expectedSQL)
+			continue
+		}
+		if position <= previousPosition {
+			t.Errorf("Architecture-project down SQL has %q out of order", expectedSQL)
+		}
+		previousPosition = position
+	}
+	upperArchitectureDownSQL := strings.ToUpper(architectureDefinition.DownSQL)
+	for _, forbiddenSQL := range []string{
+		"CASCADE",
+		"IF EXISTS",
+		"INTERIOR_PROJECTS",
+		"PRODUCTS",
+		"INQUIRIES",
+		"ADMIN_USERS",
+		"ADMIN_SESSIONS",
+	} {
+		if strings.Contains(upperArchitectureDownSQL, forbiddenSQL) {
+			t.Errorf("Architecture-project down SQL contains forbidden %q", forbiddenSQL)
 		}
 	}
 }

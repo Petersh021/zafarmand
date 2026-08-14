@@ -8,7 +8,9 @@ reviewed cover through separate protected dependencies.
 
 This stage deliberately keeps Interior Design independent from Architecture.
 Sharing validation mechanics does not require one generic database table or one
-generic administration model. Architecture remains Stage 23 work.
+generic administration model. Stage 23 now provides the parallel Architecture
+workflow through its own tables and repositories without changing this Stage 22
+contract; see [architecture-projects.md](architecture-projects.md).
 
 ## Delivered boundary
 
@@ -30,8 +32,9 @@ Stage 22 includes:
 
 It does not include project deletion, cover deletion, galleries, gallery order,
 crop/focal-point controls, object storage, featured homepage placement, SEO,
-preview tokens, Architecture records, or real Zafarmand content. Those require
-separate interface, retention, and operational decisions.
+preview tokens, cross-discipline records, or real Zafarmand content. Stage 23
+adds Architecture through an independent model; the other omissions still
+require separate interface, retention, and operational decisions.
 
 ## Public and protected routes
 
@@ -333,8 +336,11 @@ TO chosen_runtime_role;
 ```
 
 Confirm the generated sequence name in the target schema. Do not grant DELETE,
-TRUNCATE, schema ownership, migration-ledger access, Architecture access, or a
-broad table/schema privilege merely to avoid listing required columns.
+TRUNCATE, schema ownership, migration-ledger access, access to Architecture
+tables merely because this Interior workflow needs similar columns, or a broad
+table/schema privilege merely to avoid listing required columns. Stage 23's
+separate grants are documented in
+[architecture-projects.md](architecture-projects.md).
 
 ## Manual verification
 
@@ -351,8 +357,9 @@ into terminal output, screenshots, issues, or commits.
    go run . migrate status
    ```
 
-   Versions 1 through 7 should be Applied. A second `migrate up` should be a
-   truthful no-op.
+   Versions 1 through 8 should be Applied. Migration 8 owns the separate
+   Architecture schema and does not alter these Interior checks. A second
+   `migrate up` should be a truthful no-op.
 
 2. Switch `DATABASE_URL` to the least-privilege runtime role in that same shell
    and start the server:
@@ -413,12 +420,14 @@ Remove-Item Env:ZAFARMAND_TEST_DATABASE_CONFIRM -ErrorAction SilentlyContinue
 ```
 
 The guarded suite refuses an unconfirmed database or a name without `_test`,
-requires its exact owned relations to be absent before starting, and cleans only
-those relations afterward. It proves migration 7 defaults and named constraints,
-published-only numbering/visibility, protected all-state reads, create/edit and
-stale revision behavior, cover replacement, archive hiding, one-cover ownership,
-foreign-key cascade, rollback isolation, reapplication, and transaction
-atomicity.
+requires every reserved Stage 13–23 relation to be absent before starting, and
+cleans only those exact relations afterward. It proves migration 7 defaults and
+named constraints, published-only numbering/visibility, protected all-state
+reads, create/edit and stale revision behavior, cover replacement, archive
+hiding, one-cover ownership, foreign-key cascade, rollback isolation,
+reapplication, and transaction atomicity. The complete v1-to-v8 cycle also
+checks the independent Architecture relations without weakening these Interior
+assertions.
 
 ## Rollback and reapplication
 
@@ -458,10 +467,9 @@ before staging only the intended Stage 22 files.
 
 ## Deferred after Stage 22
 
-The next stage may reuse these proven mechanics for Architecture, but it should
-not silently broaden Interior behavior. Still deferred are:
+Stage 23 reuses the proven mechanics for Architecture without silently
+broadening Interior behavior. Still deferred for Interior are:
 
-- Architecture persistence and management;
 - Interior deletion and retention confirmation;
 - multiple images or gallery ordering;
 - cover removal, crop, focal point, and object storage;

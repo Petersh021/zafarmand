@@ -1,0 +1,93 @@
+{{/*
+This escaped detail page is a read view. Text editing and cover replacement use
+separate GET and POST routes protected by authentication, role authorization,
+session CSRF, strict validation, and optimistic record revisions.
+
+Only a Published record receives a public link. A stored Draft or Archived slug
+therefore never becomes an accidental discovery path from the admin interface.
+*/}}
+{{define "admin-content"}}
+<main class="admin-product-detail admin-architecture-project-detail" id="admin-main-content">
+	<a class="admin-back-link" href="/admin/architecture-projects">
+		<span aria-hidden="true">&larr;</span>
+		Architecture projects
+	</a>
+
+	<a class="admin-primary-link admin-product-edit-link" href="{{.ArchitectureProjectDetail.EditPath}}">
+		Edit Architecture project
+	</a>
+
+	<article class="admin-product-record admin-architecture-project-record" aria-labelledby="admin-architecture-project-title">
+		<header class="admin-product-record__header">
+			<div>
+				<p class="admin-eyebrow">Architecture project {{.ArchitectureProjectDetail.Reference}}</p>
+				<h1 id="admin-architecture-project-title">{{.ArchitectureProjectDetail.Title}}</h1>
+			</div>
+
+			<p class="admin-product-status admin-product-status--{{.ArchitectureProjectDetail.StatusClass}}">
+				Current status: {{.ArchitectureProjectDetail.StatusLabel}}
+			</p>
+		</header>
+
+		<dl class="admin-product-facts admin-architecture-project-facts">
+			<div><dt>Slug</dt><dd>{{.ArchitectureProjectDetail.Slug}}</dd></div>
+			<div><dt>Typology</dt><dd>{{.ArchitectureProjectDetail.Typology}}</dd></div>
+			<div>
+				<dt>Location</dt>
+				<dd>{{if .ArchitectureProjectDetail.Location}}{{.ArchitectureProjectDetail.Location}}{{else}}Not added{{end}}</dd>
+			</div>
+			<div>
+				<dt>Project year</dt>
+				<dd>{{if .ArchitectureProjectDetail.ProjectYear}}{{.ArchitectureProjectDetail.ProjectYear}}{{else}}Not added{{end}}</dd>
+			</div>
+			<div><dt>Project status</dt><dd>{{.ArchitectureProjectDetail.ProjectStatus}}</dd></div>
+			<div><dt>Sort order</dt><dd>{{.ArchitectureProjectDetail.SortOrder}}</dd></div>
+			<div><dt>Revision</dt><dd>{{.ArchitectureProjectDetail.Version}}</dd></div>
+			<div>
+				<dt>Created</dt>
+				<dd><time datetime="{{.ArchitectureProjectDetail.CreatedAtISO}}">{{.ArchitectureProjectDetail.CreatedAtLabel}}</time></dd>
+			</div>
+			<div>
+				<dt>Last stored update</dt>
+				<dd><time datetime="{{.ArchitectureProjectDetail.UpdatedAtISO}}">{{.ArchitectureProjectDetail.UpdatedAtLabel}}</time></dd>
+			</div>
+		</dl>
+
+		<section class="admin-product-editorial" aria-labelledby="admin-architecture-project-editorial-title">
+			<h2 id="admin-architecture-project-editorial-title">Editorial content</h2>
+			{{if .ArchitectureProjectDetail.Description}}
+			<div class="admin-product-editorial__description">
+				<h3>Description</h3>
+				<p>{{.ArchitectureProjectDetail.Description}}</p>
+			</div>
+			{{else}}
+			<p>No reviewed description has been added.</p>
+			{{end}}
+		</section>
+
+		<section class="admin-product-cover admin-architecture-project-cover" aria-labelledby="admin-architecture-project-cover-title">
+			<h2 id="admin-architecture-project-cover-title">Cover image</h2>
+			{{with .ArchitectureProjectDetail.Cover}}
+			<figure class="admin-product-cover__figure">
+				<img src="{{.Path}}" alt="{{.AltText}}" width="{{.Width}}" height="{{.Height}}" decoding="async">
+				{{with .Caption}}<figcaption>{{.}}</figcaption>{{end}}
+			</figure>
+			{{else}}
+			<p>No reviewed cover image has been uploaded.</p>
+			{{end}}
+
+			<a class="admin-primary-link" href="{{.ArchitectureProjectDetail.CoverManagementPath}}">
+				{{if .ArchitectureProjectDetail.Cover}}Replace cover image{{else}}Upload cover image{{end}}
+			</a>
+		</section>
+
+		<section class="admin-product-visibility" aria-labelledby="admin-architecture-project-visibility-title">
+			<h2 id="admin-architecture-project-visibility-title">Public visibility</h2>
+			<p>{{.ArchitectureProjectDetail.VisibilityMessage}}</p>
+			{{if .ArchitectureProjectDetail.PublicPath}}
+			<a class="admin-primary-link" href="{{.ArchitectureProjectDetail.PublicPath}}">Open published Architecture project</a>
+			{{end}}
+		</section>
+	</article>
+</main>
+{{end}}

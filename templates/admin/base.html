@@ -84,6 +84,21 @@ from the response sent to the browser.
 						</a>
 					</li>
 
+					{{/*
+					Architecture projects keep their own trusted active-navigation value,
+					workspace, and real server-rendered URL. The plain link works without
+					JavaScript and keeps browser Back and Forward behavior conventional.
+					*/}}
+					<li>
+						<a
+							class="admin-nav__link{{if eq $.NavigationPath "/admin/architecture-projects"}} admin-nav__link--active{{end}}"
+							href="/admin/architecture-projects"
+							{{if eq $.NavigationPath "/admin/architecture-projects"}}aria-current="page"{{end}}
+						>
+							Architecture projects
+						</a>
+					</li>
+
 					<li>
 						<a
 							class="admin-nav__link{{if eq $.NavigationPath "/admin/inquiries"}} admin-nav__link--active{{end}}"

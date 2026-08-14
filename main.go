@@ -85,7 +85,7 @@ func main() {
 	}
 }
 
-// runServer composes the long-lived PostgreSQL pool, public Product and Interior
+// runServer composes the long-lived PostgreSQL pool, all three public catalogue
 // readers, their protected read/write boundaries, Contact and inquiry services,
 // administrator authentication, templates, routes, and interrupt-aware server.
 //
@@ -124,6 +124,12 @@ func runServer(
 	if err != nil {
 		return err
 	}
+	architectureProjects, err := newPostgresArchitectureProjectCatalogueReader(
+		database,
+	)
+	if err != nil {
+		return err
+	}
 	inquiries, err := newPostgresInquiryRepository(database)
 	if err != nil {
 		return err
@@ -148,6 +154,18 @@ func runServer(
 	if err != nil {
 		return err
 	}
+	adminArchitectureProjects, err := newPostgresAdminArchitectureProjectReader(
+		database,
+	)
+	if err != nil {
+		return err
+	}
+	adminArchitectureProjectWrites, err := newPostgresAdminArchitectureProjectWriter(
+		database,
+	)
+	if err != nil {
+		return err
+	}
 	adminInquiries, err := newPostgresAdminInquiryReader(database)
 	if err != nil {
 		return err
@@ -160,12 +178,15 @@ func runServer(
 	app, err := newApplication(
 		products,
 		interiorProjects,
+		architectureProjects,
 		inquiries,
 		admins,
 		adminProducts,
 		adminProductWrites,
 		adminInteriorProjects,
 		adminInteriorProjectWrites,
+		adminArchitectureProjects,
+		adminArchitectureProjectWrites,
 		adminInquiries,
 		adminInquiryStatuses,
 		newAdminPasswordManager(),

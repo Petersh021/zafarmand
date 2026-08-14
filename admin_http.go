@@ -107,6 +107,20 @@ type adminPageData struct {
 	InteriorProjectConflict *adminInteriorProjectConflictPageData
 	// InteriorProjectCoverForm contains one protected cover upload/replace contract.
 	InteriorProjectCoverForm *adminInteriorProjectCoverFormPageData
+	// ArchitectureProjectList contains the protected all-state Architecture
+	// portfolio without exposing binary cover bytes.
+	ArchitectureProjectList *adminArchitectureProjectListPageData
+	// ArchitectureProjectDetail contains one protected Architecture record and
+	// trusted links to its edit, public, and exact-cover routes.
+	ArchitectureProjectDetail *adminArchitectureProjectDetailPageData
+	// ArchitectureProjectForm contains one protected create/edit form contract.
+	ArchitectureProjectForm *adminArchitectureProjectFormPageData
+	// ArchitectureProjectConflict contains fixed recovery navigation after a
+	// stale text edit or cover replacement, without echoing managed content.
+	ArchitectureProjectConflict *adminArchitectureProjectConflictPageData
+	// ArchitectureProjectCoverForm contains the authenticated reviewed-cover
+	// upload or replacement contract for one Architecture project revision.
+	ArchitectureProjectCoverForm *adminArchitectureProjectCoverFormPageData
 }
 
 // adminIdentityPageData keeps persistence and authorization records out of the

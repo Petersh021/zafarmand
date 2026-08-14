@@ -1,8 +1,8 @@
 {{/*
 The Architecture project detail page is a separate template-cache entry found
-by the existing templates/pages glob. Stage 11 gives one temporary Architecture
-record a real server-rendered page without coupling its semantic structure to
-the shared discipline landing shell.
+by the existing templates/pages glob. Stage 23 maps one published PostgreSQL
+projection without coupling its semantic structure to the discipline landing
+shell or exposing private lifecycle fields.
 */}}
 
 {{/*
@@ -77,12 +77,21 @@ Only the incomplete article is withheld when the optional record is absent.
 				</h1>
 			</div>
 
-			{{/*
-			The CSS-only field reserves the scale of future approved project media
-			without serving the supplied reference composite as public content.
-			Its label and number repeat semantic information, so the entire field
-			is decorative and hidden from assistive technology.
-			*/}}
+			{{/* A reviewed cover is meaningful content and keeps its required alt
+			text. Without one, the established CSS architectural study remains an
+			honest decorative fallback. */}}
+			{{with .Cover}}
+			<figure class="architecture-project-detail__media architecture-project-detail__media--image">
+				<img
+					class="architecture-project-detail__image"
+					src="{{.Path}}"
+					width="{{.Width}}"
+					height="{{.Height}}"
+					alt="{{.AltText}}"
+					decoding="async"
+				>
+			</figure>
+			{{else}}
 			<div
 				class="architecture-project-detail__media"
 				aria-hidden="true"
@@ -95,6 +104,7 @@ Only the incomplete article is withheld when the optional record is absent.
 					{{.Number}}
 				</span>
 			</div>
+			{{end}}
 		</header>
 
 		{{/*
@@ -122,8 +132,8 @@ Only the incomplete article is withheld when the optional record is absent.
 			<div class="architecture-project-detail__information-body">
 				{{/*
 				A description list expresses each known label/value relationship.
-				Every value comes from the narrow Stage 11 detail model; location,
-				year, client, description, and other unapproved facts are not invented.
+				Every value comes from the narrow Stage 23 published projection;
+				optional facts are omitted instead of being invented.
 				*/}}
 				<dl class="architecture-project-detail__facts">
 					<div class="architecture-project-detail__fact">
@@ -137,20 +147,41 @@ Only the incomplete article is withheld when the optional record is absent.
 					</div>
 
 					<div class="architecture-project-detail__fact">
-						<dt>Publication status</dt>
-						<dd>{{.Status}}</dd>
+						<dt>Project status</dt>
+						<dd>{{.ProjectStatus}}</dd>
 					</div>
+
+					{{if .Location}}
+					<div class="architecture-project-detail__fact">
+						<dt>Location</dt>
+						<dd>{{.Location}}</dd>
+					</div>
+					{{end}}
+
+					{{if .YearLabel}}
+					<div class="architecture-project-detail__fact">
+						<dt>Year</dt>
+						<dd>{{.YearLabel}}</dd>
+					</div>
+					{{end}}
 				</dl>
 
-				{{/*
-				This truthful interface note replaces fabricated project prose until
-				approved descriptions and media can arrive through the later content
-				and administration stages.
-				*/}}
+				{{if .Description}}
+				<p class="architecture-project-detail__description">{{.Description}}</p>
+				{{else}}
 				<p class="architecture-project-detail__notice">
-					Approved project information and media are being
-					prepared for publication.
+					Additional project information is not available for this entry.
 				</p>
+				{{end}}
+
+				{{with .Cover}}
+					{{if .Caption}}
+					<p class="architecture-project-detail__caption">
+						<span>Image caption</span>
+						{{.Caption}}
+					</p>
+					{{end}}
+				{{end}}
 			</div>
 		</section>
 	</article>

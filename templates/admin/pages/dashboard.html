@@ -1,7 +1,8 @@
 {{/*
-The overview links to the current Product, Interior-project, and inquiry
-workflows. It does not request or imply summary counts, because operational
-metrics belong to a later stage with explicit data and performance requirements.
+The overview links to the current Product, Interior-project, Architecture-
+project, and inquiry workflows. It does not request or imply summary counts,
+because operational metrics belong to a later stage with explicit data and
+performance requirements.
 */}}
 {{define "admin-content"}}
 <main class="admin-dashboard" id="admin-main-content">
@@ -14,7 +15,7 @@ metrics belong to a later stage with explicit data and performance requirements.
 		<h1 id="admin-dashboard-title">Administration overview</h1>
 
 		<p class="admin-dashboard__lede">
-			Create and review Product and Interior-project publication records, and review messages received through the public Contact form.
+			Create and review Product, Interior-project, and Architecture-project publication records, and review messages received through the public Contact form.
 		</p>
 
 		<div class="admin-dashboard__actions">
@@ -24,6 +25,11 @@ metrics belong to a later stage with explicit data and performance requirements.
 
 			<a class="admin-secondary-link" href="/admin/interior-projects">
 				Open Interior portfolio
+			</a>
+
+			{{/* This independent workspace never relies on JavaScript routing. */}}
+			<a class="admin-secondary-link" href="/admin/architecture-projects">
+				Open Architecture portfolio
 			</a>
 
 			<a class="admin-secondary-link" href="/admin/inquiries">
@@ -51,7 +57,7 @@ metrics belong to a later stage with explicit data and performance requirements.
 
 			<div>
 				<dt>Available tools</dt>
-				<dd>Product and Interior-project management; inquiry review and status management</dd>
+				<dd>Product, Interior-project, and Architecture-project management; inquiry review and status management</dd>
 			</div>
 		</dl>
 	</section>

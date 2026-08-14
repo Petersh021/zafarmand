@@ -1,4 +1,4 @@
-# Stage 13–22 database development on Windows
+# Stage 13-23 database development on Windows
 
 Stage 13 establishes an explicit PostgreSQL migration workflow. Stage 14 uses
 that foundation for the first database-backed public feature: Contact inquiry
@@ -24,6 +24,10 @@ Stage 22 adds migration 7's independent Interior project and one-cover tables,
 published-only public reads, and protected version-guarded management. Its
 complete workflow is documented in the [Interior project development
 guide](interior-projects.md).
+Stage 23 adds migration 8's independent Architecture project and one-cover
+tables with the same public/private lifecycle boundary and Architecture-owned
+repositories. See the [Architecture project development
+guide](architecture-projects.md).
 
 The boundary is intentional:
 
@@ -53,6 +57,8 @@ The boundary is intentional:
 - Separate public and protected Interior readers enforce the same publication
   boundary without merging Interior and Architecture data. An independent
   Interior writer owns only version-guarded project and single-cover changes.
+- Separate public and protected Architecture readers repeat that explicit
+  boundary for Architecture. Its writer cannot mutate Interior or Product data.
 - The success page claims only that the inquiry was saved for studio review. It
   does not claim email delivery or guarantee a response time.
 
@@ -134,20 +140,23 @@ After migrations finish, replace `DATABASE_URL` in the server's environment
 with a least-privilege runtime role. The current server needs database/schema
 connection privileges; `INSERT` and `SELECT` on `public.inquiries` plus
 column-level `UPDATE` on only its `status` and `updated_at`; `SELECT` on
-the managed columns of `public.products` and `public.interior_projects`, plus
-narrow column-level `INSERT` and `UPDATE` for their protected writers; `SELECT`,
-narrow `INSERT`, and narrow `UPDATE` on their separate one-cover tables; plus
-the required identity-sequence access. The exact Product grants are listed in
-[admin-products.md](admin-products.md), and the exact Interior grants are
-listed in [interior-projects.md](interior-projects.md). The runtime
+the managed columns of `public.products`, `public.interior_projects`, and
+`public.architecture_projects`, plus narrow column-level `INSERT` and `UPDATE`
+for their protected writers; `SELECT`, narrow `INSERT`, and narrow `UPDATE` on
+their separate one-cover tables; plus the required identity-sequence access.
+The exact Product grants are listed in [admin-products.md](admin-products.md),
+the exact Interior grants are listed in
+[interior-projects.md](interior-projects.md), and the exact Architecture grants
+are listed in [architecture-projects.md](architecture-projects.md). The runtime
 also needs `SELECT` on `public.admin_users` and `SELECT`, `INSERT`, and `UPDATE`
 on `public.admin_sessions`. The broader inquiry read is required by Stage 16's
 protected list/detail, while the narrow inquiry update belongs to Stage 17.
-Stages 20–22 still need no Product, Interior-project, or cover DELETE privilege
-and no schema ownership. Separate application interfaces keep inquiry and
-unpublished catalogue capabilities outside public handlers. Inquiry, Product,
-Interior-project, and administrator identity sequences need only the access
-required by their existing writers. The separate administrator bootstrap
+Stages 20–23 still need no Product, Interior-project, Architecture-project, or
+cover `DELETE` privilege and no schema ownership. Separate application
+interfaces keep inquiry and unpublished catalogue capabilities outside public
+handlers. Inquiry, Product, Interior-project, Architecture-project, and
+administrator identity sequences need only the access required by their
+existing writers. The separate administrator bootstrap
 process additionally needs `INSERT` on `public.admin_users`, but neither runtime
 should own the schema or receive migration privileges. Keep role creation and
 credentials outside this repository and follow the deployment provider's
@@ -181,7 +190,7 @@ produce no match because `.env.example` is explicitly allowed.
 
 ## Understanding the Go connection lifecycle
 
-Stages 13–22 use `database/sql` with pgx as the PostgreSQL driver. A `*sql.DB` is
+Stages 13–23 use `database/sql` with pgx as the PostgreSQL driver. A `*sql.DB` is
 a concurrency-safe database handle and connection pool, not one permanently
 open socket.
 
@@ -209,12 +218,12 @@ migration code, and closes it once. Individual migration functions do not own
 or close the pool. Opening a new pool for each statement would hide ownership,
 waste connections, and teach the wrong request lifecycle.
 
-In Stages 14–22, the long-running application—not an HTTP handler—owns the
-shared pool. Public inquiry, Product, and Interior repositories plus their
-separate protected readers/writers, inquiry workflow, and administrator
-authentication repository borrow it and accept request contexts. The server
-opens and pings the pool before listening, stops accepting requests on Ctrl+C,
-waits for active handlers, and then closes the pool.
+In Stages 14–23, the long-running application—not an HTTP handler—owns the
+shared pool. Public inquiry, Product, Interior, and Architecture repositories
+plus their separate protected readers/writers, inquiry workflow, and
+administrator authentication repository borrow it and accept request contexts.
+The server opens and pings the pool before listening, stops accepting requests
+on Ctrl+C, waits for active handlers, and then closes the pool.
 
 See the official Go documentation for [`sql.DB`
 connection management](https://go.dev/doc/database/manage-connections) and the
@@ -268,8 +277,8 @@ Migration history is compiled into the Go executable from `migrations/`. Every
 new schema version must follow one strict contract:
 
 1. Add an exact pair such as
-   `000007_descriptive_name.up.sql` and
-   `000007_descriptive_name.down.sql`.
+   `000009_descriptive_name.up.sql` and
+   `000009_descriptive_name.down.sql`.
 2. Use six digits, the next contiguous positive version, and a globally unique
    lowercase name made from words separated by single underscores.
 3. Put the forward change in `up` and the narrow exact reverse in `down`. Avoid
@@ -355,6 +364,9 @@ psql -X --set ON_ERROR_STOP=on --command '\di products_published_order_idx'
 psql -X --set ON_ERROR_STOP=on --command '\d interior_projects'
 psql -X --set ON_ERROR_STOP=on --command '\d interior_project_cover_images'
 psql -X --set ON_ERROR_STOP=on --command '\di interior_projects_published_order_idx'
+psql -X --set ON_ERROR_STOP=on --command '\d architecture_projects'
+psql -X --set ON_ERROR_STOP=on --command '\d architecture_project_cover_images'
+psql -X --set ON_ERROR_STOP=on --command '\di architecture_projects_published_order_idx'
 ```
 
 Inspect table definitions only. Do not select or copy password hashes, session
@@ -415,6 +427,11 @@ temporary Interior studies and adds public/protected repositories without
 granting either discipline access to the other. See
 [interior-projects.md](interior-projects.md) for the exact schema, forms, media,
 visibility, and rollback behavior.
+Migration 8 repeats the reviewed boundary in separate unseeded Architecture
+project and one-cover relations. Stage 23 replaces temporary Architecture
+studies with published-only public reads and protected version-guarded
+management without giving either discipline access to the other's records. See
+[architecture-projects.md](architecture-projects.md) for its exact contract.
 
 To exercise rollback, first switch `DATABASE_URL` to a separate disposable
 database. Reconfirm the connection before doing anything destructive:
@@ -455,6 +472,8 @@ published-only binary reads, and stale-cover rejection.
 Stage 22 adds the unseeded Interior schema, published-only list/detail/cover
 reader, protected all-state reader, version-guarded writer, and one-cover
 replacement/archive boundaries.
+Stage 23 adds the equivalent independent Architecture schema, public reader,
+protected reader/writer, normalized cover workflow, and archive boundaries.
 
 On the verified local Windows PostgreSQL 18 installation, the guarded helper
 can run the same acceptance cycle without persisting or printing a password:
@@ -464,14 +483,15 @@ can run the same acceptance cycle without persisting or printing a password:
 ```
 
 The helper keeps its historical Stage 14 filename and disposable database name,
-but its `Postgres` test selection runs the complete current v1-to-v7 suite,
+but its `Postgres` test selection runs the complete current v1-to-v8 suite,
 including Stage 15 admin schema/repository checks and Stage 16 inquiry reads.
 It also checks Stage 17 status updates and Stage 18's unseeded Product schema,
 published ordering, numbering, detail mapping, and non-public exclusion. Stage
 19 additionally checks the all-state administrator projection and missing ID;
 Stage 20 checks the revision-backed writer and conflict behavior; Stage 21
 checks migration-6 content and cover persistence; Stage 22 checks migration-7
-Interior constraints, ordering, publication, revisions, and cover behavior.
+Interior constraints, ordering, publication, revisions, and cover behavior;
+Stage 23 checks the separate migration-8 Architecture lifecycle.
 
 The helper uses a visible secure password prompt, refuses to reuse a database,
 creates only `zafarmand_stage14_codex_test`, runs the opt-in integration tests
@@ -484,6 +504,7 @@ Create a dedicated empty database whose name ends in `_test`. It must not
 contain `public.inquiries`, `public.admin_users`, `public.admin_sessions`,
 `public.product_cover_images`, `public.products`, `public.interior_projects`,
 `public.interior_project_cover_images`, `public.schema_migrations`,
+`public.architecture_projects`, `public.architecture_project_cover_images`,
 `public.stage13_atomicity_probe`, or
 `public.stage13_intentionally_missing_table`. Then opt in with two test-only
 variables:
@@ -496,12 +517,12 @@ go test -count=1 -run 'Postgres' ./...
 
 The test never falls back to `DATABASE_URL`, verifies both the configured and
 server-reported database names, and checks every reserved relation before
-mutation. It cleans up only `public.admin_sessions`, `public.admin_users`,
-both exact cover children before their Product/Interior parents,
-`public.inquiries`, `public.schema_migrations`, and its exact atomicity-probe
-table; the intentionally missing relation is checked but never dropped. Still
-use a database created solely for this test; the confirmation is a safety gate,
-not a backup.
+mutation. It cleans up only `public.admin_sessions`, `public.admin_users`, the
+three exact cover children before their Product, Interior, and Architecture
+parents, `public.inquiries`, `public.schema_migrations`, and its exact
+atomicity-probe table; the intentionally missing relation is checked but never
+dropped. Still use a database created solely for this test; the confirmation is
+a safety gate, not a backup.
 
 Remove the test credentials afterward:
 
@@ -521,9 +542,10 @@ result before treating the local database runtime as verified.
 
 The ordinary automated suite, including Stage 16 reads, Stage 17 status
 authorization, Stage 18 public Products, Stage 19 protected Product reads,
-Stage 20 Product forms/writes, Stage 21 rich-content/cover checks, and Stage 22
-public/protected Interior workflow checks must remain database-independent. It
-should pass even when PostgreSQL is stopped or absent:
+Stage 20 Product forms/writes, Stage 21 rich-content/cover checks, Stage 22
+public/protected Interior workflow checks, and Stage 23 Architecture workflow
+checks must remain database-independent. They should pass even when PostgreSQL
+is stopped or absent:
 
 ```powershell
 go fmt ./...
@@ -558,6 +580,8 @@ git check-attr eol -- migrations/000006_add_product_content_and_cover.up.sql
 git check-attr eol -- migrations/000006_add_product_content_and_cover.down.sql
 git check-attr eol -- migrations/000007_create_interior_projects.up.sql
 git check-attr eol -- migrations/000007_create_interior_projects.down.sql
+git check-attr eol -- migrations/000008_create_architecture_projects.up.sql
+git check-attr eol -- migrations/000008_create_architecture_projects.down.sql
 ```
 
 The reported value should be `lf`. Use the actual migration filename if it

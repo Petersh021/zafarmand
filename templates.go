@@ -30,13 +30,11 @@ type application struct {
 	// Keeping it separate from Architecture prevents Stage 22 publication rules
 	// from accidentally exposing or constraining the later discipline.
 	interiorProjects interiorProjectCatalogueReader
-	// architectureProjects is the ordered temporary source shared by Architecture
-	// Design listing and detail handlers.
-	//
-	// Both Architecture handlers treat this slice as read-only. Its dedicated
-	// type keeps Architecture's visual and future data requirements independent
-	// from the already established Interior listing and detail flow.
-	architectureProjects []architectureProject
+	// architectureProjects is the published-only Architecture catalogue and
+	// exact-cover boundary shared by public listing, detail, and media handlers.
+	// Its discipline-specific interface prevents Interior and Architecture
+	// publication rules from becoming coupled through one generic repository.
+	architectureProjects architectureProjectCatalogueReader
 	// inquiries is the narrow write dependency used only by the public Contact
 	// submission handler. Production supplies PostgreSQL, while tests can inject
 	// a recording implementation without opening a database connection.
@@ -57,6 +55,12 @@ type application struct {
 	// adminInteriorProjectWrites owns Interior create, optimistic edit, and
 	// single-cover mutations. It deliberately exposes no delete operation.
 	adminInteriorProjectWrites adminInteriorProjectWriter
+	// adminArchitectureProjects provides protected all-state Architecture
+	// project and exact-cover reads without granting mutation authority.
+	adminArchitectureProjects adminArchitectureProjectReader
+	// adminArchitectureProjectWrites owns Architecture create, optimistic edit,
+	// and single-cover mutations. It deliberately exposes no delete operation.
+	adminArchitectureProjectWrites adminArchitectureProjectWriter
 	// adminInquiries is the read-only personal-data boundary used by the private
 	// inquiry inbox. It remains separate from the public Contact write interface.
 	adminInquiries adminInquiryReader
@@ -311,46 +315,51 @@ type interiorProjectDetailData struct {
 // section.
 //
 // Only /architecture-design receives this optional view model. Keeping section
-// copy beside its ordered preview slice creates a stable template boundary that
-// a later database query can populate without exposing persistence records.
+// copy beside its ordered published projection prevents the template from
+// depending on database identity, lifecycle, or ordering columns.
 type architectureProjectListingData struct {
 	// Eyebrow is the short interface label displayed above the section heading.
 	Eyebrow string
 	// Heading names the project index and labels the shared work section.
 	Heading string
-	// Introduction explains the temporary index without inventing project claims.
+	// Introduction is fixed explanatory copy above the published project index.
 	Introduction string
 	// EmptyMessage is shown when Items is nil or empty.
 	EmptyMessage string
-	// Items contains structural Architecture previews in editorial order.
+	// Items contains published previews in their database portfolio order.
 	Items []architectureProjectPreviewData
 }
 
-// architectureProjectPreviewData is the minimal presentation shape for one
-// temporary Architecture Design project slot.
+// architectureProjectPreviewData is the public presentation shape for one
+// published Architecture Design project.
 //
-// It receives a complete trusted Path rather than exposing the source Slug.
-// Locations, years, descriptions, images, database identifiers, and publication
-// controls remain deferred.
+// It receives complete trusted HTML and cover paths rather than exposing the
+// database identity, slug, ordering key, or private publication state.
 type architectureProjectPreviewData struct {
-	// Number is the zero-padded sequence visible in the structural media field.
+	// Number is the consecutive zero-padded published portfolio sequence.
 	Number string
-	// Title is the temporary study heading displayed by the preview article.
+	// Title is the reviewed project heading displayed by the preview article.
 	Title string
-	// Typology identifies the broad architectural category reserved by the slot.
+	// Typology identifies the broad Architecture project category.
 	Typology string
-	// Status truthfully communicates that approved project content is pending.
-	Status string
+	// Location is optional reviewed geographic copy.
+	Location string
+	// YearLabel is empty when the nullable project year is not supplied.
+	YearLabel string
+	// ProjectStatus is the required real-world project state, such as Completed.
+	ProjectStatus string
 	// Path is the real server-rendered project detail URL used by the card link.
 	Path string
+	// Cover contains reviewed responsive image data, or nil for the honest
+	// decorative architectural fallback.
+	Cover *publicArchitectureProjectCoverPageData
 }
 
 // architectureProjectDetailData is the complete view model needed by one
-// structural Architecture Design project detail page.
+// published Architecture Design project detail page.
 //
-// It deliberately includes only facts present in the temporary source. Final
-// location, year, client, description, photography, and gallery information
-// remain outside Stage 11.
+// Internal ID, slug, lifecycle, sort order, revision, and timestamps stay
+// behind the mapping boundary. Galleries and client data remain deferred.
 type architectureProjectDetailData struct {
 	// Number is the portfolio sequence displayed as editorial context.
 	Number string
@@ -358,8 +367,32 @@ type architectureProjectDetailData struct {
 	Title string
 	// Typology identifies the broad architecture category in the visible facts.
 	Typology string
-	// Status communicates that the page is a temporary portfolio preview.
-	Status string
+	// Location is optional reviewed geographic copy.
+	Location string
+	// YearLabel is empty when no reviewed project year exists.
+	YearLabel string
+	// ProjectStatus is required real-world project-state copy.
+	ProjectStatus string
+	// Description is optional reviewed long-form public copy.
+	Description string
+	// Cover contains one reviewed image, or nil for the honest fallback field.
+	Cover *publicArchitectureProjectCoverPageData
+}
+
+// publicArchitectureProjectCoverPageData is the binary-free image contract
+// shared by the public Architecture listing and detail templates. The public
+// prefix distinguishes it from the protected administrator preview model.
+type publicArchitectureProjectCoverPageData struct {
+	// Path is the exact current public cover revision URL.
+	Path string
+	// Width reserves horizontal space from the reviewed pixel dimensions.
+	Width int
+	// Height reserves vertical space from the reviewed pixel dimensions.
+	Height int
+	// AltText is the required meaningful image alternative.
+	AltText string
+	// Caption is optional visible reviewed copy.
+	Caption string
 }
 
 // contactPageData is the complete presentation contract for the public Contact
@@ -498,12 +531,15 @@ type pageData struct {
 func newApplication(
 	products productCatalogueReader,
 	interiorProjects interiorProjectCatalogueReader,
+	architectureProjects architectureProjectCatalogueReader,
 	inquiries inquiryRepository,
 	admins adminRepository,
 	adminProducts adminProductReader,
 	adminProductWrites adminProductWriter,
 	adminInteriorProjects adminInteriorProjectReader,
 	adminInteriorProjectWrites adminInteriorProjectWriter,
+	adminArchitectureProjects adminArchitectureProjectReader,
+	adminArchitectureProjectWrites adminArchitectureProjectWriter,
 	adminInquiries adminInquiryReader,
 	adminInquiryStatuses adminInquiryStatusUpdater,
 	passwords adminPasswordManager,
@@ -513,6 +549,9 @@ func newApplication(
 	}
 	if interiorProjects == nil {
 		return nil, errInteriorProjectCatalogueReaderRequired
+	}
+	if architectureProjects == nil {
+		return nil, errArchitectureProjectCatalogueReaderRequired
 	}
 	if inquiries == nil {
 		return nil, errInquiryRepositoryRequired
@@ -531,6 +570,12 @@ func newApplication(
 	}
 	if adminInteriorProjectWrites == nil {
 		return nil, errAdminInteriorProjectWriterRequired
+	}
+	if adminArchitectureProjects == nil {
+		return nil, errAdminArchitectureProjectReaderRequired
+	}
+	if adminArchitectureProjectWrites == nil {
+		return nil, errAdminArchitectureProjectWriterRequired
 	}
 	if adminInquiries == nil {
 		return nil, errAdminInquiryReaderRequired
@@ -581,23 +626,25 @@ func newApplication(
 	}
 
 	app := &application{
-		templates:                  templateCache,
-		products:                   products,
-		interiorProjects:           interiorProjects,
-		architectureProjects:       temporaryArchitectureProjects(),
-		inquiries:                  inquiries,
-		inquirySuccess:             inquirySuccess,
-		admins:                     admins,
-		adminProducts:              adminProducts,
-		adminProductWrites:         adminProductWrites,
-		adminInteriorProjects:      adminInteriorProjects,
-		adminInteriorProjectWrites: adminInteriorProjectWrites,
-		adminInquiries:             adminInquiries,
-		adminInquiryStatuses:       adminInquiryStatuses,
-		adminPasswords:             passwords,
-		adminDummyPasswordHash:     adminDummyPasswordHash,
-		adminEntropy:               rand.Reader,
-		now:                        time.Now,
+		templates:                      templateCache,
+		products:                       products,
+		interiorProjects:               interiorProjects,
+		architectureProjects:           architectureProjects,
+		inquiries:                      inquiries,
+		inquirySuccess:                 inquirySuccess,
+		admins:                         admins,
+		adminProducts:                  adminProducts,
+		adminProductWrites:             adminProductWrites,
+		adminInteriorProjects:          adminInteriorProjects,
+		adminInteriorProjectWrites:     adminInteriorProjectWrites,
+		adminArchitectureProjects:      adminArchitectureProjects,
+		adminArchitectureProjectWrites: adminArchitectureProjectWrites,
+		adminInquiries:                 adminInquiries,
+		adminInquiryStatuses:           adminInquiryStatuses,
+		adminPasswords:                 passwords,
+		adminDummyPasswordHash:         adminDummyPasswordHash,
+		adminEntropy:                   rand.Reader,
+		now:                            time.Now,
 	}
 
 	return app, nil

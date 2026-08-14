@@ -1,12 +1,13 @@
 /* --------------------------------------------------
-   Stages 15–22: Secure administration and focused private workflows
+   Stages 15–23: Secure administration and focused private workflows
 
    The admin interface has its own restrained document shell and does not load
    public navigation or route-specific presentation. Stages 16–17 add inquiry
    review and explicit status changes; Stages 19–21 add Product review, a
    concurrency-aware editor, and single-cover management. Stage 22 applies the
-   same explicit read/write/media boundaries to Interior projects while
-   retaining the isolated login presentation.
+   same explicit read/write/media boundaries to Interior projects. Stage 23
+   extends those boundaries to Architecture projects while retaining the
+   isolated login presentation.
 -------------------------------------------------- */
 
 :root {
@@ -1296,10 +1297,10 @@ a {
 /* These admin stages introduce no animation requiring a reduced-motion rule. */
 
 /*
-   Interior project pages reuse the established protected record, lifecycle,
-   form, and reviewed-cover primitives. These additions describe only the
-   Interior-specific field density; they do not create a second admin visual
-   system or leak private rules into the public portfolio.
+   Interior and Architecture project pages reuse the established protected
+   record, lifecycle, form, and reviewed-cover primitives. These additions
+   describe only project-field density; they do not create parallel admin
+   visual systems or leak private rules into either public portfolio.
 */
 .admin-interior-projects,
 .admin-interior-project-detail,
@@ -1307,12 +1308,20 @@ a {
 .admin-interior-project-cover-form-page,
 .admin-interior-project-conflict,
 .admin-interior-project-card,
-.admin-interior-project-record {
+.admin-interior-project-record,
+.admin-architecture-projects,
+.admin-architecture-project-detail,
+.admin-architecture-project-form-page,
+.admin-architecture-project-cover-form-page,
+.admin-architecture-project-conflict,
+.admin-architecture-project-card,
+.admin-architecture-project-record {
 	min-width: 0;
 }
 
 /* Nine durable facts remain scannable as three balanced rows on wide screens. */
-.admin-interior-project-facts {
+.admin-interior-project-facts,
+.admin-architecture-project-facts {
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
@@ -1320,41 +1329,51 @@ a {
    Compact project facts pair naturally at desktop widths. DOM order remains
    linear, and the long editorial field plus actions span both columns.
 */
-.admin-interior-project-form {
+.admin-interior-project-form,
+.admin-architecture-project-form {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .admin-interior-project-form .admin-product-form__field--wide,
-.admin-interior-project-form .admin-product-form__actions {
+.admin-interior-project-form .admin-product-form__actions,
+.admin-architecture-project-form .admin-product-form__field--wide,
+.admin-architecture-project-form .admin-product-form__actions {
 	grid-column: 1 / -1;
 }
 
 @media (max-width: 52rem) {
 	/* Two columns keep the nine facts readable on tablets and at moderate zoom. */
-	.admin-interior-project-facts {
+	.admin-interior-project-facts,
+	.admin-architecture-project-facts {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 
-	.admin-interior-project-form {
+	.admin-interior-project-form,
+	.admin-architecture-project-form {
 		grid-template-columns: minmax(0, 1fr);
 	}
 
 	.admin-interior-project-form .admin-product-form__field--wide,
-	.admin-interior-project-form .admin-product-form__actions {
+	.admin-interior-project-form .admin-product-form__actions,
+	.admin-architecture-project-form .admin-product-form__field--wide,
+	.admin-architecture-project-form .admin-product-form__actions {
 		grid-column: auto;
 	}
 }
 
 @media (max-width: 36rem) {
 	/* Phone-width facts become one source-order column with no squeezed labels. */
-	.admin-interior-project-facts {
+	.admin-interior-project-facts,
+	.admin-architecture-project-facts {
 		grid-template-columns: minmax(0, 1fr);
 	}
 }
 
 @media (forced-colors: active) {
 	.admin-interior-project-record,
-	.admin-interior-project-form {
+	.admin-interior-project-form,
+	.admin-architecture-project-record,
+	.admin-architecture-project-form {
 		border: 2px solid CanvasText;
 	}
 }

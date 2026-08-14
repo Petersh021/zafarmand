@@ -1,134 +1,127 @@
 package main
 
-// architectureProject is the temporary application-level source record used
-// by the Architecture Design portfolio listing and detail routes.
-//
-// Stage 11 adds only the trusted slug needed for real detail URLs. Locations,
-// years, descriptions, images, database identifiers, and publishing controls
-// remain deferred. The application owns the ordered slice, and handlers treat
-// it as read-only.
-type architectureProject struct {
-	// Number is the zero-padded editorial order shared with the preview article.
-	Number string
-	// Slug is the exact case-sensitive path value accepted after /architecture-design/.
-	Slug string
-	// Title is an explicitly temporary study name rather than final project copy.
-	Title string
-	// Typology identifies the broad architecture category represented by the slot.
-	Typology string
-	// Status communicates that approved project material is still pending.
-	Status string
-}
+import (
+	"errors"
+	"fmt"
+	"strconv"
+	"time"
+)
 
-// temporaryArchitectureProjects returns the ordered Architecture Design source
-// records used until PostgreSQL and the admin publishing workflow are added.
-//
-// Returning a fresh slice during application construction avoids mutable
-// package-level state. Neutral study titles distinguish learning data from
-// approved Zafarmand projects while still exercising the complete data flow.
-func temporaryArchitectureProjects() []architectureProject {
-	return []architectureProject{
-		{
-			Number:   "01",
-			Slug:     "architecture-study-01",
-			Title:    "Architecture Study 01",
-			Typology: "Residential",
-			Status:   "Portfolio preview",
-		},
-		{
-			Number:   "02",
-			Slug:     "architecture-study-02",
-			Title:    "Architecture Study 02",
-			Typology: "Commercial",
-			Status:   "Portfolio preview",
-		},
-		{
-			Number:   "03",
-			Slug:     "architecture-study-03",
-			Title:    "Architecture Study 03",
-			Typology: "Cultural",
-			Status:   "Portfolio preview",
-		},
-		{
-			Number:   "04",
-			Slug:     "architecture-study-04",
-			Title:    "Architecture Study 04",
-			Typology: "Civic",
-			Status:   "Portfolio preview",
-		},
-	}
-}
+// Public Architecture reads use one bounded timeout shared by HTML and media
+// handlers so a stalled dependency cannot hold a request indefinitely.
+const (
+	// architectureProjectCatalogueReadTimeout prevents an unavailable public
+	// repository from holding an Architecture HTML or cover request indefinitely.
+	architectureProjectCatalogueReadTimeout = 5 * time.Second
+)
 
-// architectureProjectDetailPath builds the canonical public URL for one
-// trusted Architecture Design project slug.
+// errArchitectureProjectCatalogueReaderRequired prevents server construction
+// with public Architecture routes that cannot answer from durable published state.
+var errArchitectureProjectCatalogueReaderRequired = errors.New(
+	"create application: architecture project catalogue reader is required",
+)
+
+// architectureProjectDetailPath builds the canonical public HTML path for one
+// validated Architecture Design project slug.
 //
-// Slugs originate from temporaryArchitectureProjects rather than visitor
-// input. Centralizing the route prefix prevents listing links and the detail
-// handler from constructing different destinations.
+// Keeping this prefix in Go prevents list cards and detail handlers from
+// drifting to different route shapes. Callers must validate visitor-controlled
+// slugs before using the returned path as a canonical destination.
 func architectureProjectDetailPath(slug string) string {
 	return "/architecture-design/" + slug
 }
 
-// architectureProjectPreviews maps ordered source records into the narrower
-// view model consumed by architecture-design.html.
+// architectureProjectCoverPath builds the revision-specific public cover URL
+// for one canonical Architecture project slug and positive cover version.
+func architectureProjectCoverPath(slug string, version int64) string {
+	return architectureProjectDetailPath(slug) +
+		"/cover/" + strconv.FormatInt(version, 10)
+}
+
+// formatArchitectureProjectNumber converts PostgreSQL's one-based published
+// window position into the editorial label shared by list and detail pages.
+// Two digits are a minimum width, so a catalogue larger than 99 is not cut off.
+func formatArchitectureProjectNumber(number int64) string {
+	return fmt.Sprintf("%02d", number)
+}
+
+// formatArchitectureProjectYear turns the repository's zero representation of
+// SQL NULL into an omitted template value and formats a real four-digit year.
+func formatArchitectureProjectYear(year int) string {
+	if year == 0 {
+		return ""
+	}
+
+	return strconv.Itoa(year)
+}
+
+// newPublicArchitectureProjectCoverPageData maps reviewed metadata to one
+// current public URL. A nil cover remains nil so templates can render an honest
+// decorative fallback without constructing a nonexistent image request.
+func newPublicArchitectureProjectCoverPageData(
+	slug string,
+	cover *architectureProjectCoverMetadata,
+) *publicArchitectureProjectCoverPageData {
+	if cover == nil {
+		return nil
+	}
+
+	return &publicArchitectureProjectCoverPageData{
+		Path:    architectureProjectCoverPath(slug, cover.Version),
+		Width:   cover.Width,
+		Height:  cover.Height,
+		AltText: cover.AltText,
+		Caption: cover.Caption,
+	}
+}
+
+// architectureProjectPreviews maps ordered public repository records into the
+// smaller presentation contract consumed by architecture-design.html.
 //
-// Allocating the result at the source length preserves editorial order and
-// makes nil or empty input naturally activate the template's truthful empty
-// state. The explicit mapping prevents future persistence fields from leaking
-// into the public template contract.
+// The repository has already filtered lifecycle state and established each
+// consecutive PortfolioNumber. This mapper formats that number and derives the
+// trusted path without exposing database identity or publication controls.
 func architectureProjectPreviews(
-	projects []architectureProject,
+	projects []catalogueArchitectureProject,
 ) []architectureProjectPreviewData {
-	previews := make(
-		[]architectureProjectPreviewData,
-		len(projects),
-	)
+	previews := make([]architectureProjectPreviewData, len(projects))
 
 	for index, project := range projects {
 		previews[index] = architectureProjectPreviewData{
-			Number:   project.Number,
-			Title:    project.Title,
-			Typology: project.Typology,
-			Status:   project.Status,
-			Path:     architectureProjectDetailPath(project.Slug),
+			Number:        formatArchitectureProjectNumber(project.PortfolioNumber),
+			Title:         project.Title,
+			Typology:      project.Typology,
+			Location:      project.Location,
+			YearLabel:     formatArchitectureProjectYear(project.ProjectYear),
+			ProjectStatus: project.ProjectStatus,
+			Path:          architectureProjectDetailPath(project.Slug),
+			Cover: newPublicArchitectureProjectCoverPageData(
+				project.Slug,
+				project.Cover,
+			),
 		}
 	}
 
 	return previews
 }
 
-// findArchitectureProjectBySlug performs an exact, case-sensitive lookup in
-// the ordered temporary Architecture Design source.
-//
-// A linear scan is clear and sufficient for four in-memory records. Returning
-// a boolean separately from the record distinguishes a real zero-value project
-// from a missing slug so the HTTP handler can return 404 before rendering.
-func findArchitectureProjectBySlug(
-	projects []architectureProject,
-	slug string,
-) (architectureProject, bool) {
-	for _, project := range projects {
-		if project.Slug == slug {
-			return project, true
-		}
-	}
-
-	return architectureProject{}, false
-}
-
-// newArchitectureProjectDetailData maps an application source record to the
-// narrow view model consumed by architecture-project-detail.html.
-//
-// The explicit conversion keeps routing-only fields such as Slug out of the
-// template contract and leaves a stable boundary for a future repository or
-// database record to populate.
+// newArchitectureProjectDetailData maps one validated public repository record
+// to the narrow detail-template contract. Routing identity stays in the
+// handler, while this conversion makes every presented field an explicit choice.
 func newArchitectureProjectDetailData(
-	project architectureProject,
+	project catalogueArchitectureProject,
 ) architectureProjectDetailData {
 	return architectureProjectDetailData{
-		Number:   project.Number,
-		Title:    project.Title,
-		Typology: project.Typology,
-		Status:   project.Status,
+		Number:        formatArchitectureProjectNumber(project.PortfolioNumber),
+		Title:         project.Title,
+		Typology:      project.Typology,
+		Location:      project.Location,
+		YearLabel:     formatArchitectureProjectYear(project.ProjectYear),
+		ProjectStatus: project.ProjectStatus,
+		Description:   project.Description,
+		Cover: newPublicArchitectureProjectCoverPageData(
+			project.Slug,
+			project.Cover,
+		),
 	}
 }

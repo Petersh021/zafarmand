@@ -1,0 +1,140 @@
+{{/*
+One native form serves Architecture project creation and editing. Go supplies only
+trusted actions, lifecycle options, and the edit revision; administrator text
+remains ordinary data and html/template escapes it for each output context.
+
+The hidden revision is a concurrency token, not authorization evidence.
+Authentication, the Owner/Editor role allowlist, and session CSRF validation
+still precede every mutation.
+*/}}
+{{define "admin-content"}}
+<main class="admin-product-form-page admin-architecture-project-form-page" id="admin-main-content">
+	<a class="admin-back-link" href="{{.ArchitectureProjectForm.CancelPath}}">
+		<span aria-hidden="true">&larr;</span>
+		Cancel and return
+	</a>
+
+	<header class="admin-page-header admin-product-form-header">
+		<p class="admin-eyebrow">{{.ArchitectureProjectForm.Eyebrow}}</p>
+		<h1>{{.ArchitectureProjectForm.Heading}}</h1>
+		<p class="admin-page-header__lede">{{.ArchitectureProjectForm.Introduction}}</p>
+	</header>
+
+	{{if .ArchitectureProjectForm.HasErrors}}
+	<section class="admin-alert admin-alert--error" aria-labelledby="admin-architecture-project-errors-title">
+		<h2 id="admin-architecture-project-errors-title">Check the Architecture project fields</h2>
+		<p>No project was saved. Correct the marked fields and submit again.</p>
+		<ul>
+			{{with .ArchitectureProjectForm.Errors.Slug}}<li><a href="#architecture-project-slug">{{.}}</a></li>{{end}}
+			{{with .ArchitectureProjectForm.Errors.Title}}<li><a href="#architecture-project-title">{{.}}</a></li>{{end}}
+			{{with .ArchitectureProjectForm.Errors.Typology}}<li><a href="#architecture-project-typology">{{.}}</a></li>{{end}}
+			{{with .ArchitectureProjectForm.Errors.Location}}<li><a href="#architecture-project-location">{{.}}</a></li>{{end}}
+			{{with .ArchitectureProjectForm.Errors.ProjectYear}}<li><a href="#architecture-project-year">{{.}}</a></li>{{end}}
+			{{with .ArchitectureProjectForm.Errors.ProjectStatus}}<li><a href="#architecture-project-status">{{.}}</a></li>{{end}}
+			{{with .ArchitectureProjectForm.Errors.Description}}<li><a href="#architecture-project-description">{{.}}</a></li>{{end}}
+			{{with .ArchitectureProjectForm.Errors.SortOrder}}<li><a href="#architecture-project-sort-order">{{.}}</a></li>{{end}}
+			{{with .ArchitectureProjectForm.Errors.PublicationStatus}}<li><a href="#architecture-project-publication-status">{{.}}</a></li>{{end}}
+		</ul>
+	</section>
+	{{end}}
+
+	<form class="admin-product-form admin-architecture-project-form" action="{{.ArchitectureProjectForm.Action}}" method="post">
+		<input type="hidden" name="csrf_token" value="{{.SessionCSRFToken}}">
+		{{if .ArchitectureProjectForm.IsEdit}}
+		{{/* A concurrent successful mutation increments this exact revision. */}}
+		<input type="hidden" name="version" value="{{.ArchitectureProjectForm.Version}}">
+		{{end}}
+
+		<div class="admin-product-form__field">
+			<label for="architecture-project-slug">Slug</label>
+			<p class="admin-product-form__hint" id="architecture-project-slug-hint">
+				Lowercase letters and numbers with single hyphens; this becomes the public detail URL when Published.
+			</p>
+			<input id="architecture-project-slug" name="slug" type="text" value="{{.ArchitectureProjectForm.Values.Slug}}"
+				maxlength="120" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocomplete="off"
+				aria-describedby="architecture-project-slug-hint{{if .ArchitectureProjectForm.Errors.Slug}} architecture-project-slug-error{{end}}"
+				{{if .ArchitectureProjectForm.Errors.Slug}}aria-invalid="true"{{end}} required>
+			{{with .ArchitectureProjectForm.Errors.Slug}}<p class="admin-product-form__error" id="architecture-project-slug-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="architecture-project-title">Title</label>
+			<input id="architecture-project-title" name="title" type="text" value="{{.ArchitectureProjectForm.Values.Title}}"
+				maxlength="160" {{if .ArchitectureProjectForm.Errors.Title}}aria-describedby="architecture-project-title-error" aria-invalid="true"{{end}} required>
+			{{with .ArchitectureProjectForm.Errors.Title}}<p class="admin-product-form__error" id="architecture-project-title-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="architecture-project-typology">Typology</label>
+			<p class="admin-product-form__hint" id="architecture-project-typology-hint">A concise reviewed category, such as Residential or Hospitality.</p>
+			<input id="architecture-project-typology" name="typology" type="text" value="{{.ArchitectureProjectForm.Values.Typology}}"
+				maxlength="80" aria-describedby="architecture-project-typology-hint{{if .ArchitectureProjectForm.Errors.Typology}} architecture-project-typology-error{{end}}"
+				{{if .ArchitectureProjectForm.Errors.Typology}}aria-invalid="true"{{end}} required>
+			{{with .ArchitectureProjectForm.Errors.Typology}}<p class="admin-product-form__error" id="architecture-project-typology-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="architecture-project-location">Location <span>(optional)</span></label>
+			<input id="architecture-project-location" name="location" type="text" value="{{.ArchitectureProjectForm.Values.Location}}"
+				maxlength="160" {{if .ArchitectureProjectForm.Errors.Location}}aria-describedby="architecture-project-location-error" aria-invalid="true"{{end}}>
+			{{with .ArchitectureProjectForm.Errors.Location}}<p class="admin-product-form__error" id="architecture-project-location-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="architecture-project-year">Project year <span>(optional)</span></label>
+			<p class="admin-product-form__hint" id="architecture-project-year-hint">Enter a four-digit year from 1000 through 9999, or leave it empty.</p>
+			<input id="architecture-project-year" name="project_year" type="number" value="{{.ArchitectureProjectForm.Values.ProjectYear}}"
+				min="1000" max="9999" step="1" inputmode="numeric"
+				aria-describedby="architecture-project-year-hint{{if .ArchitectureProjectForm.Errors.ProjectYear}} architecture-project-year-error{{end}}"
+				{{if .ArchitectureProjectForm.Errors.ProjectYear}}aria-invalid="true"{{end}}>
+			{{with .ArchitectureProjectForm.Errors.ProjectYear}}<p class="admin-product-form__error" id="architecture-project-year-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="architecture-project-status">Project status</label>
+			<p class="admin-product-form__hint" id="architecture-project-status-hint">The real-world state, separate from website publication.</p>
+			<input id="architecture-project-status" name="project_status" type="text" value="{{.ArchitectureProjectForm.Values.ProjectStatus}}"
+				maxlength="80" aria-describedby="architecture-project-status-hint{{if .ArchitectureProjectForm.Errors.ProjectStatus}} architecture-project-status-error{{end}}"
+				{{if .ArchitectureProjectForm.Errors.ProjectStatus}}aria-invalid="true"{{end}} required>
+			{{with .ArchitectureProjectForm.Errors.ProjectStatus}}<p class="admin-product-form__error" id="architecture-project-status-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="architecture-project-sort-order">Sort order</label>
+			<p class="admin-product-form__hint" id="architecture-project-sort-order-hint">Smaller numbers appear earlier in the portfolio; project ID breaks ties.</p>
+			<input id="architecture-project-sort-order" name="sort_order" type="number" value="{{.ArchitectureProjectForm.Values.SortOrder}}"
+				min="1" max="2147483647" step="1" inputmode="numeric"
+				aria-describedby="architecture-project-sort-order-hint{{if .ArchitectureProjectForm.Errors.SortOrder}} architecture-project-sort-order-error{{end}}"
+				{{if .ArchitectureProjectForm.Errors.SortOrder}}aria-invalid="true"{{end}} required>
+			{{with .ArchitectureProjectForm.Errors.SortOrder}}<p class="admin-product-form__error" id="architecture-project-sort-order-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="architecture-project-publication-status">Publication status</label>
+			<p class="admin-product-form__hint" id="architecture-project-publication-status-hint">Draft and Archived stay private. Published appears immediately on the public Architecture routes.</p>
+			<select id="architecture-project-publication-status" name="publication_status"
+				aria-describedby="architecture-project-publication-status-hint{{if .ArchitectureProjectForm.Errors.PublicationStatus}} architecture-project-publication-status-error{{end}}"
+				{{if .ArchitectureProjectForm.Errors.PublicationStatus}}aria-invalid="true"{{end}} required>
+				<option value="" {{if not .ArchitectureProjectForm.HasValidStatus}}selected{{end}} disabled>Choose a status</option>
+				{{range .ArchitectureProjectForm.StatusOptions}}<option value="{{.Value}}" {{if .Selected}}selected{{end}}>{{.Label}}</option>{{end}}
+			</select>
+			{{with .ArchitectureProjectForm.Errors.PublicationStatus}}<p class="admin-product-form__error" id="architecture-project-publication-status-error">{{.}}</p>{{end}}
+		</div>
+
+		{{/* The textarea preserves internal line breaks; Go rejects outer space and overlong text. */}}
+		<div class="admin-product-form__field admin-product-form__field--wide">
+			<label for="architecture-project-description">Description <span>(optional)</span></label>
+			<p class="admin-product-form__hint" id="architecture-project-description-hint">Reviewed public copy. Internal line breaks are preserved; maximum 6000 characters.</p>
+			<textarea id="architecture-project-description" name="description" rows="10" maxlength="6000"
+				aria-describedby="architecture-project-description-hint{{if .ArchitectureProjectForm.Errors.Description}} architecture-project-description-error{{end}}"
+				{{if .ArchitectureProjectForm.Errors.Description}}aria-invalid="true"{{end}}>{{.ArchitectureProjectForm.Values.Description}}</textarea>
+			{{with .ArchitectureProjectForm.Errors.Description}}<p class="admin-product-form__error" id="architecture-project-description-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__actions">
+			<button class="admin-status-button" type="submit">{{.ArchitectureProjectForm.SubmitLabel}}</button>
+			<a class="admin-secondary-link" href="{{.ArchitectureProjectForm.CancelPath}}">Cancel</a>
+		</div>
+	</form>
+</main>
+{{end}}

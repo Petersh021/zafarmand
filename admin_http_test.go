@@ -66,12 +66,15 @@ func newAdminHTTPTestApplicationWithInquiryReader(
 	app, err := newApplication(
 		newRecordingProductCatalogueReader(),
 		newRecordingInteriorProjectCatalogueReader(),
+		newRecordingArchitectureProjectCatalogueReader(),
 		inquiries,
 		repository,
 		newRecordingAdminProductReader(),
 		newRecordingAdminProductWriter(),
 		newRecordingAdminInteriorProjectReader(),
 		newRecordingAdminInteriorProjectWriter(),
+		newRecordingAdminArchitectureProjectReader(),
+		newRecordingAdminArchitectureProjectWriter(),
 		adminInquiries,
 		newRecordingAdminInquiryStatusUpdater(),
 		passwords,
@@ -1525,12 +1528,15 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 		app, err := newApplication(
 			newRecordingProductCatalogueReader(),
 			newRecordingInteriorProjectCatalogueReader(),
+			newRecordingArchitectureProjectCatalogueReader(),
 			inquiries,
 			nil,
 			newRecordingAdminProductReader(),
 			newRecordingAdminProductWriter(),
 			newRecordingAdminInteriorProjectReader(),
 			newRecordingAdminInteriorProjectWriter(),
+			newRecordingAdminArchitectureProjectReader(),
+			newRecordingAdminArchitectureProjectWriter(),
 			newRecordingAdminInquiryReader(),
 			newRecordingAdminInquiryStatusUpdater(),
 			newTestAdminPasswordManager(t),
@@ -1545,12 +1551,15 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 		app, err := newApplication(
 			newRecordingProductCatalogueReader(),
 			newRecordingInteriorProjectCatalogueReader(),
+			newRecordingArchitectureProjectCatalogueReader(),
 			inquiries,
 			newRecordingAdminRepository(),
 			nil,
 			newRecordingAdminProductWriter(),
 			newRecordingAdminInteriorProjectReader(),
 			newRecordingAdminInteriorProjectWriter(),
+			newRecordingAdminArchitectureProjectReader(),
+			newRecordingAdminArchitectureProjectWriter(),
 			newRecordingAdminInquiryReader(),
 			newRecordingAdminInquiryStatusUpdater(),
 			newTestAdminPasswordManager(t),
@@ -1565,12 +1574,15 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 		app, err := newApplication(
 			newRecordingProductCatalogueReader(),
 			newRecordingInteriorProjectCatalogueReader(),
+			newRecordingArchitectureProjectCatalogueReader(),
 			inquiries,
 			newRecordingAdminRepository(),
 			newRecordingAdminProductReader(),
 			nil,
 			newRecordingAdminInteriorProjectReader(),
 			newRecordingAdminInteriorProjectWriter(),
+			newRecordingAdminArchitectureProjectReader(),
+			newRecordingAdminArchitectureProjectWriter(),
 			newRecordingAdminInquiryReader(),
 			newRecordingAdminInquiryStatusUpdater(),
 			newTestAdminPasswordManager(t),
@@ -1585,12 +1597,15 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 		app, err := newApplication(
 			newRecordingProductCatalogueReader(),
 			newRecordingInteriorProjectCatalogueReader(),
+			newRecordingArchitectureProjectCatalogueReader(),
 			inquiries,
 			newRecordingAdminRepository(),
 			newRecordingAdminProductReader(),
 			newRecordingAdminProductWriter(),
 			nil,
 			newRecordingAdminInteriorProjectWriter(),
+			newRecordingAdminArchitectureProjectReader(),
+			newRecordingAdminArchitectureProjectWriter(),
 			newRecordingAdminInquiryReader(),
 			newRecordingAdminInquiryStatusUpdater(),
 			newTestAdminPasswordManager(t),
@@ -1605,12 +1620,15 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 		app, err := newApplication(
 			newRecordingProductCatalogueReader(),
 			newRecordingInteriorProjectCatalogueReader(),
+			newRecordingArchitectureProjectCatalogueReader(),
 			inquiries,
 			newRecordingAdminRepository(),
 			newRecordingAdminProductReader(),
 			newRecordingAdminProductWriter(),
 			newRecordingAdminInteriorProjectReader(),
 			nil,
+			newRecordingAdminArchitectureProjectReader(),
+			newRecordingAdminArchitectureProjectWriter(),
 			newRecordingAdminInquiryReader(),
 			newRecordingAdminInquiryStatusUpdater(),
 			newTestAdminPasswordManager(t),
@@ -1621,16 +1639,65 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 		}
 	})
 
-	t.Run("nil admin inquiry reader", func(t *testing.T) {
+	t.Run("nil admin Architecture project reader", func(t *testing.T) {
 		app, err := newApplication(
 			newRecordingProductCatalogueReader(),
 			newRecordingInteriorProjectCatalogueReader(),
+			newRecordingArchitectureProjectCatalogueReader(),
 			inquiries,
 			newRecordingAdminRepository(),
 			newRecordingAdminProductReader(),
 			newRecordingAdminProductWriter(),
 			newRecordingAdminInteriorProjectReader(),
 			newRecordingAdminInteriorProjectWriter(),
+			nil,
+			newRecordingAdminArchitectureProjectWriter(),
+			newRecordingAdminInquiryReader(),
+			newRecordingAdminInquiryStatusUpdater(),
+			newTestAdminPasswordManager(t),
+		)
+		requireErrorIs(t, err, errAdminArchitectureProjectReaderRequired)
+		if app != nil {
+			t.Error("nil admin Architecture project reader returned a usable application")
+		}
+	})
+
+	t.Run("nil admin Architecture project writer", func(t *testing.T) {
+		app, err := newApplication(
+			newRecordingProductCatalogueReader(),
+			newRecordingInteriorProjectCatalogueReader(),
+			newRecordingArchitectureProjectCatalogueReader(),
+			inquiries,
+			newRecordingAdminRepository(),
+			newRecordingAdminProductReader(),
+			newRecordingAdminProductWriter(),
+			newRecordingAdminInteriorProjectReader(),
+			newRecordingAdminInteriorProjectWriter(),
+			newRecordingAdminArchitectureProjectReader(),
+			nil,
+			newRecordingAdminInquiryReader(),
+			newRecordingAdminInquiryStatusUpdater(),
+			newTestAdminPasswordManager(t),
+		)
+		requireErrorIs(t, err, errAdminArchitectureProjectWriterRequired)
+		if app != nil {
+			t.Error("nil admin Architecture project writer returned a usable application")
+		}
+	})
+
+	t.Run("nil admin inquiry reader", func(t *testing.T) {
+		app, err := newApplication(
+			newRecordingProductCatalogueReader(),
+			newRecordingInteriorProjectCatalogueReader(),
+			newRecordingArchitectureProjectCatalogueReader(),
+			inquiries,
+			newRecordingAdminRepository(),
+			newRecordingAdminProductReader(),
+			newRecordingAdminProductWriter(),
+			newRecordingAdminInteriorProjectReader(),
+			newRecordingAdminInteriorProjectWriter(),
+			newRecordingAdminArchitectureProjectReader(),
+			newRecordingAdminArchitectureProjectWriter(),
 			nil,
 			newRecordingAdminInquiryStatusUpdater(),
 			newTestAdminPasswordManager(t),
@@ -1645,12 +1712,15 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 		app, err := newApplication(
 			newRecordingProductCatalogueReader(),
 			newRecordingInteriorProjectCatalogueReader(),
+			newRecordingArchitectureProjectCatalogueReader(),
 			inquiries,
 			newRecordingAdminRepository(),
 			newRecordingAdminProductReader(),
 			newRecordingAdminProductWriter(),
 			newRecordingAdminInteriorProjectReader(),
 			newRecordingAdminInteriorProjectWriter(),
+			newRecordingAdminArchitectureProjectReader(),
+			newRecordingAdminArchitectureProjectWriter(),
 			newRecordingAdminInquiryReader(),
 			nil,
 			newTestAdminPasswordManager(t),
@@ -1665,12 +1735,15 @@ func TestNewApplicationRequiresAdminDependencies(t *testing.T) {
 		app, err := newApplication(
 			newRecordingProductCatalogueReader(),
 			newRecordingInteriorProjectCatalogueReader(),
+			newRecordingArchitectureProjectCatalogueReader(),
 			inquiries,
 			newRecordingAdminRepository(),
 			newRecordingAdminProductReader(),
 			newRecordingAdminProductWriter(),
 			newRecordingAdminInteriorProjectReader(),
 			newRecordingAdminInteriorProjectWriter(),
+			newRecordingAdminArchitectureProjectReader(),
+			newRecordingAdminArchitectureProjectWriter(),
 			newRecordingAdminInquiryReader(),
 			newRecordingAdminInquiryStatusUpdater(),
 			nil,

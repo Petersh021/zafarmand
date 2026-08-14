@@ -87,23 +87,24 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 
 	// A fresh database exposes the complete embedded history in order without
 	// claiming that any schema stage has already been applied.
-	assertMigrationIntegrationStatus(t, runner, false, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, false, false, false, false, false, false, false, false)
 
 	applied, err := runner.Up(t.Context())
 	if err != nil {
 		t.Fatalf("apply embedded migrations: %v", err)
 	}
-	if len(applied) != 7 ||
+	if len(applied) != 8 ||
 		applied[0].Version != 1 ||
 		applied[1].Version != 2 ||
 		applied[2].Version != 3 ||
 		applied[3].Version != 4 ||
 		applied[4].Version != 5 ||
 		applied[5].Version != 6 ||
-		applied[6].Version != 7 {
-		t.Fatalf("applied migrations: got %#v, want versions 1 through 7", applied)
+		applied[6].Version != 7 ||
+		applied[7].Version != 8 {
+		t.Fatalf("applied migrations: got %#v, want versions 1 through 8", applied)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", true)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", true)
@@ -116,10 +117,23 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		"interior_project_cover_images",
 		true,
 	)
+	assertMigrationIntegrationTableExists(t, database, "architecture_projects", true)
+	assertMigrationIntegrationTableExists(
+		t,
+		database,
+		"architecture_project_cover_images",
+		true,
+	)
 	assertMigrationIntegrationIndexExists(
 		t,
 		database,
 		"admin_sessions_user_id_idx",
+		true,
+	)
+	assertMigrationIntegrationIndexExists(
+		t,
+		database,
+		"architecture_projects_published_order_idx",
 		true,
 	)
 	assertMigrationIntegrationIndexExists(
@@ -155,6 +169,13 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		t,
 		database,
 		"interior_project_cover_images",
+		0,
+	)
+	assertMigrationIntegrationTableRowCount(t, database, "architecture_projects", 0)
+	assertMigrationIntegrationTableRowCount(
+		t,
+		database,
+		"architecture_project_cover_images",
 		0,
 	)
 
@@ -247,18 +268,75 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		database,
 		interiorProjectID,
 	)
+	architectureProjectID := insertMigrationIntegrationArchitectureProject(
+		t,
+		database,
+		"stage-twenty-three-architecture",
+		"Stage Twenty Three Architecture",
+		"Cultural",
+		"Completed",
+		1,
+	)
+	assertMigrationIntegrationArchitectureProject(
+		t,
+		database,
+		architectureProjectID,
+		"stage-twenty-three-architecture",
+		"Stage Twenty Three Architecture",
+		"Cultural",
+		"Completed",
+		1,
+	)
+	assertMigrationIntegrationArchitectureProjectConstraintsAndCover(
+		t,
+		database,
+		architectureProjectID,
+	)
 
-	// Down first reverses Stage 22. Version 000007 removes the Interior cover
+	// Down first reverses Stage 23. Version 000008 removes only Architecture's
+	// one-cover child and parent while retaining the complete Interior project,
+	// cover, index, and every earlier durable relation and synthetic row.
+	rolledBack, err := runner.Down(t.Context())
+	if err != nil {
+		t.Fatalf("roll back Stage 23 migration: %v", err)
+	}
+	if rolledBack == nil || rolledBack.Version != 8 {
+		t.Fatalf("rolled-back migration: got %#v, want version 8", rolledBack)
+	}
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, false)
+	assertMigrationIntegrationTableExists(t, database, "architecture_projects", false)
+	assertMigrationIntegrationTableExists(
+		t,
+		database,
+		"architecture_project_cover_images",
+		false,
+	)
+	assertMigrationIntegrationIndexExists(
+		t,
+		database,
+		"architecture_projects_published_order_idx",
+		false,
+	)
+	assertMigrationIntegrationTableExists(t, database, "interior_projects", true)
+	assertMigrationIntegrationTableRowCount(t, database, "interior_projects", 1)
+	assertMigrationIntegrationTableRowCount(
+		t,
+		database,
+		"interior_project_cover_images",
+		1,
+	)
+
+	// The next rollback reverses Stage 22. Version 000007 removes the Interior cover
 	// before its parent table while leaving every Product, administrator, and
 	// inquiry relation and row at the complete migration-6 state.
-	rolledBack, err := runner.Down(t.Context())
+	rolledBack, err = runner.Down(t.Context())
 	if err != nil {
 		t.Fatalf("roll back Stage 22 migration: %v", err)
 	}
 	if rolledBack == nil || rolledBack.Version != 7 {
 		t.Fatalf("rolled-back migration: got %#v, want version 7", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, false, false)
 	assertMigrationIntegrationTableExists(t, database, "interior_projects", false)
 	assertMigrationIntegrationTableExists(
 		t,
@@ -304,7 +382,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 6 {
 		t.Fatalf("rolled-back migration: got %#v, want version 6", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "products", true)
 	assertMigrationIntegrationTableExists(t, database, "product_cover_images", false)
 	assertMigrationIntegrationColumnExists(t, database, "products", "description", false)
@@ -338,7 +416,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 5 {
 		t.Fatalf("rolled-back migration: got %#v, want version 5", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "products", true)
 	assertMigrationIntegrationColumnExists(t, database, "products", "version", false)
 	assertMigrationIntegrationIndexExists(
@@ -357,7 +435,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 4 {
 		t.Fatalf("rolled-back migration: got %#v, want version 4", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "products", false)
 	assertMigrationIntegrationIndexExists(
 		t,
@@ -388,7 +466,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 3 {
 		t.Fatalf("rolled-back migration: got %#v, want version 3", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", false)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", false)
@@ -437,7 +515,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 2 {
 		t.Fatalf("rolled-back migration: got %#v, want version 2", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, false, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
 	assertMigrationIntegrationColumnExists(
 		t,
@@ -462,23 +540,24 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	)
 
 	// Reapplying with version 000001 still present plans versions 000002 through
-	// 000007 in order. The key backfill preserves inquiry contact data, while the
-	// recreated admin, Product, and Interior tables return empty after their
-	// deliberate strict drops.
+	// 000008 in order. The key backfill preserves inquiry contact data, while the
+	// recreated admin, Product, Interior, and Architecture tables return empty
+	// after their deliberate strict drops.
 	applied, err = runner.Up(t.Context())
 	if err != nil {
-		t.Fatalf("reapply migrations 2 through 7: %v", err)
+		t.Fatalf("reapply migrations 2 through 8: %v", err)
 	}
-	if len(applied) != 6 ||
+	if len(applied) != 7 ||
 		applied[0].Version != 2 ||
 		applied[1].Version != 3 ||
 		applied[2].Version != 4 ||
 		applied[3].Version != 5 ||
 		applied[4].Version != 6 ||
-		applied[5].Version != 7 {
-		t.Fatalf("reapplied migrations: got %#v, want versions 2 through 7", applied)
+		applied[5].Version != 7 ||
+		applied[6].Version != 8 {
+		t.Fatalf("reapplied migrations: got %#v, want versions 2 through 8", applied)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true)
 	assertMigrationIntegrationBackfilledKeys(t, database, 2)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", true)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", true)
@@ -527,6 +606,26 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		"interior_project_cover_images",
 		0,
 	)
+	assertMigrationIntegrationTableExists(t, database, "architecture_projects", true)
+	assertMigrationIntegrationTableExists(
+		t,
+		database,
+		"architecture_project_cover_images",
+		true,
+	)
+	assertMigrationIntegrationIndexExists(
+		t,
+		database,
+		"architecture_projects_published_order_idx",
+		true,
+	)
+	assertMigrationIntegrationTableRowCount(t, database, "architecture_projects", 0)
+	assertMigrationIntegrationTableRowCount(
+		t,
+		database,
+		"architecture_project_cover_images",
+		0,
+	)
 	assertMigrationIntegrationInquiryContact(
 		t,
 		database,
@@ -568,14 +667,38 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	)
 	assertMigrationIntegrationTableRowCount(t, database, "admin_sessions", 0)
 
-	// A synthetic version 000008 fails after executing DDL. PostgreSQL must roll
-	// back that DDL while retaining all seven applied embedded versions.
+	// A synthetic version 000009 fails after executing DDL. PostgreSQL must roll
+	// back that DDL while retaining all eight applied embedded versions.
 	assertMigrationIntegrationAtomicFailure(t, database, catalog)
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true)
 
-	// Seven explicit rollback calls prove the runner reverses the catalog one
-	// migration at a time: Interior projects/cover, Product content/cover,
-	// Product revision, Products, admin access, inquiry key, then inquiries.
+	// Eight explicit rollback calls prove the runner reverses the catalog one
+	// migration at a time: Architecture projects/cover, Interior projects/cover,
+	// Product content/cover, Product revision, Products, admin access, inquiry
+	// key, then inquiries.
+	rolledBack, err = runner.Down(t.Context())
+	if err != nil {
+		t.Fatalf("roll back Stage 23 migration before full rollback: %v", err)
+	}
+	if rolledBack == nil || rolledBack.Version != 8 {
+		t.Fatalf("rolled-back migration: got %#v, want version 8", rolledBack)
+	}
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, false)
+	assertMigrationIntegrationTableExists(t, database, "architecture_projects", false)
+	assertMigrationIntegrationTableExists(
+		t,
+		database,
+		"architecture_project_cover_images",
+		false,
+	)
+	assertMigrationIntegrationTableExists(t, database, "interior_projects", true)
+	assertMigrationIntegrationTableExists(
+		t,
+		database,
+		"interior_project_cover_images",
+		true,
+	)
+
 	rolledBack, err = runner.Down(t.Context())
 	if err != nil {
 		t.Fatalf("roll back Stage 22 migration before full rollback: %v", err)
@@ -583,7 +706,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 7 {
 		t.Fatalf("rolled-back migration: got %#v, want version 7", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, false, false)
 	assertMigrationIntegrationTableExists(t, database, "interior_projects", false)
 	assertMigrationIntegrationTableExists(
 		t,
@@ -601,7 +724,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 6 {
 		t.Fatalf("rolled-back migration: got %#v, want version 6", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "product_cover_images", false)
 	assertMigrationIntegrationColumnExists(t, database, "products", "description", false)
 	assertMigrationIntegrationColumnExists(t, database, "products", "version", true)
@@ -613,7 +736,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 5 {
 		t.Fatalf("rolled-back migration: got %#v, want version 5", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "products", true)
 	assertMigrationIntegrationColumnExists(t, database, "products", "version", false)
 
@@ -624,7 +747,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 4 {
 		t.Fatalf("rolled-back migration: got %#v, want version 4", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "products", false)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", true)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", true)
@@ -637,7 +760,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 3 {
 		t.Fatalf("rolled-back migration: got %#v, want version 3", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", false)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", false)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
@@ -649,7 +772,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 2 {
 		t.Fatalf("rolled-back migration: got %#v, want version 2", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, false, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
 
 	rolledBack, err = runner.Down(t.Context())
@@ -660,7 +783,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		t.Fatalf("rolled-back migration: got %#v, want version 1", rolledBack)
 	}
 	assertMigrationIntegrationTableExists(t, database, "inquiries", false)
-	assertMigrationIntegrationStatus(t, runner, false, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, false, false, false, false, false, false, false, false)
 
 	if _, err := runner.Down(t.Context()); !errors.Is(err, errNoAppliedMigrations) {
 		t.Fatalf("empty rollback: got %v, want no applied migrations", err)
@@ -672,17 +795,18 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reapply embedded migrations after full rollback: %v", err)
 	}
-	if len(applied) != 7 ||
+	if len(applied) != 8 ||
 		applied[0].Version != 1 ||
 		applied[1].Version != 2 ||
 		applied[2].Version != 3 ||
 		applied[3].Version != 4 ||
 		applied[4].Version != 5 ||
 		applied[5].Version != 6 ||
-		applied[6].Version != 7 {
-		t.Fatalf("reapplied migrations: got %#v, want versions 1 through 7", applied)
+		applied[6].Version != 7 ||
+		applied[7].Version != 8 {
+		t.Fatalf("reapplied migrations: got %#v, want versions 1 through 8", applied)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true)
 }
 
 // loadMigrationIntegrationConfig requires two explicit environment values and
@@ -742,6 +866,8 @@ func requireMigrationIntegrationSchemaEmpty(
 	var productCoversExist bool
 	var interiorProjectsExist bool
 	var interiorProjectCoversExist bool
+	var architectureProjectsExist bool
+	var architectureProjectCoversExist bool
 	var ledgerExists bool
 	var atomicityProbeExists bool
 	var missingProbeExists bool
@@ -756,6 +882,8 @@ func requireMigrationIntegrationSchemaEmpty(
     to_regclass('public.product_cover_images') IS NOT NULL,
     to_regclass('public.interior_projects') IS NOT NULL,
     to_regclass('public.interior_project_cover_images') IS NOT NULL,
+    to_regclass('public.architecture_projects') IS NOT NULL,
+    to_regclass('public.architecture_project_cover_images') IS NOT NULL,
     to_regclass('public.schema_migrations') IS NOT NULL,
     to_regclass('public.stage13_atomicity_probe') IS NOT NULL,
     to_regclass('public.stage13_intentionally_missing_table') IS NOT NULL`,
@@ -768,6 +896,8 @@ func requireMigrationIntegrationSchemaEmpty(
 		&productCoversExist,
 		&interiorProjectsExist,
 		&interiorProjectCoversExist,
+		&architectureProjectsExist,
+		&architectureProjectCoversExist,
 		&ledgerExists,
 		&atomicityProbeExists,
 		&missingProbeExists,
@@ -784,6 +914,8 @@ func requireMigrationIntegrationSchemaEmpty(
 		productCoversExist ||
 		interiorProjectsExist ||
 		interiorProjectCoversExist ||
+		architectureProjectsExist ||
+		architectureProjectCoversExist ||
 		ledgerExists ||
 		atomicityProbeExists ||
 		missingProbeExists {
@@ -818,6 +950,8 @@ func cleanupMigrationIntegrationSchema(t *testing.T, database *sql.DB) {
 
 	for _, statement := range []string{
 		"DROP TABLE IF EXISTS public.stage13_atomicity_probe",
+		"DROP TABLE IF EXISTS public.architecture_project_cover_images",
+		"DROP TABLE IF EXISTS public.architecture_projects",
 		"DROP TABLE IF EXISTS public.interior_project_cover_images",
 		"DROP TABLE IF EXISTS public.interior_projects",
 		"DROP TABLE IF EXISTS public.product_cover_images",
@@ -1007,6 +1141,10 @@ func assertMigrationIntegrationTableRowCount(
 		query = "SELECT COUNT(*) FROM public.interior_projects"
 	case "interior_project_cover_images":
 		query = "SELECT COUNT(*) FROM public.interior_project_cover_images"
+	case "architecture_projects":
+		query = "SELECT COUNT(*) FROM public.architecture_projects"
+	case "architecture_project_cover_images":
+		query = "SELECT COUNT(*) FROM public.architecture_project_cover_images"
 	default:
 		t.Fatalf("unsupported migration integration row-count table %q", tableName)
 	}
@@ -1639,6 +1777,368 @@ WHERE interior_project_id = $1`,
 	)
 }
 
+// insertMigrationIntegrationArchitectureProject writes one minimum valid
+// Architecture fixture while omitting every optional or defaulted value. The
+// paired assertion can therefore distinguish PostgreSQL-owned defaults from
+// values supplied by the test process.
+func insertMigrationIntegrationArchitectureProject(
+	t *testing.T,
+	database *sql.DB,
+	slug string,
+	title string,
+	typology string,
+	projectStatus string,
+	sortOrder int,
+) int64 {
+	t.Helper()
+
+	var projectID int64
+	if err := database.QueryRowContext(
+		t.Context(),
+		`INSERT INTO public.architecture_projects (
+    slug,
+    title,
+    typology,
+    project_status,
+    sort_order
+) VALUES ($1, $2, $3, $4, $5)
+RETURNING id`,
+		slug,
+		title,
+		typology,
+		projectStatus,
+		sortOrder,
+	).Scan(&projectID); err != nil {
+		t.Fatal("insert migration integration Architecture project")
+	}
+	if projectID <= 0 {
+		t.Fatalf(
+			"generated Architecture project identity: got %d, want positive",
+			projectID,
+		)
+	}
+
+	return projectID
+}
+
+// assertMigrationIntegrationArchitectureProject reads every migration-8 parent
+// column. It proves optional text begins empty, year remains SQL NULL, lifecycle
+// begins Draft, the edit revision begins at one, and both timestamps share the
+// insertion transaction time.
+func assertMigrationIntegrationArchitectureProject(
+	t *testing.T,
+	database *sql.DB,
+	projectID int64,
+	expectedSlug string,
+	expectedTitle string,
+	expectedTypology string,
+	expectedProjectStatus string,
+	expectedSortOrder int,
+) {
+	t.Helper()
+
+	var slug string
+	var title string
+	var typology string
+	var location string
+	var projectYear sql.NullInt64
+	var projectStatus string
+	var description string
+	var sortOrder int
+	var publicationStatus string
+	var version int64
+	var createdAt time.Time
+	var updatedAt time.Time
+	if err := database.QueryRowContext(
+		t.Context(),
+		`SELECT
+    slug,
+    title,
+    typology,
+    location,
+    project_year,
+    project_status,
+    description,
+    sort_order,
+    publication_status,
+    version,
+    created_at,
+    updated_at
+FROM public.architecture_projects
+WHERE id = $1`,
+		projectID,
+	).Scan(
+		&slug,
+		&title,
+		&typology,
+		&location,
+		&projectYear,
+		&projectStatus,
+		&description,
+		&sortOrder,
+		&publicationStatus,
+		&version,
+		&createdAt,
+		&updatedAt,
+	); err != nil {
+		t.Fatal("read migration integration Architecture project")
+	}
+
+	if slug != expectedSlug ||
+		title != expectedTitle ||
+		typology != expectedTypology ||
+		projectStatus != expectedProjectStatus ||
+		sortOrder != expectedSortOrder ||
+		location != "" ||
+		projectYear.Valid ||
+		description != "" ||
+		publicationStatus != "draft" ||
+		version != 1 {
+		t.Error("stored Architecture project violates expected values or defaults")
+	}
+	if createdAt.IsZero() || !updatedAt.Equal(createdAt) {
+		t.Errorf(
+			"initial Architecture timestamps: got created=%s updated=%s, want equal nonzero values",
+			createdAt,
+			updatedAt,
+		)
+	}
+}
+
+// assertMigrationIntegrationArchitectureProjectConstraintsAndCover bypasses
+// Stage 23 application validation to prove the database independently enforces
+// every parent, relationship, and one-cover invariant. Each malformed statement
+// changes one rule so SQLSTATE and named-constraint diagnostics remain stable.
+func assertMigrationIntegrationArchitectureProjectConstraintsAndCover(
+	t *testing.T,
+	database *sql.DB,
+	projectID int64,
+) {
+	t.Helper()
+
+	parentConstraintTests := []struct {
+		// name identifies the isolated migration-owned parent invariant.
+		name string
+		// assignment is trusted SQL selected only from this closed test table.
+		assignment string
+		// constraint is the exact named check expected from PostgreSQL.
+		constraint string
+	}{
+		{name: "slug length", assignment: "slug = repeat('s', 121)", constraint: "architecture_projects_slug_length"},
+		{name: "slug format", assignment: "slug = 'invalid--slug'", constraint: "architecture_projects_slug_format"},
+		{name: "title trimmed", assignment: "title = ' Padded title'", constraint: "architecture_projects_title_trimmed"},
+		{name: "title required", assignment: "title = ''", constraint: "architecture_projects_title_length"},
+		{name: "title length", assignment: "title = repeat('t', 161)", constraint: "architecture_projects_title_length"},
+		{name: "typology trimmed", assignment: "typology = ' Cultural'", constraint: "architecture_projects_typology_trimmed"},
+		{name: "typology required", assignment: "typology = ''", constraint: "architecture_projects_typology_length"},
+		{name: "typology length", assignment: "typology = repeat('t', 81)", constraint: "architecture_projects_typology_length"},
+		{name: "location trimmed", assignment: "location = ' Tehran'", constraint: "architecture_projects_location_trimmed"},
+		{name: "location length", assignment: "location = repeat('l', 161)", constraint: "architecture_projects_location_length"},
+		{name: "year range", assignment: "project_year = 999", constraint: "architecture_projects_project_year_supported"},
+		{name: "year upper range", assignment: "project_year = 10000", constraint: "architecture_projects_project_year_supported"},
+		{name: "project status trimmed", assignment: "project_status = ' Completed'", constraint: "architecture_projects_project_status_trimmed"},
+		{name: "project status required", assignment: "project_status = ''", constraint: "architecture_projects_project_status_length"},
+		{name: "project status length", assignment: "project_status = repeat('s', 81)", constraint: "architecture_projects_project_status_length"},
+		{name: "description trimmed", assignment: "description = ' Padded description'", constraint: "architecture_projects_description_trimmed"},
+		{name: "description length", assignment: "description = repeat('d', 6001)", constraint: "architecture_projects_description_length"},
+		{name: "sort order positive", assignment: "sort_order = 0", constraint: "architecture_projects_sort_order_positive"},
+		{name: "publication status supported", assignment: "publication_status = 'private'", constraint: "architecture_projects_publication_status_supported"},
+		{name: "version positive", assignment: "version = 0", constraint: "architecture_projects_version_positive"},
+		{name: "timestamp order", assignment: "updated_at = created_at - INTERVAL '1 second'", constraint: "architecture_projects_timestamp_order"},
+	}
+	for _, test := range parentConstraintTests {
+		t.Run("Architecture parent "+test.name, func(t *testing.T) {
+			_, err := database.ExecContext(
+				t.Context(),
+				"UPDATE public.architecture_projects SET "+test.assignment+" WHERE id = $1",
+				projectID,
+			)
+			assertPostgresConstraintError(
+				t,
+				err,
+				postgresCheckViolationCode,
+				test.constraint,
+				"",
+			)
+		})
+	}
+
+	// A second row cannot reuse the canonical public slug. Checking the named
+	// uniqueness boundary protects the repository's narrow conflict translation.
+	_, err := database.ExecContext(
+		t.Context(),
+		`INSERT INTO public.architecture_projects (
+    slug, title, typology, project_status, sort_order
+)
+SELECT slug, 'Duplicate Architecture', 'Cultural', 'Completed', 2
+FROM public.architecture_projects
+WHERE id = $1`,
+		projectID,
+	)
+	assertPostgresConstraintError(
+		t,
+		err,
+		postgresUniqueViolationCode,
+		"architecture_projects_slug_unique",
+		"",
+	)
+
+	// These deterministic bytes exercise database storage limits rather than Go
+	// image decoding. A 32-byte digest supplies the exact migration-owned shape.
+	coverContent := []byte{0x89, 0x50, 0x4e, 0x47}
+	coverDigest := bytes.Repeat([]byte{0x23}, 32)
+	insertCover := func(ownerID int64) error {
+		_, insertErr := database.ExecContext(
+			t.Context(),
+			`INSERT INTO public.architecture_project_cover_images (
+    architecture_project_id,
+    content_type,
+    content,
+    byte_size,
+    width,
+    height,
+    sha256,
+    alt_text,
+    caption
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			ownerID,
+			"image/png",
+			coverContent,
+			len(coverContent),
+			2,
+			2,
+			coverDigest,
+			"A fictional Architecture migration fixture",
+			"Synthetic Stage 23 cover.",
+		)
+
+		return insertErr
+	}
+	if err := insertCover(projectID); err != nil {
+		t.Fatal("insert valid migration-8 Architecture cover")
+	}
+
+	// Omitting revision and timestamps proves their database defaults, while the
+	// prior insert already proved the foreign key accepts its real parent.
+	var coverVersion int64
+	var coverCreatedAt time.Time
+	var coverUpdatedAt time.Time
+	if err := database.QueryRowContext(
+		t.Context(),
+		`SELECT version, created_at, updated_at
+FROM public.architecture_project_cover_images
+WHERE architecture_project_id = $1`,
+		projectID,
+	).Scan(&coverVersion, &coverCreatedAt, &coverUpdatedAt); err != nil {
+		t.Fatal("read migration-8 Architecture cover defaults")
+	}
+	if coverVersion != 1 || coverCreatedAt.IsZero() ||
+		!coverUpdatedAt.Equal(coverCreatedAt) {
+		t.Error("initial Architecture cover revision or timestamps violate defaults")
+	}
+
+	// The owner primary key enforces one current cover and the named foreign key
+	// rejects a child whose project identity does not exist.
+	assertPostgresConstraintError(
+		t,
+		insertCover(projectID),
+		postgresUniqueViolationCode,
+		"architecture_project_cover_images_pkey",
+		"",
+	)
+	assertPostgresConstraintError(
+		t,
+		insertCover(math.MaxInt64),
+		"23503",
+		"architecture_project_cover_images_project_id_foreign",
+		"",
+	)
+
+	coverConstraintTests := []struct {
+		// name identifies one exact stored-media rule.
+		name string
+		// assignment changes only the values needed to isolate that rule.
+		assignment string
+		// constraint is the stable named check expected from PostgreSQL.
+		constraint string
+	}{
+		{name: "version positive", assignment: "version = 0", constraint: "architecture_project_cover_images_version_positive"},
+		{name: "content type", assignment: "content_type = 'image/gif'", constraint: "architecture_project_cover_images_content_type_supported"},
+		{name: "byte size range", assignment: "content = ''::bytea, byte_size = 0", constraint: "architecture_project_cover_images_byte_size_supported"},
+		{name: "content size", assignment: "byte_size = byte_size + 1", constraint: "architecture_project_cover_images_content_size_matches"},
+		{name: "width range", assignment: "width = 0", constraint: "architecture_project_cover_images_width_supported"},
+		{name: "height range", assignment: "height = 10001", constraint: "architecture_project_cover_images_height_supported"},
+		{name: "pixel count", assignment: "width = 5001, height = 5001", constraint: "architecture_project_cover_images_pixel_count_supported"},
+		{name: "digest length", assignment: "sha256 = decode('00', 'hex')", constraint: "architecture_project_cover_images_sha256_length"},
+		{name: "alt text trimmed", assignment: "alt_text = ' Padded alternative'", constraint: "architecture_project_cover_images_alt_text_trimmed"},
+		{name: "alt text required", assignment: "alt_text = ''", constraint: "architecture_project_cover_images_alt_text_length"},
+		{name: "alt text length", assignment: "alt_text = repeat('a', 301)", constraint: "architecture_project_cover_images_alt_text_length"},
+		{name: "caption trimmed", assignment: "caption = ' Padded caption'", constraint: "architecture_project_cover_images_caption_trimmed"},
+		{name: "caption length", assignment: "caption = repeat('c', 501)", constraint: "architecture_project_cover_images_caption_length"},
+		{name: "timestamp order", assignment: "updated_at = created_at - INTERVAL '1 second'", constraint: "architecture_project_cover_images_timestamp_order"},
+	}
+	for _, test := range coverConstraintTests {
+		t.Run("Architecture cover "+test.name, func(t *testing.T) {
+			_, err := database.ExecContext(
+				t.Context(),
+				"UPDATE public.architecture_project_cover_images SET "+test.assignment+" WHERE architecture_project_id = $1",
+				projectID,
+			)
+			assertPostgresConstraintError(
+				t,
+				err,
+				postgresCheckViolationCode,
+				test.constraint,
+				"",
+			)
+		})
+	}
+
+	// A second synthetic parent proves ON DELETE CASCADE removes only its one
+	// dependent cover. The primary fixture survives for the rollback-isolation
+	// assertion in the top-level cycle.
+	cascadeProjectID := insertMigrationIntegrationArchitectureProject(
+		t,
+		database,
+		"stage-twenty-three-cascade-architecture",
+		"Stage Twenty Three Cascade Architecture",
+		"Civic",
+		"Completed",
+		99,
+	)
+	if err := insertCover(cascadeProjectID); err != nil {
+		t.Fatal("insert cover for cascade Architecture project")
+	}
+	if _, err := database.ExecContext(
+		t.Context(),
+		"DELETE FROM public.architecture_projects WHERE id = $1",
+		cascadeProjectID,
+	); err != nil {
+		t.Fatal("delete cascade Architecture project")
+	}
+	var remaining int
+	if err := database.QueryRowContext(
+		t.Context(),
+		`SELECT COUNT(*)
+FROM public.architecture_project_cover_images
+WHERE architecture_project_id = $1`,
+		cascadeProjectID,
+	).Scan(&remaining); err != nil || remaining != 0 {
+		t.Errorf(
+			"cascaded Architecture cover rows: got %d err=%v, want zero",
+			remaining,
+			err,
+		)
+	}
+	assertMigrationIntegrationTableRowCount(t, database, "architecture_projects", 1)
+	assertMigrationIntegrationTableRowCount(
+		t,
+		database,
+		"architecture_project_cover_images",
+		1,
+	)
+}
+
 // assertMigrationIntegrationProductConstraints bypasses application validation
 // to prove PostgreSQL rejects every malformed field shape owned by
 // migration 000004. Each case violates only its named constraint so diagnostics
@@ -2144,10 +2644,10 @@ func assertMigrationIntegrationAtomicFailure(
 	t.Helper()
 
 	failingMigration := migrationDefinition{
-		// Versions 000001 through 000007 are the real embedded history. The probe
+		// Versions 000001 through 000008 are the real embedded history. The probe
 		// therefore uses the next contiguous version instead of colliding with the
-		// Stage 22 definition during catalog validation.
-		Version: 8,
+		// Stage 23 definition during catalog validation.
+		Version: 9,
 		Name:    "prove_atomicity",
 		UpSQL: `CREATE TABLE public.stage13_atomicity_probe (id bigint);
 SELECT * FROM public.stage13_intentionally_missing_table;`,
@@ -2189,7 +2689,7 @@ SELECT * FROM public.stage13_intentionally_missing_table;`,
 	).Scan(&ledgerRows); err != nil {
 		t.Fatal("count migration integration ledger rows")
 	}
-	if ledgerRows != 7 {
-		t.Errorf("ledger rows after failed migration: got %d, want 7", ledgerRows)
+	if ledgerRows != 8 {
+		t.Errorf("ledger rows after failed migration: got %d, want 8", ledgerRows)
 	}
 }

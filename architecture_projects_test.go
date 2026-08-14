@@ -1,467 +1,457 @@
 package main
 
 import (
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 )
 
-// extractArchitecturePreviewArticles returns complete architecture-preview
-// articles in their document order.
-//
-// The listing template does not nest article elements, so a direct scan keeps
-// this focused helper independent from a third-party HTML parser. Returning an
-// empty slice is intentional: empty-state and isolation tests can use the same
-// helper to prove that no project cards were emitted.
-func extractArchitecturePreviewArticles(
-	t *testing.T,
-	source string,
-) []string {
+// validCatalogueArchitectureProject returns one deterministic reviewed public
+// record. Keeping this test-only constructor beside the public HTTP tests makes
+// optional-field cases concise without publishing fictional production data.
+func validCatalogueArchitectureProject(
+	id int64,
+	number int64,
+	slug string,
+) catalogueArchitectureProject {
+	return catalogueArchitectureProject{
+		ID:              id,
+		PortfolioNumber: number,
+		Slug:            slug,
+		Title:           "Stage Twenty-Three Architecture",
+		Typology:        "Residential",
+		Location:        "Tehran",
+		ProjectYear:     2035,
+		ProjectStatus:   "Completed",
+		Description: "A fictional reviewed Architecture project used only " +
+			"by tests.",
+	}
+}
+
+// extractArchitecturePreviewArticles returns complete preview articles in document
+// order. The template does not nest article elements, so this small scanner can
+// keep semantic assertions independent from a third-party HTML parser.
+func extractArchitecturePreviewArticles(t *testing.T, source string) []string {
 	t.Helper()
 
-	const classMarker = `class="architecture-preview"`
+	const classMarker = `class="architecture-preview`
 	const closingMarker = "</article>"
-
-	var articles []string
 	remaining := source
-
+	var articles []string
 	for {
-		classPosition := strings.Index(
-			remaining,
-			classMarker,
-		)
+		classPosition := strings.Index(remaining, classMarker)
 		if classPosition == -1 {
 			break
 		}
-
-		// Search backward from the route-specific class so an unrelated article
-		// earlier in the document can never be mistaken for the preview boundary.
 		articleStart := strings.LastIndex(
 			remaining[:classPosition],
 			"<article",
 		)
 		if articleStart == -1 {
-			t.Fatal(
-				"architecture-preview class does not belong to an article",
-			)
+			t.Fatal("architecture-preview class is not inside an article")
 		}
-
 		articleEnd := strings.Index(
 			remaining[articleStart:],
 			closingMarker,
 		)
 		if articleEnd == -1 {
-			t.Fatal(
-				"architecture-preview article does not have a closing tag",
-			)
+			t.Fatal("architecture-preview article has no closing tag")
 		}
-
 		articleEnd += articleStart + len(closingMarker)
-		articles = append(
-			articles,
-			remaining[articleStart:articleEnd],
-		)
+		articles = append(articles, remaining[articleStart:articleEnd])
 		remaining = remaining[articleEnd:]
 	}
 
 	return articles
 }
 
-// TestArchitectureProjectPreviewsPreservesOrderAndFields verifies the explicit
-// source-to-template mapping without relying on production fixture values.
-//
-// Interleaved sentinel fields prove that values stay associated with their
-// source record and that editorial ordering survives the conversion. Nil input
-// represents a future zero-row repository response and must naturally produce
-// no preview values.
-func TestArchitectureProjectPreviewsPreservesOrderAndFields(t *testing.T) {
-	source := []architectureProject{
+// TestArchitectureProjectPresentationHelpers verifies explicit repository-to-view
+// mapping, nullable year formatting, canonical paths, cover metadata, and order.
+func TestArchitectureProjectPresentationHelpers(t *testing.T) {
+	projects := []catalogueArchitectureProject{
 		{
-			Number:   "A-17",
-			Slug:     "first-sentinel",
-			Title:    "First sentinel title",
-			Typology: "First sentinel typology",
-			Status:   "First sentinel status",
+			ID:              11,
+			PortfolioNumber: 1,
+			Slug:            "first-architecture",
+			Title:           "First Architecture",
+			Typology:        "Residential",
+			Location:        "Tehran",
+			ProjectYear:     2033,
+			ProjectStatus:   "Completed",
+			Description:     "First reviewed description.",
+			Cover: &architectureProjectCoverMetadata{
+				Version: 4,
+				Width:   1600,
+				Height:  1000,
+				AltText: "A fictional warm residential Architecture",
+				Caption: "First fictional cover.",
+			},
 		},
 		{
-			Number:   "B-29",
-			Slug:     "second-sentinel",
-			Title:    "Second sentinel title",
-			Typology: "Second sentinel typology",
-			Status:   "Second sentinel status",
+			ID:              12,
+			PortfolioNumber: 2,
+			Slug:            "second-architecture",
+			Title:           "Second Architecture",
+			Typology:        "Cultural",
+			ProjectStatus:   "Ongoing",
 		},
 	}
 
-	previews := architectureProjectPreviews(source)
-	if len(previews) != len(source) {
-		t.Fatalf(
-			"preview count: got %d, want %d",
-			len(previews),
-			len(source),
-		)
+	previews := architectureProjectPreviews(projects)
+	want := []architectureProjectPreviewData{
+		{
+			Number:        "01",
+			Title:         "First Architecture",
+			Typology:      "Residential",
+			Location:      "Tehran",
+			YearLabel:     "2033",
+			ProjectStatus: "Completed",
+			Path:          "/architecture-design/first-architecture",
+			Cover: &publicArchitectureProjectCoverPageData{
+				Path:    "/architecture-design/first-architecture/cover/4",
+				Width:   1600,
+				Height:  1000,
+				AltText: "A fictional warm residential Architecture",
+				Caption: "First fictional cover.",
+			},
+		},
+		{
+			Number:        "02",
+			Title:         "Second Architecture",
+			Typology:      "Cultural",
+			ProjectStatus: "Ongoing",
+			Path:          "/architecture-design/second-architecture",
+		},
 	}
-
-	for index, project := range source {
-		preview := previews[index]
-
-		if preview.Number != project.Number {
-			t.Errorf(
-				"preview %d number: got %q, want %q",
-				index,
-				preview.Number,
-				project.Number,
-			)
-		}
-		if preview.Title != project.Title {
-			t.Errorf(
-				"preview %d title: got %q, want %q",
-				index,
-				preview.Title,
-				project.Title,
-			)
-		}
-		if preview.Typology != project.Typology {
-			t.Errorf(
-				"preview %d typology: got %q, want %q",
-				index,
-				preview.Typology,
-				project.Typology,
-			)
-		}
-		if preview.Status != project.Status {
-			t.Errorf(
-				"preview %d status: got %q, want %q",
-				index,
-				preview.Status,
-				project.Status,
-			)
-		}
-		expectedPath := architectureProjectDetailPath(project.Slug)
-		if preview.Path != expectedPath {
-			t.Errorf(
-				"preview %d path: got %q, want %q",
-				index,
-				preview.Path,
-				expectedPath,
-			)
-		}
+	if !reflect.DeepEqual(previews, want) {
+		t.Errorf("previews: got %#v, want %#v", previews, want)
 	}
-
+	if year := formatArchitectureProjectYear(0); year != "" {
+		t.Errorf("absent year label: got %q, want empty", year)
+	}
+	if number := formatArchitectureProjectNumber(103); number != "103" {
+		t.Errorf("three-digit project number: got %q, want 103", number)
+	}
+	if path := architectureProjectCoverPath("first-architecture", 4); path !=
+		"/architecture-design/first-architecture/cover/4" {
+		t.Errorf("cover path: got %q", path)
+	}
+	if cover := newPublicArchitectureProjectCoverPageData("second-architecture", nil); cover != nil {
+		t.Errorf("nil repository cover produced view data: %#v", cover)
+	}
 	if previews := architectureProjectPreviews(nil); len(previews) != 0 {
-		t.Errorf(
-			"nil source preview count: got %d, want 0",
-			len(previews),
-		)
+		t.Errorf("nil source preview count: got %d, want 0", len(previews))
 	}
 }
 
-// TestArchitectureDesignRouteRendersPortfolio verifies the complete public
-// Stages 10-11 response produced by architectureDesignHandler.
-//
-// Replacing the application-owned source proves the handler uses its injected
-// dependency instead of rebuilding temporary records internally. The remaining
-// assertions own stylesheet ordering, shared-section semantics, record order,
-// and each real Stage 11 detail destination.
-func TestArchitectureDesignRouteRendersPortfolio(t *testing.T) {
-	app := newTestApplication(t)
-	app.architectureProjects = []architectureProject{
-		{
-			Number:   "R-17",
-			Slug:     "route-sentinel-one",
-			Title:    "Route sentinel one",
-			Typology: "Route typology one",
-			Status:   "Route status one",
-		},
-		{
-			Number:   "R-29",
-			Slug:     "route-sentinel-two",
-			Title:    "Route sentinel two",
-			Typology: "Route typology two",
-			Status:   "Route status two",
-		},
+// TestPublishedArchitectureProjectCatalogueValidation protects handlers from an
+// injected reader that skips repository ordering, uniqueness, or row checks.
+func TestPublishedArchitectureProjectCatalogueValidation(t *testing.T) {
+	valid := []catalogueArchitectureProject{
+		validCatalogueArchitectureProject(1, 1, "first-architecture"),
+		validCatalogueArchitectureProject(2, 2, "second-architecture"),
+	}
+	if !isValidPublishedArchitectureProjectCatalogue(valid) {
+		t.Fatal("valid published Architecture catalogue was rejected")
 	}
 
-	handler := app.routes()
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(
-		http.MethodGet,
-		"/architecture-design",
-		nil,
-	)
+	invalid := []struct {
+		// name identifies the broken injected contract.
+		name string
+		// mutate changes an isolated valid copy.
+		mutate func([]catalogueArchitectureProject)
+	}{
+		{name: "number gap", mutate: func(projects []catalogueArchitectureProject) {
+			projects[1].PortfolioNumber = 3
+		}},
+		{name: "duplicate identity", mutate: func(projects []catalogueArchitectureProject) {
+			projects[1].ID = projects[0].ID
+		}},
+		{name: "duplicate slug", mutate: func(projects []catalogueArchitectureProject) {
+			projects[1].Slug = projects[0].Slug
+		}},
+		{name: "invalid stored field", mutate: func(projects []catalogueArchitectureProject) {
+			projects[0].ProjectStatus = ""
+		}},
+	}
+	for _, test := range invalid {
+		t.Run(test.name, func(t *testing.T) {
+			projects := cloneCatalogueArchitectureProjects(valid)
+			test.mutate(projects)
+			if isValidPublishedArchitectureProjectCatalogue(projects) {
+				t.Errorf("invalid catalogue was accepted: %#v", projects)
+			}
+		})
+	}
+}
 
-	handler.ServeHTTP(recorder, request)
+// TestArchitectureDesignRouteRendersPublishedPortfolio verifies the complete
+// repository-backed index, optional facts, meaningful cover, honest fallback,
+// semantic ordering, and bounded dependency call.
+func TestArchitectureDesignRouteRendersPublishedPortfolio(t *testing.T) {
+	reader := newRecordingArchitectureProjectCatalogueReader()
+	projects := []catalogueArchitectureProject{
+		{
+			ID:              31,
+			PortfolioNumber: 1,
+			Slug:            "covered-residence",
+			Title:           "Covered Residence",
+			Typology:        "Residential",
+			Location:        "Tehran",
+			ProjectYear:     2032,
+			ProjectStatus:   "Completed",
+			Cover: &architectureProjectCoverMetadata{
+				Version: 7,
+				Width:   1800,
+				Height:  1200,
+				AltText: "Sunlight crossing a fictional stone living room",
+				Caption: "Not rendered in the compact card.",
+			},
+		},
+		{
+			ID:              32,
+			PortfolioNumber: 2,
+			Slug:            "uncovered-gallery",
+			Title:           "Uncovered Gallery",
+			Typology:        "Cultural",
+			ProjectStatus:   "Ongoing",
+		},
+	}
+	reader.setProjects(projects)
+	app := newTestApplication(t)
+	app.architectureProjects = reader
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/architecture-design", nil)
+
+	app.routes().ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusOK {
-		t.Fatalf(
-			"status code: got %d, want %d",
-			recorder.Code,
-			http.StatusOK,
-		)
+		t.Fatalf("status: got %d, want 200", recorder.Code)
 	}
-
+	calls := reader.listCallSnapshot()
+	if len(calls) != 1 || !calls[0].HasDeadline {
+		t.Errorf("list calls: got %#v, want one deadline-bounded call", calls)
+	}
 	body := recorder.Body.String()
-
-	// Architecture composes the shared discipline surface, so both stylesheets
-	// must occur once and the narrower route stylesheet must load second.
-	disciplineStyles := `href="/static/css/discipline.css"`
-	architectureStyles := `href="/static/css/architecture-design.css"`
-	if count := strings.Count(body, disciplineStyles); count != 1 {
-		t.Errorf(
-			"discipline stylesheet count: got %d, want 1",
-			count,
-		)
-	}
-	if count := strings.Count(body, architectureStyles); count != 1 {
-		t.Errorf(
-			"Architecture stylesheet count: got %d, want 1",
-			count,
-		)
-	}
-	if disciplinePosition, architecturePosition := strings.Index(
-		body,
-		disciplineStyles,
-	), strings.Index(
-		body,
-		architectureStyles,
-	); disciplinePosition == -1 ||
-		architecturePosition == -1 ||
-		architecturePosition < disciplinePosition {
-		t.Error(
-			"Architecture stylesheet must load after discipline stylesheet",
-		)
-	}
-
 	mainElement := extractMainElement(t, body)
-	workElement := extractElementByMarker(
+	work := extractElementByMarker(
 		t,
 		mainElement,
 		`class="discipline-work"`,
 		"section",
 	)
-	workOpening := extractOpeningTag(t, workElement)
-
-	// Overriding the inner work block must retain the fragment target and
-	// aria-labelledby contract owned by the shared discipline partial.
-	if !strings.Contains(
-		workOpening,
-		`id="selected-work"`,
-	) || !strings.Contains(
-		workOpening,
-		`aria-labelledby="selected-work-title"`,
-	) {
-		t.Error(
-			"Architecture work section does not own its id and heading label",
-		)
-	}
-
-	workHeading := extractElementByMarker(
-		t,
-		workElement,
-		`id="selected-work-title"`,
-		"h2",
-	)
-	if !strings.Contains(
-		normalizeHTMLWhitespace(workHeading),
-		"Architecture project index",
-	) {
-		t.Error(
-			"Architecture work heading does not contain Architecture project index",
-		)
-	}
-
 	portfolio := extractElementByMarker(
 		t,
-		workElement,
+		work,
 		`class="architecture-portfolio"`,
 		"ol",
 	)
-	portfolioOpening := extractOpeningTag(t, portfolio)
-	if !strings.Contains(
-		portfolioOpening,
+	if opening := extractOpeningTag(t, portfolio); !strings.Contains(
+		opening,
 		`aria-label="Architecture project previews"`,
-	) {
-		t.Error(
-			"Architecture portfolio does not have its accessible label",
-		)
+	) || !strings.Contains(opening, `role="list"`) {
+		t.Errorf("portfolio semantics are incomplete: %s", opening)
 	}
-	if !strings.Contains(portfolioOpening, `role="list"`) {
-		t.Error(
-			"Architecture portfolio does not preserve explicit list semantics",
-		)
-	}
-
-	expectedItems := architectureProjectPreviews(app.architectureProjects)
 	articles := extractArchitecturePreviewArticles(t, portfolio)
-	if len(articles) != len(expectedItems) {
-		t.Fatalf(
-			"Architecture article count: got %d, want %d",
-			len(articles),
-			len(expectedItems),
-		)
-	}
-	if count := strings.Count(
-		portfolio,
-		`class="architecture-portfolio__item"`,
-	); count != len(expectedItems) {
-		t.Errorf(
-			"Architecture list-item count: got %d, want %d",
-			count,
-			len(expectedItems),
-		)
+	if len(articles) != len(projects) {
+		t.Fatalf("article count: got %d, want %d", len(articles), len(projects))
 	}
 
-	for index, expected := range expectedItems {
-		article := articles[index]
-		normalizedArticle := normalizeHTMLWhitespace(article)
-
-		// Comparing by slice position proves that template range preserves
-		// editorial ordering and keeps all mapped values in the same article.
-		for _, expectedString := range []string{
-			expected.Typology + " / Project slot " + expected.Number,
-			expected.Title,
-			expected.Status,
-		} {
-			if !strings.Contains(normalizedArticle, expectedString) {
-				t.Errorf(
-					"article %d does not contain %q",
-					index,
-					expectedString,
-				)
-			}
-		}
-
-		titleHeading := extractElementByMarker(
-			t,
-			article,
-			expected.Title,
-			"h3",
-		)
-		if !strings.Contains(
-			normalizeHTMLWhitespace(titleHeading),
-			expected.Title,
-		) {
-			t.Errorf(
-				"article %d h3 does not contain title %q",
-				index,
-				expected.Title,
-			)
-		}
-		if count := strings.Count(article, "<h3"); count != 1 {
-			t.Errorf(
-				"article %d title heading count: got %d, want 1",
-				index,
-				count,
-			)
-		}
-
-		// The visual field repeats the visible editorial number for decoration,
-		// so the container itself must be excluded from the accessibility tree.
-		media := extractElementByMarker(
-			t,
-			article,
-			`class="architecture-preview__media"`,
-			"div",
-		)
-		if !strings.Contains(
-			extractOpeningTag(t, media),
-			`aria-hidden="true"`,
-		) {
-			t.Errorf(
-				"article %d media is not hidden from assistive technology",
-				index,
-			)
-		}
-
-		// Each article contains one native anchor whose URL is constructed from
-		// the same source record. Routing the href verifies that the portfolio
-		// never advertises a placeholder or unregistered destination.
-		previewLink := extractElementByMarker(
-			t,
-			article,
-			`class="architecture-preview__link"`,
-			"a",
-		)
-		previewOpening := extractOpeningTag(t, previewLink)
-		expectedHref := `href="` + expected.Path + `"`
-		if !strings.Contains(previewOpening, expectedHref) {
-			t.Errorf(
-				"article %d link does not contain %q",
-				index,
-				expectedHref,
-			)
-		}
-		if count := strings.Count(article, `href="`); count != 1 {
-			t.Errorf(
-				"article %d href count: got %d, want 1",
-				index,
-				count,
-			)
-		}
-
-		detailRecorder := httptest.NewRecorder()
-		detailRequest := httptest.NewRequest(
-			http.MethodGet,
-			expected.Path,
-			nil,
-		)
-		handler.ServeHTTP(detailRecorder, detailRequest)
-		if detailRecorder.Code != http.StatusOK {
-			t.Errorf(
-				"article %d detail path %q status: got %d, want %d",
-				index,
-				expected.Path,
-				detailRecorder.Code,
-				http.StatusOK,
-			)
+	covered := articles[0]
+	for _, expected := range []string{
+		`href="/architecture-design/covered-residence"`,
+		"Residential / Project 01",
+		"Covered Residence",
+		"Completed / Tehran / 2032",
+		`src="/architecture-design/covered-residence/cover/7"`,
+		`width="1800"`,
+		`height="1200"`,
+		`alt="Sunlight crossing a fictional stone living room"`,
+		`loading="lazy"`,
+		`decoding="async"`,
+	} {
+		if !strings.Contains(normalizeHTMLWhitespace(covered), expected) {
+			t.Errorf("covered article does not contain %q", expected)
 		}
 	}
-
-	// The Architecture reference is design documentation, not a public asset,
-	// and placeholder fragment links must never stand in for future project URLs.
-	if strings.Contains(mainElement, `href="#"`) {
-		t.Error(
-			"Architecture Design main must not contain a placeholder href",
-		)
+	coveredMedia := extractElementByMarker(
+		t,
+		covered,
+		`class="architecture-preview__media architecture-preview__media--image"`,
+		"figure",
+	)
+	if strings.Contains(extractOpeningTag(t, coveredMedia), `aria-hidden=`) {
+		t.Error("meaningful covered media is hidden from assistive technology")
 	}
-	if strings.Contains(mainElement, "docs/reference") ||
-		strings.Contains(mainElement, "zafarmand-architecture-design.jpg") {
-		t.Error(
-			"Architecture Design page must not render a reference composite",
-		)
+	if strings.Contains(covered, "Not rendered in the compact card") {
+		t.Error("listing unexpectedly rendered the detail-only cover caption")
 	}
 
+	uncovered := articles[1]
+	for _, expected := range []string{
+		`href="/architecture-design/uncovered-gallery"`,
+		"Cultural / Project 02",
+		"Uncovered Gallery",
+		"Ongoing",
+	} {
+		if !strings.Contains(normalizeHTMLWhitespace(uncovered), expected) {
+			t.Errorf("fallback article does not contain %q", expected)
+		}
+	}
+	if strings.Contains(uncovered, "<img") ||
+		strings.Contains(normalizeHTMLWhitespace(uncovered), "Ongoing /") {
+		t.Error("absent optional fields produced an image or dangling separator")
+	}
+	fallbackMedia := extractElementByMarker(
+		t,
+		uncovered,
+		`class="architecture-preview__media"`,
+		"div",
+	)
+	if !strings.Contains(extractOpeningTag(t, fallbackMedia), `aria-hidden="true"`) {
+		t.Error("decorative fallback is not hidden from assistive technology")
+	}
+	if strings.Index(portfolio, "Covered Residence") >=
+		strings.Index(portfolio, "Uncovered Gallery") {
+		t.Error("template changed repository portfolio order")
+	}
+	if strings.Contains(mainElement, `href="#"`) ||
+		strings.Contains(mainElement, "docs/reference") {
+		t.Error("public Architecture index contains placeholder navigation or reference assets")
+	}
 }
 
-// TestArchitectureDesignTemplateUsesDataAndEscapesHTML renders the Architecture
-// wrapper with values that cannot be confused with production handler copy.
-//
-// Unsafe markup proves html/template emits managed values as inert visible text,
-// while interleaved sentinels prove the template reads each preview record
-// instead of hard-coding the temporary application source.
-func TestArchitectureDesignTemplateUsesDataAndEscapesHTML(t *testing.T) {
+// TestArchitectureDesignRouteRendersEmptyPublishedState verifies zero published
+// rows are a successful truthful page rather than seeded content or an error.
+func TestArchitectureDesignRouteRendersEmptyPublishedState(t *testing.T) {
+	reader := newRecordingArchitectureProjectCatalogueReader()
+	reader.setProjects(nil)
 	app := newTestApplication(t)
+	app.architectureProjects = reader
 	recorder := httptest.NewRecorder()
 
+	app.routes().ServeHTTP(
+		recorder,
+		httptest.NewRequest(http.MethodGet, "/architecture-design", nil),
+	)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", recorder.Code)
+	}
+	mainElement := extractMainElement(t, recorder.Body.String())
+	if strings.Contains(mainElement, `class="architecture-portfolio"`) ||
+		strings.Contains(mainElement, `class="architecture-preview`) {
+		t.Error("empty published query rendered a portfolio list or card")
+	}
+	empty := extractElementByMarker(
+		t,
+		mainElement,
+		`class="architecture-portfolio__empty"`,
+		"p",
+	)
+	if !strings.Contains(
+		normalizeHTMLWhitespace(empty),
+		"Architecture project entries are being prepared for publication.",
+	) {
+		t.Error("empty state does not contain truthful publication copy")
+	}
+}
+
+// TestArchitectureDesignHandlerRejectsReaderFailures verifies repository errors,
+// malformed injected catalogues, and an unavailable dependency all become a
+// fixed 503 without leaking unsafe details.
+func TestArchitectureDesignHandlerRejectsReaderFailures(t *testing.T) {
+	unsafeDetail := "postgres://private-architecture-list"
+	invalid := []catalogueArchitectureProject{
+		validCatalogueArchitectureProject(1, 2, "number-gap"),
+	}
+	tests := []struct {
+		// name identifies the failed dependency contract.
+		name string
+		// configure mutates the otherwise valid app dependency.
+		configure func(*application, *recordingArchitectureProjectCatalogueReader)
+	}{
+		{name: "repository error", configure: func(
+			_ *application,
+			reader *recordingArchitectureProjectCatalogueReader,
+		) {
+			reader.setErrors(errors.New(unsafeDetail), nil)
+		}},
+		{name: "invalid catalogue", configure: func(
+			_ *application,
+			reader *recordingArchitectureProjectCatalogueReader,
+		) {
+			reader.setProjects(invalid)
+		}},
+		{name: "nil dependency", configure: func(
+			app *application,
+			_ *recordingArchitectureProjectCatalogueReader,
+		) {
+			app.architectureProjects = nil
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			app := newTestApplication(t)
+			reader := newRecordingArchitectureProjectCatalogueReader()
+			app.architectureProjects = reader
+			test.configure(app, reader)
+			recorder := httptest.NewRecorder()
+			app.architectureDesignHandler(
+				recorder,
+				httptest.NewRequest(http.MethodGet, "/architecture-design", nil),
+			)
+
+			if recorder.Code != http.StatusServiceUnavailable {
+				t.Fatalf("status: got %d, want 503", recorder.Code)
+			}
+			if strings.Contains(recorder.Body.String(), unsafeDetail) {
+				t.Error("service response exposed repository detail")
+			}
+		})
+	}
+
+	var nilApp *application
+	recorder := httptest.NewRecorder()
+	nilApp.architectureDesignHandler(
+		recorder,
+		httptest.NewRequest(http.MethodGet, "/architecture-design", nil),
+	)
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Errorf("nil application status: got %d, want 503", recorder.Code)
+	}
+}
+
+// TestArchitectureDesignTemplateEscapesManagedData renders sentinel content through
+// html/template and proves meaningful image attributes remain inert data.
+func TestArchitectureDesignTemplateEscapesManagedData(t *testing.T) {
+	app := newTestApplication(t)
+	recorder := httptest.NewRecorder()
 	listing := &architectureProjectListingData{
-		Eyebrow:      "Sentinel architecture eyebrow",
-		Heading:      "Sentinel architecture heading",
-		Introduction: "Sentinel architecture introduction",
-		EmptyMessage: "Sentinel architecture empty message",
+		Eyebrow:      "Sentinel architectures eyebrow",
+		Heading:      "Sentinel architectures heading",
+		Introduction: "Sentinel architectures introduction",
+		EmptyMessage: "Sentinel empty copy",
 		Items: []architectureProjectPreviewData{
 			{
-				Number:   "A1",
-				Path:     "/architecture-design/sentinel-one",
-				Title:    "<b>Unsafe architecture title</b>",
-				Typology: "<em>Unsafe architecture typology</em>",
-				Status:   "First sentinel status",
-			},
-			{
-				Number:   "B2",
-				Path:     "/architecture-design/sentinel-two",
-				Title:    "Second sentinel architecture title",
-				Typology: "Second sentinel architecture typology",
-				Status:   "<script>Unsafe status</script>",
+				Number:        "A1",
+				Path:          "/architecture-design/safe-sentinel",
+				Title:         "<b>Unsafe title</b>",
+				Typology:      "<em>Unsafe typology</em>",
+				Location:      "<script>Unsafe location</script>",
+				YearLabel:     "2035",
+				ProjectStatus: "<img src=x onerror=alert(1)>",
+				Cover: &publicArchitectureProjectCoverPageData{
+					Path:    "/architecture-design/safe-sentinel/cover/1",
+					Width:   4,
+					Height:  3,
+					AltText: `A room " onload="alert(1)`,
+				},
 			},
 		},
 	}
@@ -474,410 +464,153 @@ func TestArchitectureDesignTemplateUsesDataAndEscapesHTML(t *testing.T) {
 			Title:       "Sentinel Architecture Design",
 			CurrentPath: "/architecture-design",
 			DisciplinePage: &disciplinePageData{
-				Number:   "S-02",
+				Number:   "S-01",
 				Name:     "Sentinel Architecture Design",
-				NextName: "Sentinel Next",
-				NextPath: "/sentinel-next",
+				NextName: "Next sentinel",
+				NextPath: "/architecture-design",
 			},
 			ArchitectureProjectListing: listing,
 		},
 	)
 
 	if recorder.Code != http.StatusOK {
-		t.Fatalf(
-			"status code: got %d, want %d",
-			recorder.Code,
-			http.StatusOK,
-		)
+		t.Fatalf("status: got %d, want 200", recorder.Code)
 	}
-
 	mainElement := extractMainElement(t, recorder.Body.String())
-	normalizedMain := normalizeHTMLWhitespace(mainElement)
-
-	for _, expected := range []string{
-		listing.Eyebrow,
-		listing.Heading,
-		listing.Introduction,
+	for _, forbidden := range []string{
+		"<b>Unsafe",
+		"<em>Unsafe",
+		"<script>Unsafe",
+		"<img src=x onerror",
+		`onload="alert(1)`,
 	} {
-		if !strings.Contains(normalizedMain, expected) {
-			t.Errorf(
-				"sentinel Architecture main does not contain %q",
-				expected,
-			)
+		if strings.Contains(mainElement, forbidden) {
+			t.Errorf("managed value became active markup %q", forbidden)
 		}
 	}
-
-	articles := extractArchitecturePreviewArticles(t, mainElement)
-	if len(articles) != len(listing.Items) {
-		t.Fatalf(
-			"sentinel article count: got %d, want %d",
-			len(articles),
-			len(listing.Items),
-		)
-	}
-
-	firstArticle := normalizeHTMLWhitespace(articles[0])
-	for _, expected := range []string{
-		"&lt;em&gt;Unsafe architecture typology&lt;/em&gt; / Project slot A1",
-		"&lt;b&gt;Unsafe architecture title&lt;/b&gt;",
-		"First sentinel status",
+	for _, escaped := range []string{
+		"&lt;b&gt;Unsafe title&lt;/b&gt;",
+		"&lt;em&gt;Unsafe typology&lt;/em&gt;",
+		"&lt;script&gt;Unsafe location&lt;/script&gt;",
+		"&#34; onload=&#34;alert(1)",
 	} {
-		if !strings.Contains(firstArticle, expected) {
-			t.Errorf(
-				"first sentinel article does not contain %q",
-				expected,
-			)
-		}
-	}
-
-	secondArticle := normalizeHTMLWhitespace(articles[1])
-	for _, expected := range []string{
-		"Second sentinel architecture typology / Project slot B2",
-		"Second sentinel architecture title",
-		"&lt;script&gt;Unsafe status&lt;/script&gt;",
-	} {
-		if !strings.Contains(secondArticle, expected) {
-			t.Errorf(
-				"second sentinel article does not contain %q",
-				expected,
-			)
-		}
-	}
-
-	for _, unsafeMarkup := range []string{
-		"<b>Unsafe architecture title</b>",
-		"<em>Unsafe architecture typology</em>",
-		"<script>Unsafe status</script>",
-	} {
-		if strings.Contains(mainElement, unsafeMarkup) {
-			t.Errorf(
-				"sentinel Architecture main contains raw markup %q",
-				unsafeMarkup,
-			)
-		}
-	}
-
-	// Each sentinel route belongs to its matching article. Keeping this assertion
-	// inside the template-data test catches a future hard-coded href even when
-	// all escaped visible values still render correctly.
-	for index, item := range listing.Items {
-		expectedHref := `href="` + item.Path + `"`
-		if !strings.Contains(articles[index], expectedHref) {
-			t.Errorf(
-				"sentinel article %d does not contain %q",
-				index,
-				expectedHref,
-			)
-		}
-	}
-
-	// Production values inside the scoped main would reveal card content coded
-	// directly into HTML instead of supplied by ArchitectureProjectListing.
-	for _, productionValue := range []string{
-		"Architecture Study 01",
-		"Residential",
-		"Commercial",
-		"Cultural",
-		"Civic",
-		"Portfolio preview",
-	} {
-		if strings.Contains(normalizedMain, productionValue) {
-			t.Errorf(
-				"sentinel Architecture main contains production value %q",
-				productionValue,
-			)
+		if !strings.Contains(mainElement, escaped) {
+			t.Errorf("escaped response does not contain %q", escaped)
 		}
 	}
 }
 
-// TestArchitectureDesignTemplateHandlesEmptyListing verifies that nil and
-// allocated zero-length item slices use the same explicit empty-data branch.
-//
-// A future database can legitimately return zero published projects. The page
-// must keep its labelled work section and communicate that state without
-// emitting an empty semantic list or fabricated preview cards.
-func TestArchitectureDesignTemplateHandlesEmptyListing(t *testing.T) {
-	app := newTestApplication(t)
-
-	tests := []struct {
-		// name distinguishes the two valid zero-item slice representations.
-		name string
-		// items is the exact slice value exposed to html/template.
-		items []architectureProjectPreviewData
-	}{
-		{
-			name:  "nil items",
-			items: nil,
-		},
-		{
-			name:  "empty items",
-			items: []architectureProjectPreviewData{},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			recorder := httptest.NewRecorder()
-			emptyMessage := "<strong>No sentinel architecture is published.</strong>"
-			escapedEmptyMessage := "&lt;strong&gt;No sentinel architecture " +
-				"is published.&lt;/strong&gt;"
-
-			app.render(
-				recorder,
-				http.StatusOK,
-				"architecture-design.html",
-				pageData{
-					Title:       "Empty Architecture Design",
-					CurrentPath: "/architecture-design",
-					DisciplinePage: &disciplinePageData{
-						Number:   "02",
-						Name:     "Empty Architecture Design",
-						NextName: "Next Discipline",
-						NextPath: "/next-discipline",
-					},
-					ArchitectureProjectListing: &architectureProjectListingData{
-						Eyebrow:      "Empty eyebrow",
-						Heading:      "Empty architecture index",
-						Introduction: "Empty introduction",
-						EmptyMessage: emptyMessage,
-						Items:        test.items,
-					},
-				},
-			)
-
-			if recorder.Code != http.StatusOK {
-				t.Fatalf(
-					"status code: got %d, want %d",
-					recorder.Code,
-					http.StatusOK,
-				)
-			}
-
-			workElement := extractElementByMarker(
-				t,
-				extractMainElement(t, recorder.Body.String()),
-				`class="discipline-work"`,
-				"section",
-			)
-			workHeading := extractElementByMarker(
-				t,
-				workElement,
-				`id="selected-work-title"`,
-				"h2",
-			)
-
-			if !strings.Contains(
-				normalizeHTMLWhitespace(workHeading),
-				"Empty architecture index",
-			) {
-				t.Error(
-					"empty Architecture heading does not use view data",
-				)
-			}
-			if !strings.Contains(
-				normalizeHTMLWhitespace(workElement),
-				escapedEmptyMessage,
-			) {
-				t.Error(
-					"empty Architecture section does not escape and state its status",
-				)
-			}
-			if strings.Contains(workElement, emptyMessage) {
-				t.Error(
-					"empty Architecture section contains raw status markup",
-				)
-			}
-			if strings.Contains(
-				workElement,
-				`class="architecture-portfolio"`,
-			) {
-				t.Error(
-					"empty Architecture section must not emit an empty list",
-				)
-			}
-			if len(
-				extractArchitecturePreviewArticles(t, workElement),
-			) != 0 {
-				t.Error(
-					"empty Architecture section must not emit preview articles",
-				)
-			}
-		})
-	}
-}
-
-// TestArchitectureDesignTemplatePreservesSectionWithoutListingData protects
-// the shared aria-labelledby contract if a future handler omits the optional
-// ArchitectureProjectListing pointer.
-//
-// The production handler supplies this value. The fallback is defensive
-// presentation only: it retains a truthful h2 and status without inventing
-// records or concealing the missing handler initialization.
-func TestArchitectureDesignTemplatePreservesSectionWithoutListingData(
-	t *testing.T,
-) {
+// TestArchitectureDesignTemplatePreservesSectionWithoutListingData protects the
+// defensive labelled work section when optional page data is accidentally nil.
+func TestArchitectureDesignTemplatePreservesSectionWithoutListingData(t *testing.T) {
 	app := newTestApplication(t)
 	recorder := httptest.NewRecorder()
-
 	app.render(
 		recorder,
 		http.StatusOK,
 		"architecture-design.html",
 		pageData{
-			Title:       "Architecture fallback",
+			Title:       "Architecture Design",
 			CurrentPath: "/architecture-design",
 			DisciplinePage: &disciplinePageData{
-				Number:   "02",
-				Name:     "Architecture fallback",
-				NextName: "Next Discipline",
-				NextPath: "/next-discipline",
+				Number:   "01",
+				Name:     "Architecture Design",
+				NextName: "Architecture Design",
+				NextPath: "/architecture-design",
 			},
 		},
 	)
 
-	if recorder.Code != http.StatusOK {
-		t.Fatalf(
-			"status code: got %d, want %d",
-			recorder.Code,
-			http.StatusOK,
-		)
-	}
-
-	workElement := extractElementByMarker(
-		t,
-		extractMainElement(t, recorder.Body.String()),
-		`class="discipline-work"`,
-		"section",
-	)
-	workHeading := extractElementByMarker(
-		t,
-		workElement,
-		`id="selected-work-title"`,
-		"h2",
-	)
-
-	if !strings.Contains(
-		normalizeHTMLWhitespace(workHeading),
-		"Architecture project index",
-	) {
-		t.Error(
-			"missing ArchitectureProjectListing fallback does not preserve its h2",
-		)
-	}
-	if len(extractArchitecturePreviewArticles(t, workElement)) != 0 {
-		t.Error(
-			"missing ArchitectureProjectListing fallback must not emit articles",
-		)
+	mainElement := extractMainElement(t, recorder.Body.String())
+	work := extractElementByMarker(t, mainElement, `id="selected-work"`, "section")
+	if !strings.Contains(work, `id="selected-work-title"`) ||
+		strings.Contains(work, `class="architecture-portfolio"`) {
+		t.Error("nil listing lost its labelled section or emitted an empty list")
 	}
 }
 
-// TestArchitecturePresentationDoesNotLeak verifies page-template cache and
-// route-stylesheet isolation.
-//
-// architecture-design.html defines the same named work-block override as the
-// other discipline wrappers. Separate template sets must keep its listing
-// stylesheet and markup absent from the homepage, sibling routes, and the
-// Architecture detail route.
-func TestArchitecturePresentationDoesNotLeak(t *testing.T) {
+// TestArchitectureDesignRouteAcceptsHead verifies ServeMux's GET-to-HEAD behavior
+// keeps metadata and repository selection while the real HTTP writer suppresses
+// response bytes. ResponseRecorder alone does not model wire-level suppression.
+func TestArchitectureDesignRouteAcceptsHead(t *testing.T) {
+	reader := newRecordingArchitectureProjectCatalogueReader()
+	app := newTestApplication(t)
+	app.architectureProjects = reader
+	server := httptest.NewServer(app.routes())
+	defer server.Close()
+
+	request, err := http.NewRequest(http.MethodHead, server.URL+"/architecture-design", nil)
+	if err != nil {
+		t.Fatalf("create HEAD request: %v", err)
+	}
+	response, err := server.Client().Do(request)
+	if err != nil {
+		t.Fatalf("perform HEAD request: %v", err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read HEAD response: %v", err)
+	}
+
+	if response.StatusCode != http.StatusOK {
+		t.Errorf("HEAD status: got %d, want 200", response.StatusCode)
+	}
+	if len(body) != 0 {
+		t.Errorf("HEAD body length: got %d, want 0", len(body))
+	}
+	if response.Header.Get("Content-Type") != "text/html; charset=utf-8" {
+		t.Errorf("HEAD Content-Type: got %q", response.Header.Get("Content-Type"))
+	}
+	if calls := reader.listCallSnapshot(); len(calls) != 1 || !calls[0].HasDeadline {
+		t.Errorf("HEAD list calls: got %#v", calls)
+	}
+}
+
+// TestArchitectureDesignPresentationIsolationAndStylesheet verifies route-specific
+// CSS loads only on Architecture and its static response contains Stage 23 selectors.
+func TestArchitectureDesignPresentationIsolationAndStylesheet(t *testing.T) {
 	app := newTestApplication(t)
 	handler := app.routes()
-
-	paths := []string{
-		"/",
-		"/products",
-		"/products/furniture-study-01",
-		"/interior-design",
-		"/interior-design/interior-study-01",
-		"/architecture-design/architecture-study-01",
-	}
-
-	for _, path := range paths {
-		t.Run(path, func(t *testing.T) {
-			recorder := httptest.NewRecorder()
-			request := httptest.NewRequest(
-				http.MethodGet,
-				path,
-				nil,
-			)
-
-			handler.ServeHTTP(recorder, request)
-
-			if recorder.Code != http.StatusOK {
-				t.Fatalf(
-					"status code: got %d, want %d",
-					recorder.Code,
-					http.StatusOK,
-				)
-			}
-
-			body := recorder.Body.String()
-			if strings.Contains(
-				body,
-				`href="/static/css/architecture-design.css"`,
-			) {
-				t.Error(
-					"non-listing route loads Architecture listing stylesheet",
-				)
-			}
-			if strings.Contains(
-				body,
-				`class="architecture-portfolio"`,
-			) {
-				t.Error(
-					"non-listing route renders Architecture portfolio",
-				)
-			}
-			if len(
-				extractArchitecturePreviewArticles(t, body),
-			) != 0 {
-				t.Error(
-					"non-listing route renders an Architecture preview",
-				)
-			}
-		})
-	}
-}
-
-// TestArchitectureDesignStylesheetRoute verifies that the existing static file
-// server exposes the new route-specific stylesheet with a CSS media type.
-//
-// One stable root selector catches an empty or incorrectly mapped response while
-// allowing the detailed grid and decorative declarations to evolve after
-// responsive browser review.
-func TestArchitectureDesignStylesheetRoute(t *testing.T) {
-	app := newTestApplication(t)
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(
-		http.MethodGet,
-		"/static/css/architecture-design.css",
-		nil,
+	architecture := httptest.NewRecorder()
+	handler.ServeHTTP(
+		architecture,
+		httptest.NewRequest(http.MethodGet, "/architecture-design", nil),
 	)
-
-	app.routes().ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf(
-			"status code: got %d, want %d",
-			recorder.Code,
-			http.StatusOK,
-		)
+	if count := strings.Count(
+		architecture.Body.String(),
+		`href="/static/css/architecture-design.css"`,
+	); count != 1 {
+		t.Errorf("Architecture stylesheet count: got %d, want 1", count)
 	}
 
-	contentType := recorder.Header().Get("Content-Type")
-	if !strings.HasPrefix(contentType, "text/css") {
-		t.Errorf(
-			"Content-Type: got %q, want prefix %q",
-			contentType,
-			"text/css",
-		)
+	home := httptest.NewRecorder()
+	handler.ServeHTTP(home, httptest.NewRequest(http.MethodGet, "/", nil))
+	if strings.Contains(home.Body.String(), "architecture-design.css") ||
+		strings.Contains(home.Body.String(), `class="architecture-portfolio`) {
+		t.Error("Architecture listing presentation leaked into homepage")
 	}
 
-	if !strings.Contains(
-		recorder.Body.String(),
+	stylesheet := httptest.NewRecorder()
+	handler.ServeHTTP(
+		stylesheet,
+		httptest.NewRequest(
+			http.MethodGet,
+			"/static/css/architecture-design.css",
+			nil,
+		),
+	)
+	if stylesheet.Code != http.StatusOK {
+		t.Fatalf("stylesheet status: got %d, want 200", stylesheet.Code)
+	}
+	for _, selector := range []string{
 		".architecture-portfolio",
-	) {
-		t.Error(
-			"Architecture stylesheet does not contain its portfolio selector",
-		)
+		".architecture-preview__media--image",
+		".architecture-preview__image",
+		".architecture-portfolio__empty",
+	} {
+		if !strings.Contains(stylesheet.Body.String(), selector) {
+			t.Errorf("stylesheet does not contain %q", selector)
+		}
 	}
 }

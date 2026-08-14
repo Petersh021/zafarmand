@@ -360,16 +360,46 @@ func (app *application) interiorProjectDetailHandler(
 	)
 }
 
-// architectureDesignHandler renders the Architecture Design landing page.
+// architectureDesignHandler renders the published Architecture Design
+// portfolio.
 //
-// The handler combines the shared discipline shell with the Architecture-only
-// listing. Stage 11 maps each application-owned source record to a preview with
-// a real detail path, while final content, media, database state, and admin
-// controls remain deferred.
+// Stage 23 reads the ordered public projection through a narrow repository. A
+// new database therefore renders the truthful empty state, while Draft and
+// Archived projects never cross into the public template contract.
 func (app *application) architectureDesignHandler(
 	w http.ResponseWriter,
-	_ *http.Request,
+	r *http.Request,
 ) {
+	if app == nil || app.architectureProjects == nil {
+		log.Print("public architecture project catalogue dependency unavailable")
+		http.Error(
+			w,
+			"service temporarily unavailable",
+			http.StatusServiceUnavailable,
+		)
+
+		return
+	}
+
+	readContext, cancel := context.WithTimeout(
+		r.Context(),
+		architectureProjectCatalogueReadTimeout,
+	)
+	projects, err := app.architectureProjects.ListPublished(readContext)
+	cancel()
+	if err != nil || !isValidPublishedArchitectureProjectCatalogue(projects) {
+		// Neither driver diagnostics nor rejected stored project content should
+		// cross the public response or fixed-value application log boundary.
+		log.Print("public architecture project catalogue list failed")
+		http.Error(
+			w,
+			"service temporarily unavailable",
+			http.StatusServiceUnavailable,
+		)
+
+		return
+	}
+
 	disciplinePage := &disciplinePageData{
 		Number:   "02",
 		Name:     "Architecture Design",
@@ -377,9 +407,9 @@ func (app *application) architectureDesignHandler(
 		NextPath: "/products",
 	}
 
-	// Section copy and ordered previews travel as one Architecture-specific
-	// value. The listing and detail handler share app.architectureProjects, so
-	// card destinations and accepted lookup records cannot drift apart.
+	// Section copy and ordered preview data travel to the template as one value.
+	// The listing and detail handlers share the same published-only dependency,
+	// preventing their eligibility and numbering rules from drifting apart.
 	architectureProjectListing := &architectureProjectListingData{
 		Eyebrow: "Zafarmand architecture",
 		Heading: "Architecture project index",
@@ -387,7 +417,7 @@ func (app *application) architectureDesignHandler(
 			"cultural, and civic architecture studies.",
 		EmptyMessage: "Architecture project entries are being prepared " +
 			"for publication.",
-		Items: architectureProjectPreviews(app.architectureProjects),
+		Items: architectureProjectPreviews(projects),
 	}
 
 	app.render(
@@ -403,24 +433,56 @@ func (app *application) architectureDesignHandler(
 	)
 }
 
-// architectureProjectDetailHandler renders one temporary Architecture Design
+// architectureProjectDetailHandler renders one published Architecture Design
 // project selected by the slug captured in GET /architecture-design/{slug}.
 //
-// PathValue returns the wildcard decoded by Go's ServeMux. Looking it up in the
-// application-owned source prevents visitor input from becoming template names
-// or arbitrary page content. Unknown or differently cased slugs receive a
-// normal 404 before the detail template is executed.
+// Canonical validation happens before PostgreSQL. Unknown, Draft, Archived,
+// and differently cased slugs deliberately receive the same public 404.
 func (app *application) architectureProjectDetailHandler(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
 	slug := r.PathValue("slug")
-	project, exists := findArchitectureProjectBySlug(
-		app.architectureProjects,
+	if !isCanonicalArchitectureProjectSlug(slug) {
+		http.NotFound(w, r)
+
+		return
+	}
+	if app == nil || app.architectureProjects == nil {
+		log.Print("public architecture project catalogue dependency unavailable")
+		http.Error(
+			w,
+			"service temporarily unavailable",
+			http.StatusServiceUnavailable,
+		)
+
+		return
+	}
+
+	readContext, cancel := context.WithTimeout(
+		r.Context(),
+		architectureProjectCatalogueReadTimeout,
+	)
+	project, err := app.architectureProjects.FindPublishedBySlug(
+		readContext,
 		slug,
 	)
-	if !exists {
+	cancel()
+	if errors.Is(err, errArchitectureProjectCatalogueNotFound) {
 		http.NotFound(w, r)
+
+		return
+	}
+	if err != nil ||
+		!isValidCatalogueArchitectureProject(project) ||
+		project.Slug != slug {
+		log.Print("public architecture project catalogue detail failed")
+		http.Error(
+			w,
+			"service temporarily unavailable",
+			http.StatusServiceUnavailable,
+		)
+
 		return
 	}
 
