@@ -142,6 +142,7 @@ func newTestApplicationWithRepositories(
 		products,
 		newRecordingInteriorProjectCatalogueReader(),
 		newRecordingArchitectureProjectCatalogueReader(),
+		newRecordingSiteContentReader(),
 		inquiries,
 		adminRepository,
 		newRecordingAdminProductReader(),
@@ -150,6 +151,8 @@ func newTestApplicationWithRepositories(
 		newRecordingAdminInteriorProjectWriter(),
 		newRecordingAdminArchitectureProjectReader(),
 		newRecordingAdminArchitectureProjectWriter(),
+		newRecordingAdminSiteContentReader(),
+		newRecordingAdminSiteContentWriter(),
 		newRecordingAdminInquiryReader(),
 		newRecordingAdminInquiryStatusUpdater(),
 		passwords,
@@ -169,6 +172,7 @@ func TestNewApplicationRequiresProductCatalogueReader(t *testing.T) {
 		nil,
 		newRecordingInteriorProjectCatalogueReader(),
 		newRecordingArchitectureProjectCatalogueReader(),
+		newRecordingSiteContentReader(),
 		&recordingInquiryRepository{
 			result: inquiryCreateResultCreated,
 		},
@@ -179,6 +183,8 @@ func TestNewApplicationRequiresProductCatalogueReader(t *testing.T) {
 		newRecordingAdminInteriorProjectWriter(),
 		newRecordingAdminArchitectureProjectReader(),
 		newRecordingAdminArchitectureProjectWriter(),
+		newRecordingAdminSiteContentReader(),
+		newRecordingAdminSiteContentWriter(),
 		newRecordingAdminInquiryReader(),
 		newRecordingAdminInquiryStatusUpdater(),
 		newTestAdminPasswordManager(t),
@@ -203,6 +209,7 @@ func TestNewApplicationRequiresInteriorProjectCatalogueReader(t *testing.T) {
 		newRecordingProductCatalogueReader(),
 		nil,
 		newRecordingArchitectureProjectCatalogueReader(),
+		newRecordingSiteContentReader(),
 		&recordingInquiryRepository{
 			result: inquiryCreateResultCreated,
 		},
@@ -213,6 +220,8 @@ func TestNewApplicationRequiresInteriorProjectCatalogueReader(t *testing.T) {
 		newRecordingAdminInteriorProjectWriter(),
 		newRecordingAdminArchitectureProjectReader(),
 		newRecordingAdminArchitectureProjectWriter(),
+		newRecordingAdminSiteContentReader(),
+		newRecordingAdminSiteContentWriter(),
 		newRecordingAdminInquiryReader(),
 		newRecordingAdminInquiryStatusUpdater(),
 		newTestAdminPasswordManager(t),
@@ -236,6 +245,7 @@ func TestNewApplicationRequiresArchitectureProjectCatalogueReader(t *testing.T) 
 		newRecordingProductCatalogueReader(),
 		newRecordingInteriorProjectCatalogueReader(),
 		nil,
+		newRecordingSiteContentReader(),
 		&recordingInquiryRepository{
 			result: inquiryCreateResultCreated,
 		},
@@ -246,6 +256,8 @@ func TestNewApplicationRequiresArchitectureProjectCatalogueReader(t *testing.T) 
 		newRecordingAdminInteriorProjectWriter(),
 		newRecordingAdminArchitectureProjectReader(),
 		newRecordingAdminArchitectureProjectWriter(),
+		newRecordingAdminSiteContentReader(),
+		newRecordingAdminSiteContentWriter(),
 		newRecordingAdminInquiryReader(),
 		newRecordingAdminInquiryStatusUpdater(),
 		newTestAdminPasswordManager(t),
@@ -261,6 +273,42 @@ func TestNewApplicationRequiresArchitectureProjectCatalogueReader(t *testing.T) 
 	}
 }
 
+// TestNewApplicationRequiresSiteContentReader protects the managed Homepage,
+// Contact, feature, SEO, and exact-hero boundary. Construction fails rather
+// than mixing durable settings with stale hard-coded public copy.
+func TestNewApplicationRequiresSiteContentReader(t *testing.T) {
+	app, err := newApplication(
+		newRecordingProductCatalogueReader(),
+		newRecordingInteriorProjectCatalogueReader(),
+		newRecordingArchitectureProjectCatalogueReader(),
+		nil,
+		&recordingInquiryRepository{
+			result: inquiryCreateResultCreated,
+		},
+		newRecordingAdminRepository(),
+		newRecordingAdminProductReader(),
+		newRecordingAdminProductWriter(),
+		newRecordingAdminInteriorProjectReader(),
+		newRecordingAdminInteriorProjectWriter(),
+		newRecordingAdminArchitectureProjectReader(),
+		newRecordingAdminArchitectureProjectWriter(),
+		newRecordingAdminSiteContentReader(),
+		newRecordingAdminSiteContentWriter(),
+		newRecordingAdminInquiryReader(),
+		newRecordingAdminInquiryStatusUpdater(),
+		newTestAdminPasswordManager(t),
+	)
+	if !errors.Is(err, errSiteContentReaderRequired) {
+		t.Fatalf(
+			"nil Site content reader error: got %v, want required sentinel",
+			err,
+		)
+	}
+	if app != nil {
+		t.Error("nil Site content reader returned a usable application")
+	}
+}
+
 // TestNewApplicationRequiresInquiryRepository protects the production
 // composition boundary: a server cannot start with a Contact form that has no
 // persistence dependency.
@@ -269,6 +317,7 @@ func TestNewApplicationRequiresInquiryRepository(t *testing.T) {
 		newRecordingProductCatalogueReader(),
 		newRecordingInteriorProjectCatalogueReader(),
 		newRecordingArchitectureProjectCatalogueReader(),
+		newRecordingSiteContentReader(),
 		nil,
 		newRecordingAdminRepository(),
 		newRecordingAdminProductReader(),
@@ -277,6 +326,8 @@ func TestNewApplicationRequiresInquiryRepository(t *testing.T) {
 		newRecordingAdminInteriorProjectWriter(),
 		newRecordingAdminArchitectureProjectReader(),
 		newRecordingAdminArchitectureProjectWriter(),
+		newRecordingAdminSiteContentReader(),
+		newRecordingAdminSiteContentWriter(),
 		newRecordingAdminInquiryReader(),
 		newRecordingAdminInquiryStatusUpdater(),
 		newTestAdminPasswordManager(t),

@@ -1,4 +1,4 @@
-# Stage 13-23 database development on Windows
+# Stage 13-24 database development on Windows
 
 Stage 13 establishes an explicit PostgreSQL migration workflow. Stage 14 uses
 that foundation for the first database-backed public feature: Contact inquiry
@@ -28,6 +28,10 @@ Stage 23 adds migration 8's independent Architecture project and one-cover
 tables with the same public/private lifecycle boundary and Architecture-owned
 repositories. See the [Architecture project development
 guide](architecture-projects.md).
+Stage 24 adds migration 9's independent Homepage and Contact singletons, one
+reviewed Homepage hero, fixed featured-work references, and managed public SEO.
+Its exact schema, privacy, authorization, and verification contract is in the
+[site-content development guide](site-content.md).
 
 The boundary is intentional:
 
@@ -59,6 +63,10 @@ The boundary is intentional:
   Interior writer owns only version-guarded project and single-cover changes.
 - Separate public and protected Architecture readers repeat that explicit
   boundary for Architecture. Its writer cannot mutate Interior or Product data.
+- Separate public and protected site-content readers keep Homepage and Contact
+  settings independent from inquiry and discipline writers. The site-content
+  writer rechecks featured publication/cover eligibility and uses independent
+  Homepage and Contact optimistic versions.
 - The success page claims only that the inquiry was saved for studio review. It
   does not claim email delivery or guarantee a response time.
 
@@ -147,17 +155,21 @@ their separate one-cover tables; plus the required identity-sequence access.
 The exact Product grants are listed in [admin-products.md](admin-products.md),
 the exact Interior grants are listed in
 [interior-projects.md](interior-projects.md), and the exact Architecture grants
-are listed in [architecture-projects.md](architecture-projects.md). The runtime
-also needs `SELECT` on `public.admin_users` and `SELECT`, `INSERT`, and `UPDATE`
-on `public.admin_sessions`. The broader inquiry read is required by Stage 16's
+are listed in [architecture-projects.md](architecture-projects.md). Migration 9
+adds column-level `SELECT`/`UPDATE` on the two content singletons and narrow
+`SELECT`/`INSERT`/`UPDATE` on the Homepage hero, as listed in
+[site-content.md](site-content.md). The runtime also needs `SELECT` on
+`public.admin_users` and `SELECT`, `INSERT`, and `UPDATE` on
+`public.admin_sessions`. The broader inquiry read is required by Stage 16's
 protected list/detail, while the narrow inquiry update belongs to Stage 17.
-Stages 20–23 still need no Product, Interior-project, Architecture-project, or
-cover `DELETE` privilege and no schema ownership. Separate application
-interfaces keep inquiry and unpublished catalogue capabilities outside public
-handlers. Inquiry, Product, Interior-project, Architecture-project, and
-administrator identity sequences need only the access required by their
-existing writers. The separate administrator bootstrap
-process additionally needs `INSERT` on `public.admin_users`, but neither runtime
+Stages 20–24 still need no Product, Interior-project, Architecture-project,
+cover, or site-content `DELETE` privilege and no schema ownership. Separate
+application interfaces keep inquiry and unpublished catalogue capabilities
+outside public handlers. Inquiry, Product, Interior-project,
+Architecture-project, and administrator identity sequences need only the access
+required by their existing writers; Stage 24 adds no sequence. The separate
+administrator bootstrap process additionally needs `INSERT` on
+`public.admin_users`, but neither runtime
 should own the schema or receive migration privileges. Keep role creation and
 credentials outside this repository and follow the deployment provider's
 role-management documentation.
@@ -432,6 +444,11 @@ project and one-cover relations. Stage 23 replaces temporary Architecture
 studies with published-only public reads and protected version-guarded
 management without giving either discipline access to the other's records. See
 [architecture-projects.md](architecture-projects.md) for its exact contract.
+Migration 9 adds seeded Homepage and Contact singletons, an initially absent
+reviewed Homepage hero, three nullable discipline-owned feature references,
+independent optimistic versions, and complete managed SEO for those two public
+routes. It seeds no personal contact details, media, or portfolio records. See
+[site-content.md](site-content.md) for its exact contract and rollback order.
 
 To exercise rollback, first switch `DATABASE_URL` to a separate disposable
 database. Reconfirm the connection before doing anything destructive:
@@ -474,6 +491,9 @@ reader, protected all-state reader, version-guarded writer, and one-cover
 replacement/archive boundaries.
 Stage 23 adds the equivalent independent Architecture schema, public reader,
 protected reader/writer, normalized cover workflow, and archive boundaries.
+Stage 24 adds migration-9 singleton constraints and seeds, public managed
+Homepage/Contact reads, featured publication-and-cover filtering, exact managed
+hero visibility, and protected optimistic content writes.
 
 On the verified local Windows PostgreSQL 18 installation, the guarded helper
 can run the same acceptance cycle without persisting or printing a password:
@@ -483,7 +503,7 @@ can run the same acceptance cycle without persisting or printing a password:
 ```
 
 The helper keeps its historical Stage 14 filename and disposable database name,
-but its `Postgres` test selection runs the complete current v1-to-v8 suite,
+but its `Postgres` test selection runs the complete current v1-to-v9 suite,
 including Stage 15 admin schema/repository checks and Stage 16 inquiry reads.
 It also checks Stage 17 status updates and Stage 18's unseeded Product schema,
 published ordering, numbering, detail mapping, and non-public exclusion. Stage
@@ -491,7 +511,9 @@ published ordering, numbering, detail mapping, and non-public exclusion. Stage
 Stage 20 checks the revision-backed writer and conflict behavior; Stage 21
 checks migration-6 content and cover persistence; Stage 22 checks migration-7
 Interior constraints, ordering, publication, revisions, and cover behavior;
-Stage 23 checks the separate migration-8 Architecture lifecycle.
+Stage 23 checks the separate migration-8 Architecture lifecycle; and Stage 24
+checks migration-9 seeds, constraints, singleton reads, feature visibility,
+managed hero publication, and optimistic writes.
 
 The helper uses a visible secure password prompt, refuses to reuse a database,
 creates only `zafarmand_stage14_codex_test`, runs the opt-in integration tests
@@ -505,6 +527,8 @@ contain `public.inquiries`, `public.admin_users`, `public.admin_sessions`,
 `public.product_cover_images`, `public.products`, `public.interior_projects`,
 `public.interior_project_cover_images`, `public.schema_migrations`,
 `public.architecture_projects`, `public.architecture_project_cover_images`,
+`public.homepage_content`, `public.homepage_hero_images`,
+`public.contact_content`,
 `public.stage13_atomicity_probe`, or
 `public.stage13_intentionally_missing_table`. Then opt in with two test-only
 variables:
@@ -517,9 +541,10 @@ go test -count=1 -run 'Postgres' ./...
 
 The test never falls back to `DATABASE_URL`, verifies both the configured and
 server-reported database names, and checks every reserved relation before
-mutation. It cleans up only `public.admin_sessions`, `public.admin_users`, the
-three exact cover children before their Product, Interior, and Architecture
-parents, `public.inquiries`, `public.schema_migrations`, and its exact
+mutation. It cleans up only the Homepage hero, Contact and Homepage singletons,
+`public.admin_sessions`, `public.admin_users`, the three exact cover children
+before their Product, Interior, and Architecture parents,
+`public.inquiries`, `public.schema_migrations`, and its exact
 atomicity-probe table; the intentionally missing relation is checked but never
 dropped. Still use a database created solely for this test; the confirmation is
 a safety gate, not a backup.
@@ -544,8 +569,9 @@ The ordinary automated suite, including Stage 16 reads, Stage 17 status
 authorization, Stage 18 public Products, Stage 19 protected Product reads,
 Stage 20 Product forms/writes, Stage 21 rich-content/cover checks, Stage 22
 public/protected Interior workflow checks, and Stage 23 Architecture workflow
-checks must remain database-independent. They should pass even when PostgreSQL
-is stopped or absent:
+checks, plus Stage 24 Homepage/Contact, feature, SEO, hero, protected-form, and
+concurrency checks must remain database-independent. They should pass even when
+PostgreSQL is stopped or absent:
 
 ```powershell
 go fmt ./...
@@ -561,7 +587,7 @@ Before committing a database stage, review only intended files:
 
 ```powershell
 git status --short
-git diff -- .gitignore .gitattributes docs/development/database.md docs/development/products.md
+git diff -- .gitignore .gitattributes docs/development/database.md docs/development/site-content.md
 git diff -- migrations
 ```
 
@@ -582,6 +608,8 @@ git check-attr eol -- migrations/000007_create_interior_projects.up.sql
 git check-attr eol -- migrations/000007_create_interior_projects.down.sql
 git check-attr eol -- migrations/000008_create_architecture_projects.up.sql
 git check-attr eol -- migrations/000008_create_architecture_projects.down.sql
+git check-attr eol -- migrations/000009_create_homepage_contact_content.up.sql
+git check-attr eol -- migrations/000009_create_homepage_contact_content.down.sql
 ```
 
 The reported value should be `lf`. Use the actual migration filename if it

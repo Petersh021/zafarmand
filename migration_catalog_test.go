@@ -453,17 +453,17 @@ func TestLoadMigrationCatalogRejectsNonRegularEntries(t *testing.T) {
 }
 
 // TestEmbeddedMigrationCatalog verifies the production catalog contains the
-// inquiry table, its idempotency key, the admin-access boundary, and the first
-// Product catalogue table, edit revision, reviewed Product content/cover, and
-// the independent Interior and Architecture project/content/cover boundaries
-// with exact ordered identities and independently reversible schema changes.
+// inquiry table, its idempotency key, the admin-access boundary, the Product,
+// Interior, and Architecture content boundaries, and the independent homepage,
+// hero, and Contact content boundary with exact ordered identities and
+// independently reversible schema changes.
 func TestEmbeddedMigrationCatalog(t *testing.T) {
 	catalog, err := loadEmbeddedMigrationCatalog()
 	if err != nil {
 		t.Fatalf("load embedded migration catalog: %v", err)
 	}
-	if len(catalog) != 8 {
-		t.Fatalf("embedded catalog length: got %d, want 8", len(catalog))
+	if len(catalog) != 9 {
+		t.Fatalf("embedded catalog length: got %d, want 9", len(catalog))
 	}
 
 	initialDefinition := catalog[0]
@@ -1301,6 +1301,213 @@ ALTER TABLE public.products
 	} {
 		if strings.Contains(upperArchitectureDownSQL, forbiddenSQL) {
 			t.Errorf("Architecture-project down SQL contains forbidden %q", forbiddenSQL)
+		}
+	}
+
+	siteContentDefinition := catalog[8]
+	if siteContentDefinition.Version != 9 ||
+		siteContentDefinition.Name != "create_homepage_contact_content" {
+		t.Errorf(
+			"embedded migration identity: got %06d_%s",
+			siteContentDefinition.Version,
+			siteContentDefinition.Name,
+		)
+	}
+
+	// Version 000009 persists only the two singleton documents and the optional
+	// reviewed hero child. These fragments pin the public-copy bounds, complete
+	// SEO titles, optimistic revisions, fixed-reference delete policy, and the
+	// same reviewed-image envelope already used by discipline covers.
+	expectedSiteContentUpSQL := []string{
+		"CREATE TABLE public.homepage_content",
+		"id smallint PRIMARY KEY",
+		"studio_name text NOT NULL",
+		"descriptor text NOT NULL",
+		"managed_hero_enabled boolean NOT NULL DEFAULT false",
+		"featured_product_id bigint",
+		"featured_interior_project_id bigint",
+		"featured_architecture_project_id bigint",
+		"seo_title text NOT NULL",
+		"seo_description text NOT NULL",
+		"version bigint NOT NULL DEFAULT 1",
+		"CONSTRAINT homepage_content_singleton",
+		"CHECK (id = 1)",
+		"CONSTRAINT homepage_content_studio_name_trimmed",
+		"CONSTRAINT homepage_content_studio_name_length",
+		"CHECK (char_length(studio_name) BETWEEN 1 AND 120)",
+		"CONSTRAINT homepage_content_studio_name_single_line",
+		"CONSTRAINT homepage_content_descriptor_trimmed",
+		"CONSTRAINT homepage_content_descriptor_length",
+		"CHECK (char_length(descriptor) BETWEEN 1 AND 160)",
+		"CONSTRAINT homepage_content_descriptor_single_line",
+		"CONSTRAINT homepage_content_featured_product_id_foreign",
+		"REFERENCES public.products (id)",
+		"CONSTRAINT homepage_content_featured_interior_project_id_foreign",
+		"REFERENCES public.interior_projects (id)",
+		"CONSTRAINT homepage_content_featured_architecture_project_id_foreign",
+		"REFERENCES public.architecture_projects (id)",
+		"CONSTRAINT homepage_content_seo_title_trimmed",
+		"CONSTRAINT homepage_content_seo_title_length",
+		"CHECK (char_length(seo_title) BETWEEN 1 AND 160)",
+		"CONSTRAINT homepage_content_seo_title_single_line",
+		"CONSTRAINT homepage_content_seo_description_trimmed",
+		"CONSTRAINT homepage_content_seo_description_length",
+		"CHECK (char_length(seo_description) BETWEEN 1 AND 320)",
+		"CONSTRAINT homepage_content_seo_description_single_line",
+		"CONSTRAINT homepage_content_version_positive",
+		"CONSTRAINT homepage_content_timestamp_order",
+		"INSERT INTO public.homepage_content",
+		"'Zafarmand'",
+		"'Design Studio'",
+		"'Home | Zafarmand'",
+		"CREATE TABLE public.homepage_hero_images",
+		"homepage_content_id smallint NOT NULL",
+		"CONSTRAINT homepage_hero_images_pkey",
+		"PRIMARY KEY (homepage_content_id)",
+		"CONSTRAINT homepage_hero_images_homepage_content_id_foreign",
+		"REFERENCES public.homepage_content (id)",
+		"CONSTRAINT homepage_hero_images_version_positive",
+		"CONSTRAINT homepage_hero_images_content_type_supported",
+		"CHECK (content_type IN ('image/jpeg', 'image/png'))",
+		"CONSTRAINT homepage_hero_images_byte_size_supported",
+		"CHECK (byte_size BETWEEN 1 AND 8388608)",
+		"CONSTRAINT homepage_hero_images_content_size_matches",
+		"CHECK (octet_length(content) = byte_size)",
+		"CONSTRAINT homepage_hero_images_width_supported",
+		"CHECK (width BETWEEN 1 AND 10000)",
+		"CONSTRAINT homepage_hero_images_height_supported",
+		"CHECK (height BETWEEN 1 AND 10000)",
+		"CONSTRAINT homepage_hero_images_pixel_count_supported",
+		"CHECK ((width::bigint * height::bigint) <= 25000000)",
+		"CONSTRAINT homepage_hero_images_sha256_length",
+		"CHECK (octet_length(sha256) = 32)",
+		"CONSTRAINT homepage_hero_images_alt_text_trimmed",
+		"CONSTRAINT homepage_hero_images_alt_text_length",
+		"CHECK (char_length(alt_text) BETWEEN 1 AND 300)",
+		"CONSTRAINT homepage_hero_images_timestamp_order",
+		"CREATE TABLE public.contact_content",
+		"eyebrow text NOT NULL",
+		"heading text NOT NULL",
+		"introduction text NOT NULL",
+		"contact_email text NOT NULL DEFAULT ''",
+		"phone_display text NOT NULL DEFAULT ''",
+		"phone_e164 text NOT NULL DEFAULT ''",
+		"address text NOT NULL DEFAULT ''",
+		"CONSTRAINT contact_content_singleton",
+		"CONSTRAINT contact_content_eyebrow_trimmed",
+		"CONSTRAINT contact_content_eyebrow_length",
+		"CHECK (char_length(eyebrow) BETWEEN 1 AND 80)",
+		"CONSTRAINT contact_content_eyebrow_single_line",
+		"CONSTRAINT contact_content_heading_trimmed",
+		"CONSTRAINT contact_content_heading_length",
+		"CHECK (char_length(heading) BETWEEN 1 AND 160)",
+		"CONSTRAINT contact_content_heading_single_line",
+		"CONSTRAINT contact_content_introduction_trimmed",
+		"CONSTRAINT contact_content_introduction_length",
+		"CHECK (char_length(introduction) BETWEEN 1 AND 1200)",
+		"CONSTRAINT contact_content_email_normalized",
+		"CHECK (contact_email = lower(btrim(contact_email)))",
+		"CONSTRAINT contact_content_email_length",
+		"CHECK (char_length(contact_email) <= 254)",
+		"CONSTRAINT contact_content_email_shape",
+		"CONSTRAINT contact_content_phone_display_trimmed",
+		"CONSTRAINT contact_content_phone_display_length",
+		"CHECK (char_length(phone_display) <= 60)",
+		"CONSTRAINT contact_content_phone_display_single_line",
+		"CONSTRAINT contact_content_phone_e164_normalized",
+		"CONSTRAINT contact_content_phone_pair",
+		"btrim(phone_e164) ~ '^\\+[1-9][0-9]{7,14}$'",
+		"CONSTRAINT contact_content_address_trimmed",
+		"CONSTRAINT contact_content_address_length",
+		"CHECK (char_length(address) <= 500)",
+		"CONSTRAINT contact_content_seo_title_trimmed",
+		"CONSTRAINT contact_content_seo_title_length",
+		"CONSTRAINT contact_content_seo_title_single_line",
+		"CONSTRAINT contact_content_seo_description_trimmed",
+		"CONSTRAINT contact_content_seo_description_length",
+		"CONSTRAINT contact_content_seo_description_single_line",
+		"CONSTRAINT contact_content_version_positive",
+		"CONSTRAINT contact_content_timestamp_order",
+		"INSERT INTO public.contact_content",
+		"'Contact'",
+		"'Begin a conversation'",
+		"'Choose a discipline and share the context Zafarmand should review.'",
+		"'Contact | Zafarmand'",
+		"'Zafarmand design studio'",
+	}
+	for _, expectedSQL := range expectedSiteContentUpSQL {
+		if !strings.Contains(siteContentDefinition.UpSQL, expectedSQL) {
+			t.Errorf("site-content up SQL does not contain %q", expectedSQL)
+		}
+	}
+
+	// Exactly three relations and two singleton seed writes prevent Stage 24 from
+	// growing a second featured-items abstraction or manufacturing portfolio or
+	// image data. The three RESTRICT references preserve deliberate selections;
+	// the one CASCADE belongs only to the homepage-owned hero child.
+	upperSiteContentUpSQL := strings.ToUpper(siteContentDefinition.UpSQL)
+	if count := strings.Count(upperSiteContentUpSQL, "CREATE TABLE PUBLIC."); count != 3 {
+		t.Errorf("site-content CREATE TABLE count: got %d, want 3", count)
+	}
+	if count := strings.Count(upperSiteContentUpSQL, "INSERT INTO PUBLIC."); count != 2 {
+		t.Errorf("site-content INSERT count: got %d, want 2", count)
+	}
+	if count := strings.Count(upperSiteContentUpSQL, "ON DELETE RESTRICT"); count != 3 {
+		t.Errorf("site-content ON DELETE RESTRICT count: got %d, want 3", count)
+	}
+	if count := strings.Count(upperSiteContentUpSQL, "ON DELETE CASCADE"); count != 1 {
+		t.Errorf("site-content ON DELETE CASCADE count: got %d, want 1", count)
+	}
+	for _, forbiddenSQL := range []string{
+		"CREATE TABLE PUBLIC.HOMEPAGE_FEATURED_ITEMS",
+		"CAPTION TEXT",
+		"INSERT INTO PUBLIC.HOMEPAGE_HERO_IMAGES",
+		"INSERT INTO PUBLIC.PRODUCTS",
+		"INSERT INTO PUBLIC.INTERIOR_PROJECTS",
+		"INSERT INTO PUBLIC.ARCHITECTURE_PROJECTS",
+		"@EXAMPLE.",
+		"CREATE EXTENSION",
+	} {
+		if strings.Contains(upperSiteContentUpSQL, forbiddenSQL) {
+			t.Errorf("site-content up SQL contains forbidden %q", forbiddenSQL)
+		}
+	}
+
+	// Strict child-first rollback removes only Stage 24. Contact is independent,
+	// while the hero must precede its homepage parent because of its foreign key.
+	orderedSiteContentDownSQL := []string{
+		"DROP TABLE public.homepage_hero_images;",
+		"DROP TABLE public.contact_content;",
+		"DROP TABLE public.homepage_content;",
+	}
+	previousPosition = -1
+	for _, expectedSQL := range orderedSiteContentDownSQL {
+		position := strings.Index(siteContentDefinition.DownSQL, expectedSQL)
+		if position < 0 {
+			t.Errorf("site-content down SQL does not contain %q", expectedSQL)
+			continue
+		}
+		if position <= previousPosition {
+			t.Errorf("site-content down SQL has %q out of order", expectedSQL)
+		}
+		previousPosition = position
+	}
+	upperSiteContentDownSQL := strings.ToUpper(siteContentDefinition.DownSQL)
+	if count := strings.Count(upperSiteContentDownSQL, "DROP TABLE PUBLIC."); count != 3 {
+		t.Errorf("site-content DROP TABLE count: got %d, want 3", count)
+	}
+	for _, forbiddenSQL := range []string{
+		"CASCADE",
+		"IF EXISTS",
+		"DROP TABLE PUBLIC.PRODUCTS",
+		"DROP TABLE PUBLIC.INTERIOR_PROJECTS",
+		"DROP TABLE PUBLIC.ARCHITECTURE_PROJECTS",
+		"DROP TABLE PUBLIC.INQUIRIES",
+		"DROP TABLE PUBLIC.ADMIN_USERS",
+		"DROP TABLE PUBLIC.ADMIN_SESSIONS",
+	} {
+		if strings.Contains(upperSiteContentDownSQL, forbiddenSQL) {
+			t.Errorf("site-content down SQL contains forbidden %q", forbiddenSQL)
 		}
 	}
 }

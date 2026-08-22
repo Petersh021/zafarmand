@@ -6,6 +6,8 @@ import (
 	"log"
 	"mime"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -17,22 +19,97 @@ const (
 	// inquiryPersistenceTimeout bounds one Contact database write independently
 	// from the visitor connection and the process-wide server lifetime.
 	inquiryPersistenceTimeout = 5 * time.Second
+	// siteContentReadTimeout bounds public Homepage, Contact, and exact managed
+	// hero reads. The request remains the parent so a disconnected visitor
+	// cancels repository work sooner.
+	siteContentReadTimeout = 5 * time.Second
+	// homeFallbackHeroPath is the checked-in reviewed image used until an
+	// administrator explicitly enables a complete managed hero revision.
+	homeFallbackHeroPath = "/static/images/home-hero-placeholder.jpg"
+	// homeFallbackHeroAlt is the meaningful reviewed alternative paired with the
+	// checked-in image rather than invented database content.
+	homeFallbackHeroAlt = "Warm minimalist living room with stone walls, " +
+		"sculptural seating, and a wooden chair"
+	// homeFallbackHeroWidth and Height are the checked-in image's intrinsic
+	// dimensions and prevent layout shift before it loads.
+	homeFallbackHeroWidth  = 1536
+	homeFallbackHeroHeight = 1024
 )
 
 // homeHandler renders the public homepage for a request already matched to
 // GET / by the router.
 //
-// The request value is deliberately named "_" because this handler currently
-// needs no headers, query values, or form data from it. The pageData value is
-// the boundary between Go and the HTML template: CurrentPath controls active
-// navigation state, HomeHero supplies temporary structured hero content, and
-// HomeDisciplines supplies an ordered collection for the template to range
-// over. These view models can later be populated from a database without
-// changing their HTML contract.
+// The public reader supplies reviewed singleton copy, managed SEO, an optional
+// exact hero revision, and cover-backed features. Every database read is
+// bounded and validated before any stored value reaches HTML.
 func (app *application) homeHandler(
 	w http.ResponseWriter,
-	_ *http.Request,
+	r *http.Request,
 ) {
+	// Errors start private and non-cacheable. Only a complete successful public
+	// projection replaces this conservative policy with revalidation semantics.
+	w.Header().Set("Cache-Control", "no-store")
+	if app == nil || app.siteContent == nil {
+		log.Print("public homepage content dependency unavailable")
+		http.Error(
+			w,
+			"service temporarily unavailable",
+			http.StatusServiceUnavailable,
+		)
+
+		return
+	}
+
+	readContext, cancel := context.WithTimeout(
+		r.Context(),
+		siteContentReadTimeout,
+	)
+	defer cancel()
+	content, err := app.siteContent.ReadHomepage(readContext)
+	if err != nil || !isValidPublicHomepageContent(content) {
+		// The fixed event category excludes SQL diagnostics, stored editorial copy,
+		// selected private IDs, lifecycle state, and managed contact information.
+		log.Print("public homepage content read failed")
+		http.Error(
+			w,
+			"service temporarily unavailable",
+			http.StatusServiceUnavailable,
+		)
+
+		return
+	}
+
+	hero := &homeHeroData{
+		StudioName:  content.StudioName,
+		Descriptor:  content.Descriptor,
+		ImageURL:    homeFallbackHeroPath,
+		ImageAlt:    homeFallbackHeroAlt,
+		ImageWidth:  homeFallbackHeroWidth,
+		ImageHeight: homeFallbackHeroHeight,
+	}
+	if content.Hero != nil {
+		hero.ImageURL = homepageHeroPath(content.Hero.Version)
+		hero.ImageAlt = content.Hero.AltText
+		hero.ImageWidth = content.Hero.Width
+		hero.ImageHeight = content.Hero.Height
+	}
+
+	featured, validFeatures := homeFeaturedPageData(content.Features)
+	if !validFeatures {
+		log.Print("public homepage feature mapping failed")
+		http.Error(
+			w,
+			"service temporarily unavailable",
+			http.StatusServiceUnavailable,
+		)
+
+		return
+	}
+
+	w.Header().Set(
+		"Cache-Control",
+		"public, max-age=0, must-revalidate",
+	)
 	app.render(
 		w,
 		http.StatusOK,
@@ -40,17 +117,12 @@ func (app *application) homeHandler(
 		pageData{
 			Title:       "Home",
 			CurrentPath: "/",
-			HomeHero: &homeHeroData{
-				StudioName: "Zafarmand",
-				Descriptor: "Design Studio",
-				ImageURL: "/static/images/" +
-					"home-hero-placeholder.jpg",
-				ImageAlt: "Warm minimalist living room " +
-					"with stone walls, sculptural seating, " +
-					"and a wooden chair",
-				ImageWidth:  1536,
-				ImageHeight: 1024,
+			SEO: &seoPageData{
+				Title:         content.SEOTitle,
+				Description:   content.SEODescription,
+				CanonicalPath: "/",
 			},
+			HomeHero: hero,
 			// The order matches the desktop header and drawer navigation.
 			// These are structural route entrances, not database records.
 			HomeDisciplines: []disciplineEntranceData{
@@ -70,8 +142,63 @@ func (app *application) homeHandler(
 					Path:   "/products",
 				},
 			},
+			HomeFeatured: featured,
 		},
 	)
+}
+
+// homeFeaturedPageData translates repository disciplines into application-owned
+// labels and canonical detail/media paths. It never accepts a stored URL.
+func homeFeaturedPageData(
+	features []publicHomepageFeature,
+) ([]homeFeaturedItemData, bool) {
+	items := make([]homeFeaturedItemData, 0, len(features))
+	for _, feature := range features {
+		if !isValidHomepageFeature(feature) || feature.Cover == nil {
+			return nil, false
+		}
+
+		var discipline string
+		var detailPath string
+		var coverPath string
+		switch feature.Discipline {
+		case homepageFeatureInterior:
+			discipline = "Interior Design"
+			detailPath = interiorProjectDetailPath(feature.Slug)
+			coverPath = interiorProjectCoverPath(
+				feature.Slug,
+				feature.Cover.Version,
+			)
+		case homepageFeatureArchitecture:
+			discipline = "Architecture Design"
+			detailPath = architectureProjectDetailPath(feature.Slug)
+			coverPath = architectureProjectCoverPath(
+				feature.Slug,
+				feature.Cover.Version,
+			)
+		case homepageFeatureProduct:
+			discipline = "Products"
+			detailPath = productDetailPath(feature.Slug)
+			coverPath = productCoverPath(feature.Slug, feature.Cover.Version)
+		default:
+			return nil, false
+		}
+
+		items = append(items, homeFeaturedItemData{
+			Discipline:     discipline,
+			Title:          feature.Title,
+			Classification: feature.Classification,
+			Path:           detailPath,
+			Cover: &homeFeaturedCoverData{
+				Path:    coverPath,
+				AltText: feature.Cover.AltText,
+				Width:   feature.Cover.Width,
+				Height:  feature.Cover.Height,
+			},
+		})
+	}
+
+	return items[:len(items):len(items)], true
 }
 
 // productsHandler renders the published Products catalogue.
@@ -502,6 +629,18 @@ func (app *application) architectureProjectDetailHandler(
 	)
 }
 
+// contactPrivacyHeaders applies the Contact route's private-cache policy before
+// ServeMux dispatch. It therefore also protects method-mismatch responses that
+// never enter either registered Contact handler.
+func contactPrivacyHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/contact" {
+			w.Header().Set("Cache-Control", "no-store")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // contactHandler renders the initial Contact form for GET /contact.
 //
 // Contact responses are never cached because a validation or storage-failure
@@ -561,6 +700,7 @@ func (app *application) contactHandler(
 
 	app.renderContactPage(
 		w,
+		r,
 		http.StatusOK,
 		newContactPageData(
 			csrfToken,
@@ -678,6 +818,7 @@ func (app *application) inquirySubmissionHandler(
 	if hasInquiryFormErrors(formErrors) {
 		app.renderContactPage(
 			w,
+			r,
 			http.StatusUnprocessableEntity,
 			newContactPageData(
 				csrfToken,
@@ -729,6 +870,7 @@ func (app *application) inquirySubmissionHandler(
 		log.Print("Contact inquiry submission key conflicted")
 		app.renderContactPage(
 			w,
+			r,
 			http.StatusConflict,
 			newContactPageData(
 				csrfToken,
@@ -749,6 +891,7 @@ func (app *application) inquirySubmissionHandler(
 		log.Print("could not save Contact inquiry")
 		app.renderContactPage(
 			w,
+			r,
 			http.StatusServiceUnavailable,
 			newContactPageData(
 				csrfToken,
@@ -790,9 +933,47 @@ func (app *application) inquirySubmissionHandler(
 // states and delegates buffered HTML execution to the application's renderer.
 func (app *application) renderContactPage(
 	w http.ResponseWriter,
+	r *http.Request,
 	status int,
 	contact *contactPageData,
 ) {
+	// This helper is shared by initial, validation, conflict, and persistence-
+	// failure states, so it enforces the privacy policy independently of callers.
+	w.Header().Set("Cache-Control", "no-store")
+	if app == nil || app.siteContent == nil || r == nil || contact == nil {
+		log.Print("public Contact content dependency unavailable")
+		http.Error(
+			w,
+			"service temporarily unavailable",
+			http.StatusServiceUnavailable,
+		)
+
+		return
+	}
+
+	readContext, cancel := context.WithTimeout(
+		r.Context(),
+		siteContentReadTimeout,
+	)
+	defer cancel()
+	content, err := app.siteContent.ReadContact(readContext)
+	if err != nil || !isValidPublicContactContent(content) {
+		// No stored content, repository diagnostic, or visitor form value is logged
+		// or reflected when this dependency is unavailable.
+		log.Print("public Contact content read failed")
+		http.Error(
+			w,
+			"service temporarily unavailable",
+			http.StatusServiceUnavailable,
+		)
+
+		return
+	}
+
+	contact.Eyebrow = content.Eyebrow
+	contact.Heading = content.Heading
+	contact.Introduction = content.Introduction
+	contact.Information = contactInformationPageData(content)
 	app.render(
 		w,
 		status,
@@ -800,7 +981,35 @@ func (app *application) renderContactPage(
 		pageData{
 			Title:       "Contact",
 			CurrentPath: "/contact",
-			Contact:     contact,
+			SEO: &seoPageData{
+				Title:         content.SEOTitle,
+				Description:   content.SEODescription,
+				CanonicalPath: "/contact",
+			},
+			Contact: contact,
 		},
 	)
+}
+
+// contactInformationPageData converts optional direct studio details into the
+// semantic Contact view model. Empty content omits the whole address region.
+func contactInformationPageData(
+	content publicContactContent,
+) *contactInformationData {
+	if content.Email == "" && content.PhoneDisplay == "" &&
+		content.Address == "" {
+		return nil
+	}
+
+	information := &contactInformationData{
+		Email:        content.Email,
+		EmailHref:    url.PathEscape(content.Email),
+		PhoneDisplay: content.PhoneDisplay,
+		PhoneE164:    content.PhoneE164,
+	}
+	if content.Address != "" {
+		information.AddressLines = strings.Split(content.Address, "\n")
+	}
+
+	return information
 }

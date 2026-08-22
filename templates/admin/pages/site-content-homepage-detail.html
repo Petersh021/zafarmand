@@ -1,0 +1,87 @@
+{{/*
+This read-only view keeps managed copy and current selections separate from the
+native edit forms. Protected hero bytes use the exact revision URL supplied by
+Go; no draft media enters a public route merely because it is previewed here.
+*/}}
+{{define "admin-content"}}
+<main class="admin-site-content-detail" id="admin-main-content">
+	<a class="admin-back-link" href="/admin/site-content"><span aria-hidden="true">&larr;</span> Site content</a>
+	<a class="admin-primary-link admin-product-edit-link" href="{{.HomepageContentDetail.EditPath}}">Edit Homepage content</a>
+
+	<article class="admin-site-content-record" aria-labelledby="admin-homepage-content-title">
+		<header class="admin-product-record__header">
+			<div>
+				<p class="admin-eyebrow">Public route /</p>
+				<h1 id="admin-homepage-content-title">Homepage content</h1>
+			</div>
+			<p class="admin-site-content-record__revision">Revision {{.HomepageContentDetail.Version}}</p>
+		</header>
+
+		<section class="admin-site-content-section" aria-labelledby="admin-homepage-identity-title">
+			<h2 id="admin-homepage-identity-title">Studio identity</h2>
+			<dl class="admin-product-facts admin-site-content-facts">
+				<div><dt>Studio name</dt><dd>{{.HomepageContentDetail.StudioName}}</dd></div>
+				<div><dt>Descriptor</dt><dd>{{.HomepageContentDetail.Descriptor}}</dd></div>
+			</dl>
+		</section>
+
+		<section class="admin-site-content-section" aria-labelledby="admin-homepage-hero-title">
+			<div class="admin-site-content-section__heading">
+				<div><h2 id="admin-homepage-hero-title">Homepage hero</h2><p>{{.HomepageContentDetail.HeroSourceMessage}}</p></div>
+				<a class="admin-primary-link" href="{{.HomepageContentDetail.HeroManagementPath}}">{{if .HomepageContentDetail.Hero}}Replace managed hero{{else}}Upload managed hero{{end}}</a>
+			</div>
+			<p class="admin-product-status admin-product-status--published">Current source: {{.HomepageContentDetail.HeroSourceLabel}}</p>
+			{{with .HomepageContentDetail.Hero}}
+			<figure class="admin-site-content-hero">
+				<img src="{{.Path}}" alt="{{.AltText}}" width="{{.Width}}" height="{{.Height}}" decoding="async">
+				<figcaption>Managed hero revision {{.Version}}</figcaption>
+			</figure>
+			{{else}}
+			<p>No managed hero has been uploaded. The checked-in fallback remains available.</p>
+			{{end}}
+		</section>
+
+		<section class="admin-site-content-section" aria-labelledby="admin-homepage-features-title">
+			<h2 id="admin-homepage-features-title">Featured entrances</h2>
+			<p>Each fixed discipline slot may reference one Published record with a current reviewed cover.</p>
+			<div class="admin-site-content-features">
+				{{template "admin-homepage-feature-detail" .HomepageContentDetail.FeaturedInterior}}
+				{{template "admin-homepage-feature-detail" .HomepageContentDetail.FeaturedArchitecture}}
+				{{template "admin-homepage-feature-detail" .HomepageContentDetail.FeaturedProduct}}
+			</div>
+		</section>
+
+		<section class="admin-site-content-section" aria-labelledby="admin-homepage-seo-title">
+			<h2 id="admin-homepage-seo-title">Search metadata</h2>
+			<dl class="admin-product-facts admin-site-content-facts">
+				<div><dt>Complete title</dt><dd>{{.HomepageContentDetail.SEOTitle}}</dd></div>
+				<div><dt>Description</dt><dd>{{.HomepageContentDetail.SEODescription}}</dd></div>
+			</dl>
+		</section>
+
+		<dl class="admin-product-facts admin-site-content-facts admin-site-content-facts--audit">
+			<div><dt>Created</dt><dd><time datetime="{{.HomepageContentDetail.CreatedAtISO}}">{{.HomepageContentDetail.CreatedAtLabel}}</time></dd></div>
+			<div><dt>Last stored update</dt><dd><time datetime="{{.HomepageContentDetail.UpdatedAtISO}}">{{.HomepageContentDetail.UpdatedAtLabel}}</time></dd></div>
+		</dl>
+	</article>
+</main>
+{{end}}
+
+{{/* Every fixed slot keeps its discipline label; unavailable stored records retain their explanatory status. */}}
+{{define "admin-homepage-feature-detail"}}
+{{if .HasSelection}}
+<article class="admin-site-content-feature">
+	<p class="admin-eyebrow">{{.DisciplineLabel}} / {{.Reference}}</p>
+	<h3>{{.Title}}</h3>
+	<p>{{.Classification}} / {{.Slug}}</p>
+	<p class="admin-feature-status admin-feature-status--{{.AvailabilityClass}}">{{.AvailabilityLabel}}</p>
+	<p>{{.AvailabilityMessage}}</p>
+</article>
+{{else}}
+<article class="admin-site-content-feature admin-site-content-feature--empty">
+	<p class="admin-eyebrow">{{.DisciplineLabel}}</p>
+	<h3>{{.DisciplineLabel}} — slot not selected</h3>
+	<p>The public Homepage omits this featured entrance until an eligible record is chosen.</p>
+</article>
+{{end}}
+{{end}}

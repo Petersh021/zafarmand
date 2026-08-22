@@ -1,0 +1,94 @@
+{{/*
+Contact content is versioned independently from inquiry submissions. Empty
+direct details are honest omissions; the phone display and E.164 destination
+must be supplied or cleared together.
+*/}}
+{{define "admin-content"}}
+<main class="admin-product-form-page admin-site-content-form-page" id="admin-main-content">
+	<a class="admin-back-link" href="{{.ContactContentForm.CancelPath}}"><span aria-hidden="true">&larr;</span> Cancel and return</a>
+	<header class="admin-page-header admin-product-form-header">
+		<p class="admin-eyebrow">Contact revision {{.ContactContentForm.Version}}</p>
+		<h1>Edit Contact content</h1>
+		<p class="admin-page-header__lede">Save public introduction copy, optional direct details, and search metadata as one optimistic revision.</p>
+	</header>
+	<aside class="admin-publication-warning" aria-labelledby="admin-contact-public-warning-title">
+		<h2 id="admin-contact-public-warning-title">Immediate public change</h2>
+		<p>Saved email, phone, and address details become public and scrapeable on <strong>/contact</strong> immediately.</p>
+	</aside>
+
+	{{if .ContactContentForm.HasErrors}}
+	<section class="admin-alert admin-alert--error" aria-labelledby="admin-contact-errors-title">
+		<h2 id="admin-contact-errors-title">Check the Contact fields</h2>
+		<p>No Contact content was saved. Correct the marked fields and submit again.</p>
+		<ul>
+			{{with .ContactContentForm.Errors.Eyebrow}}<li><a href="#contact-eyebrow">{{.}}</a></li>{{end}}
+			{{with .ContactContentForm.Errors.Heading}}<li><a href="#contact-heading">{{.}}</a></li>{{end}}
+			{{with .ContactContentForm.Errors.Introduction}}<li><a href="#contact-introduction">{{.}}</a></li>{{end}}
+			{{with .ContactContentForm.Errors.ContactEmail}}<li><a href="#contact-email">{{.}}</a></li>{{end}}
+			{{with .ContactContentForm.Errors.PhoneDisplay}}<li><a href="#contact-phone-display">{{.}}</a></li>{{end}}
+			{{with .ContactContentForm.Errors.PhoneE164}}<li><a href="#contact-phone-e164">{{.}}</a></li>{{end}}
+			{{with .ContactContentForm.Errors.Address}}<li><a href="#contact-address">{{.}}</a></li>{{end}}
+			{{with .ContactContentForm.Errors.SEOTitle}}<li><a href="#contact-seo-title">{{.}}</a></li>{{end}}
+			{{with .ContactContentForm.Errors.SEODescription}}<li><a href="#contact-seo-description">{{.}}</a></li>{{end}}
+		</ul>
+	</section>
+	{{end}}
+
+	<form class="admin-product-form admin-site-content-form" action="{{.ContactContentForm.Action}}" method="post">
+		<input type="hidden" name="csrf_token" value="{{.SessionCSRFToken}}">
+		<input type="hidden" name="version" value="{{.ContactContentForm.Version}}">
+
+		<div class="admin-product-form__field">
+			<label for="contact-eyebrow">Eyebrow</label>
+			<input id="contact-eyebrow" name="eyebrow" type="text" value="{{.ContactContentForm.Values.Eyebrow}}" maxlength="80" {{if .ContactContentForm.Errors.Eyebrow}}aria-describedby="contact-eyebrow-error" aria-invalid="true"{{end}} required>
+			{{with .ContactContentForm.Errors.Eyebrow}}<p class="admin-product-form__error" id="contact-eyebrow-error">{{.}}</p>{{end}}
+		</div>
+		<div class="admin-product-form__field">
+			<label for="contact-heading">Heading</label>
+			<input id="contact-heading" name="heading" type="text" value="{{.ContactContentForm.Values.Heading}}" maxlength="160" {{if .ContactContentForm.Errors.Heading}}aria-describedby="contact-heading-error" aria-invalid="true"{{end}} required>
+			{{with .ContactContentForm.Errors.Heading}}<p class="admin-product-form__error" id="contact-heading-error">{{.}}</p>{{end}}
+		</div>
+		<div class="admin-product-form__field admin-product-form__field--wide">
+			<label for="contact-introduction">Introduction</label>
+			<textarea id="contact-introduction" name="introduction" rows="7" maxlength="1200" {{if .ContactContentForm.Errors.Introduction}}aria-describedby="contact-introduction-error" aria-invalid="true"{{end}} required>{{.ContactContentForm.Values.Introduction}}</textarea>
+			{{with .ContactContentForm.Errors.Introduction}}<p class="admin-product-form__error" id="contact-introduction-error">{{.}}</p>{{end}}
+		</div>
+		<div class="admin-product-form__field">
+			<label for="contact-email">Email <span>(optional)</span></label>
+			<p class="admin-product-form__hint" id="contact-email-hint">Use one lowercase mailbox without a display name.</p>
+			<input id="contact-email" name="contact_email" type="email" value="{{.ContactContentForm.Values.ContactEmail}}" maxlength="254" autocomplete="email" aria-describedby="contact-email-hint{{if .ContactContentForm.Errors.ContactEmail}} contact-email-error{{end}}" {{if .ContactContentForm.Errors.ContactEmail}}aria-invalid="true"{{end}}>
+			{{with .ContactContentForm.Errors.ContactEmail}}<p class="admin-product-form__error" id="contact-email-error">{{.}}</p>{{end}}
+		</div>
+		<div class="admin-product-form__field">
+			<label for="contact-phone-display">Phone display <span>(optional pair)</span></label>
+			<input id="contact-phone-display" name="phone_display" type="text" value="{{.ContactContentForm.Values.PhoneDisplay}}" maxlength="60" autocomplete="tel" {{if .ContactContentForm.Errors.PhoneDisplay}}aria-describedby="contact-phone-display-error" aria-invalid="true"{{end}}>
+			{{with .ContactContentForm.Errors.PhoneDisplay}}<p class="admin-product-form__error" id="contact-phone-display-error">{{.}}</p>{{end}}
+		</div>
+		<div class="admin-product-form__field">
+			<label for="contact-phone-e164">Phone destination <span>(optional pair)</span></label>
+			<p class="admin-product-form__hint" id="contact-phone-e164-hint">Use E.164 form: a plus sign followed by 8 to 15 digits.</p>
+			<input id="contact-phone-e164" name="phone_e164" type="tel" value="{{.ContactContentForm.Values.PhoneE164}}" maxlength="16" inputmode="tel" aria-describedby="contact-phone-e164-hint{{if .ContactContentForm.Errors.PhoneE164}} contact-phone-e164-error{{end}}" {{if .ContactContentForm.Errors.PhoneE164}}aria-invalid="true"{{end}}>
+			{{with .ContactContentForm.Errors.PhoneE164}}<p class="admin-product-form__error" id="contact-phone-e164-error">{{.}}</p>{{end}}
+		</div>
+		<div class="admin-product-form__field admin-product-form__field--wide">
+			<label for="contact-address">Address <span>(optional)</span></label>
+			<textarea id="contact-address" name="address" rows="5" maxlength="500" {{if .ContactContentForm.Errors.Address}}aria-describedby="contact-address-error" aria-invalid="true"{{end}}>{{.ContactContentForm.Values.Address}}</textarea>
+			{{with .ContactContentForm.Errors.Address}}<p class="admin-product-form__error" id="contact-address-error">{{.}}</p>{{end}}
+		</div>
+		<div class="admin-product-form__field admin-product-form__field--wide">
+			<label for="contact-seo-title">Complete SEO title</label>
+			<input id="contact-seo-title" name="seo_title" type="text" value="{{.ContactContentForm.Values.SEOTitle}}" maxlength="160" {{if .ContactContentForm.Errors.SEOTitle}}aria-describedby="contact-seo-title-error" aria-invalid="true"{{end}} required>
+			{{with .ContactContentForm.Errors.SEOTitle}}<p class="admin-product-form__error" id="contact-seo-title-error">{{.}}</p>{{end}}
+		</div>
+		<div class="admin-product-form__field admin-product-form__field--wide">
+			<label for="contact-seo-description">SEO description</label>
+			<input id="contact-seo-description" name="seo_description" type="text" value="{{.ContactContentForm.Values.SEODescription}}" maxlength="320" {{if .ContactContentForm.Errors.SEODescription}}aria-describedby="contact-seo-description-error" aria-invalid="true"{{end}} required>
+			{{with .ContactContentForm.Errors.SEODescription}}<p class="admin-product-form__error" id="contact-seo-description-error">{{.}}</p>{{end}}
+		</div>
+		<div class="admin-product-form__actions">
+			<button class="admin-status-button" type="submit">Save Contact content</button>
+			<a class="admin-secondary-link" href="{{.ContactContentForm.CancelPath}}">Cancel</a>
+		</div>
+	</form>
+</main>
+{{end}}

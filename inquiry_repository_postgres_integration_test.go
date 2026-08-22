@@ -237,7 +237,7 @@ func applyRepositoryIntegrationMigrations(t *testing.T, database *sql.DB) {
 	if err != nil {
 		t.Fatalf("load repository integration migration catalog: %v", err)
 	}
-	if len(catalog) != 8 ||
+	if len(catalog) != 9 ||
 		catalog[0].Version != 1 ||
 		catalog[1].Version != 2 ||
 		catalog[2].Version != 3 ||
@@ -245,9 +245,10 @@ func applyRepositoryIntegrationMigrations(t *testing.T, database *sql.DB) {
 		catalog[4].Version != 5 ||
 		catalog[5].Version != 6 ||
 		catalog[6].Version != 7 ||
-		catalog[7].Version != 8 {
+		catalog[7].Version != 8 ||
+		catalog[8].Version != 9 {
 		t.Fatalf(
-			"migration catalog: got %#v, want versions 1 through 8",
+			"migration catalog: got %#v, want versions 1 through 9",
 			catalog,
 		)
 	}

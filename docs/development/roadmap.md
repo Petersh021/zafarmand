@@ -40,14 +40,17 @@ so a stage number never silently changes meaning.
 | 21 | Rich Product content and reviewed single-cover-image management | Complete |
 | 22 | PostgreSQL-backed Interior projects and protected management workflow | Complete |
 | 23 | PostgreSQL-backed Architecture projects and protected management workflow | Complete |
+| 24 | Homepage, Contact information, featured-content, and SEO management | Complete |
 
 ## Remaining focused stages
 
 | Stage | Planned outcome |
 | --- | --- |
-| 24 | Homepage, Contact information, featured-content, and SEO management |
 | 25 | Security, privacy, retention, observability, backup, and operational hardening |
 | 26 | End-to-end acceptance, accessibility/performance review, and deployment |
+
+With Stage 24 complete, two focused stages remain: operational hardening in
+Stage 25 and final acceptance/deployment in Stage 26.
 
 Later stages must remain vertical. Stages 21-23 deliberately stop at one
 reviewed cover per Product, Interior project, or Architecture project instead

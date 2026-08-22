@@ -1,8 +1,8 @@
 {{/*
 The overview links to the current Product, Interior-project, Architecture-
-project, and inquiry workflows. It does not request or imply summary counts,
-because operational metrics belong to a later stage with explicit data and
-performance requirements.
+project, site-content, and inquiry workflows. It does not request or imply
+summary counts, because operational metrics belong to a later stage with
+explicit data and performance requirements.
 */}}
 {{define "admin-content"}}
 <main class="admin-dashboard" id="admin-main-content">
@@ -15,7 +15,7 @@ performance requirements.
 		<h1 id="admin-dashboard-title">Administration overview</h1>
 
 		<p class="admin-dashboard__lede">
-			Create and review Product, Interior-project, and Architecture-project publication records, and review messages received through the public Contact form.
+			Create and review publication records, manage Homepage and Contact presentation, and review messages received through the public Contact form.
 		</p>
 
 		<div class="admin-dashboard__actions">
@@ -30,6 +30,14 @@ performance requirements.
 			{{/* This independent workspace never relies on JavaScript routing. */}}
 			<a class="admin-secondary-link" href="/admin/architecture-projects">
 				Open Architecture portfolio
+			</a>
+
+			{{/*
+			Site content is a real server-rendered workspace for Homepage identity,
+			featured selections, direct Contact information, and managed metadata.
+			*/}}
+			<a class="admin-secondary-link" href="/admin/site-content">
+				Open site content
 			</a>
 
 			<a class="admin-secondary-link" href="/admin/inquiries">
@@ -57,7 +65,7 @@ performance requirements.
 
 			<div>
 				<dt>Available tools</dt>
-				<dd>Product, Interior-project, and Architecture-project management; inquiry review and status management</dd>
+				<dd>Product, Interior-project, Architecture-project, and site-content management; inquiry review and status management</dd>
 			</div>
 		</dl>
 	</section>

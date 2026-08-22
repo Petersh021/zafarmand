@@ -237,9 +237,10 @@ func newContactPageData(
 	showSubmissionOutcome := !hasErrors
 
 	return &contactPageData{
-		Eyebrow:      "Contact",
-		Heading:      "Begin a conversation",
-		Introduction: "Choose a discipline and share the context Zafarmand should review.",
+		// Eyebrow, Heading, Introduction, and optional direct information are
+		// supplied from the mandatory managed Contact singleton immediately before
+		// rendering. Keeping them out of this inquiry-state constructor prevents a
+		// validation response from silently reverting to hard-coded public copy.
 		AvailabilityNotice: "Submitting this form stores your inquiry for " +
 			"studio review. It does not guarantee email delivery or a response " +
 			"time.",

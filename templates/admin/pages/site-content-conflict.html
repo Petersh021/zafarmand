@@ -1,0 +1,19 @@
+{{/*
+The conflict response deliberately echoes neither the submitted form nor the
+newer stored singleton. A fresh GET retrieves current values and a current
+revision before the administrator decides whether to apply the change again.
+*/}}
+{{define "admin-content"}}
+<main class="admin-product-conflict admin-site-content-conflict" id="admin-main-content">
+	<section class="admin-conflict-panel" aria-labelledby="admin-site-content-conflict-title">
+		<p class="admin-eyebrow">Site content was not saved</p>
+		<h1 id="admin-site-content-conflict-title">{{.SiteContentConflict.Heading}}</h1>
+		<p>Your form used an older revision, so Zafarmand did not overwrite newer managed content.</p>
+		<p>{{.SiteContentConflict.Guidance}}</p>
+		<div class="admin-product-form__actions">
+			<a class="admin-primary-link" href="{{.SiteContentConflict.EditPath}}">{{.SiteContentConflict.ActionLabel}}</a>
+			<a class="admin-secondary-link" href="{{.SiteContentConflict.DetailPath}}">View current content</a>
+		</div>
+	</section>
+</main>
+{{end}}

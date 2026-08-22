@@ -77,6 +77,7 @@ func TestNewApplicationRejectsInvalidDummyVerifier(t *testing.T) {
 				newRecordingProductCatalogueReader(),
 				newRecordingInteriorProjectCatalogueReader(),
 				newRecordingArchitectureProjectCatalogueReader(),
+				newRecordingSiteContentReader(),
 				&recordingInquiryRepository{
 					result: inquiryCreateResultCreated,
 				},
@@ -87,6 +88,8 @@ func TestNewApplicationRejectsInvalidDummyVerifier(t *testing.T) {
 				newRecordingAdminInteriorProjectWriter(),
 				newRecordingAdminArchitectureProjectReader(),
 				newRecordingAdminArchitectureProjectWriter(),
+				newRecordingAdminSiteContentReader(),
+				newRecordingAdminSiteContentWriter(),
 				newRecordingAdminInquiryReader(),
 				newRecordingAdminInquiryStatusUpdater(),
 				test.manager,

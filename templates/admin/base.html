@@ -99,6 +99,21 @@ from the response sent to the browser.
 						</a>
 					</li>
 
+					{{/*
+					Site content groups the versioned Homepage and Contact presentation
+					settings behind one protected workspace. Its independent active-path
+					value keeps this editorial authority separate from discipline records.
+					*/}}
+					<li>
+						<a
+							class="admin-nav__link{{if eq $.NavigationPath "/admin/site-content"}} admin-nav__link--active{{end}}"
+							href="/admin/site-content"
+							{{if eq $.NavigationPath "/admin/site-content"}}aria-current="page"{{end}}
+						>
+							Site content
+						</a>
+					</li>
+
 					<li>
 						<a
 							class="admin-nav__link{{if eq $.NavigationPath "/admin/inquiries"}} admin-nav__link--active{{end}}"

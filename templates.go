@@ -35,6 +35,9 @@ type application struct {
 	// Its discipline-specific interface prevents Interior and Architecture
 	// publication rules from becoming coupled through one generic repository.
 	architectureProjects architectureProjectCatalogueReader
+	// siteContent is the public-only Homepage, Contact, and exact managed-hero
+	// boundary. Its projections exclude private feature selections and versions.
+	siteContent siteContentReader
 	// inquiries is the narrow write dependency used only by the public Contact
 	// submission handler. Production supplies PostgreSQL, while tests can inject
 	// a recording implementation without opening a database connection.
@@ -61,6 +64,12 @@ type application struct {
 	// adminArchitectureProjectWrites owns Architecture create, optimistic edit,
 	// and single-cover mutations. It deliberately exposes no delete operation.
 	adminArchitectureProjectWrites adminArchitectureProjectWriter
+	// adminSiteContent provides protected reads for the Homepage and Contact
+	// singletons, feature candidates, and exact managed-hero previews.
+	adminSiteContent adminSiteContentReader
+	// adminSiteContentWrites owns optimistic Homepage, Contact, and hero changes.
+	// Its separation from the reader keeps private mutation authority explicit.
+	adminSiteContentWrites adminSiteContentWriter
 	// adminInquiries is the read-only personal-data boundary used by the private
 	// inquiry inbox. It remains separate from the public Contact write interface.
 	adminInquiries adminInquiryReader
@@ -90,6 +99,11 @@ type application struct {
 // Application construction errors identify missing runtime dependencies before
 // the HTTP server begins accepting requests.
 var (
+	// errSiteContentReaderRequired prevents public managed pages from starting
+	// with hard-coded content after Stage 24 makes their singleton rows durable.
+	errSiteContentReaderRequired = errors.New(
+		"create application: site content reader is required",
+	)
 	// errInquiryRepositoryRequired prevents a valid-looking application from
 	// silently accepting Contact submissions that cannot be persisted.
 	errInquiryRepositoryRequired = errors.New(
@@ -100,7 +114,8 @@ var (
 // homeHeroData describes the content and media needed by the homepage hero.
 //
 // This view model is intentionally about template needs rather than database
-// storage. A future persistence model can be translated into this stable shape.
+// storage. The handler maps either managed metadata or the checked-in fallback
+// into the same stable shape.
 type homeHeroData struct {
 	// StudioName is the primary identity displayed as the hero heading.
 	StudioName string
@@ -116,12 +131,53 @@ type homeHeroData struct {
 	ImageHeight int
 }
 
+// seoPageData contains exact managed metadata for one public document. The
+// canonical path is application-owned and never derived from a request Host or
+// administrator-authored absolute URL.
+type seoPageData struct {
+	// Title is the complete document title emitted without another brand suffix.
+	Title string
+	// Description is the exact content of the page's description meta element.
+	Description string
+	// CanonicalPath is the registered relative route represented by the response.
+	CanonicalPath string
+}
+
+// homeFeaturedCoverData is the binary-free meaningful image contract for one
+// published Homepage feature card.
+type homeFeaturedCoverData struct {
+	// Path is the discipline-owned exact current cover URL.
+	Path string
+	// AltText is the reviewed meaningful alternative supplied with that cover.
+	AltText string
+	// Width and Height reserve the reviewed image's intrinsic aspect ratio.
+	Width  int
+	Height int
+}
+
+// homeFeaturedItemData is the complete public presentation shape for one of the
+// three fixed discipline feature slots.
+type homeFeaturedItemData struct {
+	// Discipline is the application-owned visible category label.
+	Discipline string
+	// Title is the published Product name or project title.
+	Title string
+	// Classification is the Product category or project typology.
+	Classification string
+	// Path is the existing canonical server-rendered detail route.
+	Path string
+	// Cover is required by the repository-backed mapping. The template retains a
+	// defensive nil treatment so an incomplete future caller cannot emit a broken
+	// meaningful image.
+	Cover *homeFeaturedCoverData
+}
+
 // disciplineEntranceData is the small view model needed by one homepage
 // discipline link.
 //
-// It deliberately contains presentation data only. Future Product or Project
-// database records can be mapped into this shape without coupling the homepage
-// template to persistence fields such as IDs, publication status, or slugs.
+// It deliberately contains fixed presentation and route data only. Featured
+// database records use a separate cover-backed view, so this structural index
+// never couples itself to IDs, publication status, or slugs.
 type disciplineEntranceData struct {
 	// Number is a decorative editorial sequence displayed beside the link.
 	Number string
@@ -398,9 +454,9 @@ type publicArchitectureProjectCoverPageData struct {
 // contactPageData is the complete presentation contract for the public Contact
 // page and its persisted-submission states.
 //
-// The page still receives display-ready form values rather than a database row.
-// Persistence remains behind inquiryRepository, so templates cannot acquire a
-// direct dependency on PostgreSQL or accidentally expose internal record data.
+// The page receives display-ready inquiry state and a separately mapped optional
+// information view rather than either database row. Templates therefore cannot
+// acquire PostgreSQL authority or expose revisions and internal identities.
 type contactPageData struct {
 	// Eyebrow is the short interface label displayed above the primary heading.
 	Eyebrow string
@@ -408,6 +464,9 @@ type contactPageData struct {
 	Heading string
 	// Introduction explains what information the structural form requests.
 	Introduction string
+	// Information contains optional direct studio details, or nil while the
+	// inquiry form remains the only truthful contact channel.
+	Information *contactInformationData
 	// AvailabilityNotice explains exactly what submitting the form does and does
 	// not promise email delivery or a response time.
 	AvailabilityNotice string
@@ -446,6 +505,24 @@ type contactPageData struct {
 	// MessageMaxLength supplies the browser's maxlength hint; Go remains the
 	// authoritative boundary for normalized Unicode text.
 	MessageMaxLength int
+}
+
+// contactInformationData contains display-ready optional studio details. The
+// application derives the URI address component while the template owns the
+// literal schemes, so no trusted-HTML or trusted-URL bypass is needed.
+type contactInformationData struct {
+	// Email is the normalized public mailbox used as visible text.
+	Email string
+	// EmailHref is the percent-escaped address component placed after the
+	// template-owned mailto scheme. Keeping it separate prevents mailbox
+	// punctuation from becoming a URI query, fragment, or escape sequence.
+	EmailHref string
+	// PhoneDisplay is the human-readable telephone label.
+	PhoneDisplay string
+	// PhoneE164 is the canonical value placed after the literal tel scheme.
+	PhoneE164 string
+	// AddressLines are reviewed visible lines rendered inside an address element.
+	AddressLines []string
 }
 
 // inquiryFormData contains only the four visitor-editable values accepted by
@@ -494,16 +571,23 @@ type inquiryDisciplineOptionData struct {
 // entries, while a nil or empty slice renders no discipline section. The route-
 // specific pointers below follow the same optional-data pattern.
 type pageData struct {
-	// Title becomes the page-specific portion of the browser document title.
+	// Title becomes the page-specific portion of the fallback browser title.
+	// SEO.Title replaces it verbatim on the two Stage 24 managed routes.
 	Title string
 	// CurrentPath is the real canonical URL represented by the response.
 	CurrentPath string
 	// NavigationPath optionally identifies a parent route for active navigation.
 	NavigationPath string
+	// SEO contains exact managed metadata for Home and Contact. Nil preserves the
+	// existing fixed metadata behavior on routes outside Stage 24.
+	SEO *seoPageData
 	// HomeHero contains homepage-only content, or nil for other pages.
 	HomeHero *homeHeroData
 	// HomeDisciplines contains the ordered homepage route entrances.
 	HomeDisciplines []disciplineEntranceData
+	// HomeFeatured contains zero to three published, cover-backed items in fixed
+	// discipline order.
+	HomeFeatured []homeFeaturedItemData
 	// DisciplinePage contains shared landing data, or nil for non-discipline pages.
 	DisciplinePage *disciplinePageData
 	// ProductListing contains catalogue data only for the Products route.
@@ -532,6 +616,7 @@ func newApplication(
 	products productCatalogueReader,
 	interiorProjects interiorProjectCatalogueReader,
 	architectureProjects architectureProjectCatalogueReader,
+	siteContent siteContentReader,
 	inquiries inquiryRepository,
 	admins adminRepository,
 	adminProducts adminProductReader,
@@ -540,6 +625,8 @@ func newApplication(
 	adminInteriorProjectWrites adminInteriorProjectWriter,
 	adminArchitectureProjects adminArchitectureProjectReader,
 	adminArchitectureProjectWrites adminArchitectureProjectWriter,
+	adminSiteContent adminSiteContentReader,
+	adminSiteContentWrites adminSiteContentWriter,
 	adminInquiries adminInquiryReader,
 	adminInquiryStatuses adminInquiryStatusUpdater,
 	passwords adminPasswordManager,
@@ -552,6 +639,9 @@ func newApplication(
 	}
 	if architectureProjects == nil {
 		return nil, errArchitectureProjectCatalogueReaderRequired
+	}
+	if siteContent == nil {
+		return nil, errSiteContentReaderRequired
 	}
 	if inquiries == nil {
 		return nil, errInquiryRepositoryRequired
@@ -576,6 +666,12 @@ func newApplication(
 	}
 	if adminArchitectureProjectWrites == nil {
 		return nil, errAdminArchitectureProjectWriterRequired
+	}
+	if adminSiteContent == nil {
+		return nil, errAdminSiteContentReaderRequired
+	}
+	if adminSiteContentWrites == nil {
+		return nil, errAdminSiteContentWriterRequired
 	}
 	if adminInquiries == nil {
 		return nil, errAdminInquiryReaderRequired
@@ -630,6 +726,7 @@ func newApplication(
 		products:                       products,
 		interiorProjects:               interiorProjects,
 		architectureProjects:           architectureProjects,
+		siteContent:                    siteContent,
 		inquiries:                      inquiries,
 		inquirySuccess:                 inquirySuccess,
 		admins:                         admins,
@@ -639,6 +736,8 @@ func newApplication(
 		adminInteriorProjectWrites:     adminInteriorProjectWrites,
 		adminArchitectureProjects:      adminArchitectureProjects,
 		adminArchitectureProjectWrites: adminArchitectureProjectWrites,
+		adminSiteContent:               adminSiteContent,
+		adminSiteContentWrites:         adminSiteContentWrites,
 		adminInquiries:                 adminInquiries,
 		adminInquiryStatuses:           adminInquiryStatuses,
 		adminPasswords:                 passwords,

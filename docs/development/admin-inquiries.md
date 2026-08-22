@@ -14,12 +14,14 @@ write before the browser returns to the canonical detail page.
 
 This guide supplements the [administrator access guide](admin-access.md) and
 the [database development guide](database.md). Stage 15 authentication must be
-working, and the current migrations 1 through 8 must already be applied before
-starting the Stage 23 server. Migrations 4–6 belong to Products, migration 7
-belongs to Interior projects, and migration 8 belongs to Architecture projects;
-none changes inquiry behavior. Their separate boundaries are documented in
+working, and the current migrations 1 through 9 must already be applied before
+starting the Stage 24 server. Migrations 4–6 belong to Products, migration 7
+belongs to Interior projects, migration 8 belongs to Architecture projects,
+and migration 9 belongs to global site content; none changes inquiry behavior.
+Their separate boundaries are documented in
 [products.md](products.md), [interior-projects.md](interior-projects.md), and
-[architecture-projects.md](architecture-projects.md).
+[architecture-projects.md](architecture-projects.md), with migration 9 in
+[site-content.md](site-content.md).
 
 ## Exact route scope
 
@@ -284,11 +286,12 @@ reach a parameterized query.
 Stages 16 and 17 did not alter an inquiry table, constraint, or index. Stage 17
 reuses the existing `status`, `updated_at`, and
 `inquiries_status_supported` constraint; no empty inquiry migration should be
-created merely to mark an application-code stage. In the current Stage 23
-project, `go run . migrate status` should report versions 1 through 8 because
+created merely to mark an application-code stage. In the current Stage 24
+project, `go run . migrate status` should report versions 1 through 9 because
 migrations 4–6 independently add Product storage, revision, and content/cover
 storage, migration 7 adds separate Interior-project storage, and migration 8
-adds separate Architecture-project storage. None changes the inquiry schema.
+adds separate Architecture-project storage. Migration 9 adds independent
+Homepage and Contact presentation storage. None changes the inquiry schema.
 
 The least-privilege runtime PostgreSQL role does need one deliberate grant
 change: it must be able to `SELECT` the columns required from
@@ -308,7 +311,7 @@ Use a local or disposable development database and an intentionally fictional
 Contact submission. Never copy a real visitor's name, email, message, token, or
 database row into a terminal transcript, screenshot, chat, issue, or test.
 
-1. Confirm migrations 1 through 8 are applied with `go run . migrate status`.
+1. Confirm migrations 1 through 9 are applied with `go run . migrate status`.
 2. Start the application with the local runtime `DATABASE_URL` and sign in as a
    local test owner or editor.
 3. In another private browser context, submit a Contact form using unmistakably
@@ -376,10 +379,10 @@ key.
 The opt-in PostgreSQL suite described in [database.md](database.md) additionally
 checks the real list, detail, and conditional status statements, descending
 page boundaries, field mapping, missing records, timestamp behavior, and
-repository construction. It now tests the complete migration 1-to-8 cycle;
+repository construction. It now tests the complete migration 1-to-9 cycle;
 Stage 17 still has no schema migration, migrations 4–6 belong to Products,
 migration 7 belongs to Interior projects, and migration 8 belongs to
-Architecture projects.
+Architecture projects. Migration 9 belongs to global site content.
 
 ## Explicitly deferred work
 

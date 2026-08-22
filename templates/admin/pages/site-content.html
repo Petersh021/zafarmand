@@ -1,0 +1,32 @@
+{{/*
+The settings overview contains only fixed protected links. Homepage and Contact
+remain independent versioned documents, so editing one can never overwrite or
+implicitly publish the other.
+*/}}
+{{define "admin-content"}}
+<main class="admin-site-content" id="admin-main-content">
+	<header class="admin-page-header admin-site-content__header">
+		<p class="admin-eyebrow">Global presentation</p>
+		<h1>Site content</h1>
+		<p class="admin-page-header__lede">
+			Manage the small set of reviewed Homepage and Contact values that do not belong to an individual portfolio record.
+		</p>
+	</header>
+
+	<div class="admin-site-content__cards">
+		<article class="admin-site-content-card">
+			<p class="admin-eyebrow">Public route /</p>
+			<h2>Homepage</h2>
+			<p>Review studio identity, hero source, three fixed featured slots, and complete search metadata.</p>
+			<a class="admin-primary-link" href="{{.SiteContentOverview.HomepagePath}}">Open Homepage settings</a>
+		</article>
+
+		<article class="admin-site-content-card">
+			<p class="admin-eyebrow">Public route /contact</p>
+			<h2>Contact</h2>
+			<p>Review introduction copy, optional direct contact details, address, and complete search metadata.</p>
+			<a class="admin-primary-link" href="{{.SiteContentOverview.ContactPath}}">Open Contact settings</a>
+		</article>
+	</div>
+</main>
+{{end}}

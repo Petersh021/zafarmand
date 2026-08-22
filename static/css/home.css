@@ -3,8 +3,8 @@
 
    The homepage is intentionally a full-bleed visual composition rather than an
    inner .page shell. Its image is real semantic HTML, not a CSS background, so
-   the template can provide alternative text and intrinsic dimensions now and
-   database-managed media later.
+   the template can provide alternative text and intrinsic dimensions for both
+   the checked-in fallback and the current database-managed hero.
 -------------------------------------------------- */
 
 /*
@@ -54,8 +54,8 @@
 /*
  * The image is the bottom layer. object-fit:cover preserves its aspect ratio
  * while filling the viewport; unavoidable excess is cropped instead of
- * stretched. The filters integrate the temporary source into the warm, subdued
- * palette and improve light-text contrast without editing the original asset.
+ * stretched. The filters integrate either reviewed source into the warm,
+ * subdued palette and improve light-text contrast without editing image bytes.
  */
 .home-hero__image {
 	z-index: 0;
@@ -376,18 +376,220 @@
 }
 
 /* --------------------------------------------------
+   Stage 24: Published Homepage features
+
+   The grid appears only when PostgreSQL returns one or more selected records
+   that remain Published and own a current reviewed cover. It uses existing
+   detail and media routes and introduces no carousel or JavaScript state.
+-------------------------------------------------- */
+
+/*
+ * A dark surface separates selected work from the light discipline index while
+ * retaining the site's established palette. Fluid padding and a width cap keep
+ * the composition useful from small phones through ultrawide screens.
+ */
+.home-featured {
+	padding:
+		clamp(4rem, 8vw, 8rem)
+		var(--page-gutter)
+		clamp(5rem, 10vw, 10rem);
+	background: var(--color-background);
+	color: var(--color-text);
+}
+
+.home-featured__inner {
+	width: min(100%, 100rem);
+	margin-inline: auto;
+}
+
+/* The section label and heading share a readable editorial measure. */
+.home-featured__header {
+	max-width: 62rem;
+	margin-bottom: clamp(2rem, 5vw, 4.5rem);
+}
+
+.home-featured__eyebrow {
+	margin: 0 0 1rem;
+	color: var(--color-muted);
+	font-family: var(--font-interface);
+	font-size: var(--font-size-xs);
+	letter-spacing: 0.24em;
+	line-height: 1.4;
+	text-transform: uppercase;
+}
+
+.home-featured__title {
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: clamp(2.8rem, 6vw, 6.5rem);
+	font-weight: 400;
+	letter-spacing: -0.045em;
+	line-height: 0.94;
+	text-wrap: balance;
+}
+
+/*
+ * Three explicit tracks match the three fixed editorial slots. Keeping empty
+ * tracks prevents one or two eligible cards from stretching into oversized
+ * posters on wide screens; the reviewed breakpoints reduce the track count as
+ * the available measure narrows.
+ */
+.home-featured__list {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: clamp(1.5rem, 3vw, 3rem);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.home-featured__item,
+.home-feature,
+.home-feature__link {
+	min-width: 0;
+}
+
+/* One full-card anchor provides a large target without nested controls. */
+.home-feature__link {
+	display: grid;
+	color: inherit;
+	text-decoration: none;
+}
+
+/*
+ * The media frame keeps cards aligned even when source images have different
+ * aspect ratios. overflow:hidden clips the subtle image-only hover treatment.
+ */
+.home-feature__media {
+	position: relative;
+	min-height: 18rem;
+	overflow: hidden;
+	aspect-ratio: 4 / 5;
+	background: #24211c;
+}
+
+.home-feature__image,
+.home-feature__fallback {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+.home-feature__image {
+	object-fit: cover;
+	transition:
+		filter var(--duration-medium) var(--ease-standard),
+		transform var(--duration-medium) var(--ease-standard);
+}
+
+/* The unreachable defensive fallback has no image semantics or text claim. */
+.home-feature__fallback {
+	background:
+		linear-gradient(135deg, rgba(255, 255, 255, 0.06), transparent),
+		#24211c;
+}
+
+.home-feature__content {
+	display: grid;
+	gap: 0.5rem;
+	padding: 1.25rem 0 0;
+}
+
+.home-feature__discipline,
+.home-feature__classification {
+	margin: 0;
+	font-family: var(--font-interface);
+	font-size: 0.72rem;
+	letter-spacing: 0.16em;
+	line-height: 1.5;
+	text-transform: uppercase;
+}
+
+.home-feature__discipline {
+	color: var(--color-muted);
+}
+
+.home-feature__title {
+	margin: 0.15rem 0;
+	font-family: var(--font-display);
+	font-size: clamp(1.9rem, 3vw, 3.25rem);
+	font-weight: 400;
+	line-height: 1;
+	overflow-wrap: anywhere;
+}
+
+.home-feature__classification {
+	color: var(--color-muted);
+}
+
+/* Pointer and keyboard states strengthen both media and card boundary. */
+.home-feature__link:hover .home-feature__image,
+.home-feature__link:focus-visible .home-feature__image {
+	filter: brightness(0.86);
+	transform: scale(1.025);
+}
+
+.home-feature__link:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 0.35rem;
+}
+
+/* Tablet widths retain useful card measures in a two-column editorial grid. */
+@media (max-width: 64rem) {
+	.home-featured__list {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+/* Small phones use one column and reduce the media height floor. */
+@media (max-width: 36rem) {
+	.home-featured {
+		padding-inline: 1rem;
+	}
+
+	.home-featured__list {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.home-feature__media {
+		min-height: 14rem;
+	}
+}
+
+/* Higher contrast removes muted-copy transparency and strengthens focus. */
+@media (prefers-contrast: more) {
+	.home-featured__eyebrow,
+	.home-feature__discipline,
+	.home-feature__classification {
+		color: var(--color-text);
+	}
+}
+
+/* Reduced motion retains visible focus and hover contrast without zooming. */
+@media (prefers-reduced-motion: reduce) {
+	.home-feature__image {
+		transition: none;
+	}
+
+	.home-feature__link:hover .home-feature__image,
+	.home-feature__link:focus-visible .home-feature__image {
+		transform: none;
+	}
+}
+
+/* --------------------------------------------------
    Stage 4B: Homepage discipline entrances
 
    The supplied discipline screenshots contain interface text and another
    studio identity, so this stage uses an honest typographic index instead of
-   pretending those screenshots are clean project media. Each row is a real
-   route entrance generated from temporary Go data.
+   pretending those screenshots are clean project media. Each row is a fixed
+   structural route entrance owned by the application.
 -------------------------------------------------- */
 
 /*
  * Page-specific custom properties keep this light editorial surface independent
  * from the dark global palette. scroll-margin-top reserves room for the fixed
- * header when a future scroll cue or a copied #disciplines URL targets it.
+ * header when the hero scroll cue or a copied #disciplines URL targets it.
  */
 .home-disciplines {
 	--discipline-surface: #e8e3d9;

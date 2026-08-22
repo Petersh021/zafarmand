@@ -1,7 +1,7 @@
 {{/*
 The Contact page is a separate template-cache entry discovered by the existing
-templates/pages glob. Stage 14 keeps the secure Stage 12 form boundary and adds
-truthful PostgreSQL persistence through Post/Redirect/Get.
+templates/pages glob. Stage 24 retains the secure persisted inquiry boundary
+while adding reviewed public studio information and managed SEO.
 */}}
 
 {{/*
@@ -39,8 +39,9 @@ page composition is withheld when that optional view model is absent.
 	<div class="contact-page__layout">
 		{{/*
 		The dark introduction contains the page's single h1 and truthful
-		interface guidance. No address, telephone number, email address, response
-		time, office location, or social destination is invented for this stage.
+		interface guidance. Optional direct details appear only after an
+		authenticated administrator supplies reviewed values; no response time,
+		office claim, or social destination is invented.
 		*/}}
 		<section
 			class="contact-page__intro"
@@ -58,10 +59,72 @@ page composition is withheld when that optional view model is absent.
 					{{.Heading}}
 				</h1>
 
-				<p class="contact-page__introduction">
-					{{.Introduction}}
-				</p>
+				{{/*
+				Keeping the action inline with its tags prevents template indentation
+				from becoming visible when CSS preserves administrator-authored line
+				breaks and spacing.
+				*/}}
+				<p class="contact-page__introduction">{{.Introduction}}</p>
 			</div>
+
+			{{/*
+			Information is nil when the inquiry form is the only public contact
+			channel. Literal schemes keep the dynamic values in their narrow email
+			and telephone components, where html/template escapes them without a
+			trusted-URL bypass.
+			*/}}
+			{{with .Information}}
+			<address
+				class="contact-page__details"
+				aria-label="Studio contact information"
+			>
+				<ul class="contact-page__details-list">
+					{{if .Email}}
+					<li class="contact-page__detail">
+						<span class="contact-page__detail-label">
+							Email
+						</span>
+
+						<a
+							class="contact-page__detail-link"
+							href="mailto:{{.EmailHref}}"
+						>
+							{{.Email}}
+						</a>
+					</li>
+					{{end}}
+
+					{{if .PhoneDisplay}}
+					<li class="contact-page__detail">
+						<span class="contact-page__detail-label">
+							Telephone
+						</span>
+
+						<a
+							class="contact-page__detail-link"
+							href="tel:{{.PhoneE164}}"
+						>
+							{{.PhoneDisplay}}
+						</a>
+					</li>
+					{{end}}
+
+					{{with .AddressLines}}
+					<li class="contact-page__detail">
+						<span class="contact-page__detail-label">
+							Address
+						</span>
+
+						<p class="contact-page__address">
+							{{range .}}
+							<span>{{.}}</span>
+							{{end}}
+						</p>
+					</li>
+					{{end}}
+				</ul>
+			</address>
+			{{end}}
 
 			{{/*
 			This notice remains visible beside the form at every responsive state. It

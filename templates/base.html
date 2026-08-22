@@ -29,24 +29,41 @@ sent to the browser.
 
 	{{/*
 	theme-color gives supporting browsers a color for surrounding browser UI.
-	The description is currently site-wide; a later SEO stage can pass a
-	page-specific description through pageData.
 	*/}}
 	<meta
 		name="theme-color"
 		content="#171511"
 	>
 
+	{{/*
+	Home and Contact receive exact managed SEO values. CanonicalPath is always an
+	application-owned relative route, never a request Host or an administrator-
+	authored URL. html/template contextually escapes every dynamic value.
+
+	Routes outside Stage 24 retain the established fixed description and title
+	suffix. This conditional therefore does not silently change catalogue or
+	project metadata before their own SEO requirements are designed.
+	*/}}
+	{{with .SEO}}
+	<meta
+		name="description"
+		content="{{.Description}}"
+	>
+
+	<link
+		rel="canonical"
+		href="{{.CanonicalPath}}"
+	>
+
+	<title>{{.Title}}</title>
+	{{else}}
 	<meta
 		name="description"
 		content="Zafarmand design studio"
 	>
 
-	{{/*
-	.Title comes from pageData in the route handler. Go's html/template package
-	contextually escapes dynamic values before inserting them into HTML.
-	*/}}
 	<title>{{.Title}} | Zafarmand</title>
+	{{end}}
 
 	{{/*
 	Stylesheets are intentionally ordered from broadest to most specific:

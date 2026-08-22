@@ -244,12 +244,12 @@ database pool.
 Application construction rejects a nil Product reader. The request handlers
 also fail safely if a manually assembled application bypasses normal
 construction. Repository construction itself performs no query, so operators
-must apply the current application catalog through version 8 before serving
-traffic. Product storage itself is complete at version 6; versions 7 and 8 add
-the separate Interior and Architecture dependencies required by the same
-application. If the Product table or revision is absent, Product requests fail
-generically rather than falling back to temporary records or disabling
-concurrency checks.
+must apply the current application catalog through version 9 before serving
+traffic. Product storage itself is complete at version 6; versions 7 through 9
+add the separate Interior, Architecture, and site-content dependencies required
+by the same application. If the Product table or revision is absent, Product
+requests fail generically rather than falling back to temporary records or
+disabling concurrency checks.
 
 The existing template presentation boundary remains useful:
 
@@ -328,9 +328,9 @@ reviewed protected workflow and its deployment-specific backup policy.
    go run . migrate status
    ```
 
-   Versions 1 through 8 should be applied. Migrations 7 and 8 own the separate
-   Interior-project and Architecture-project schemas and do not change these
-   Product checks.
+   Versions 1 through 9 should be applied. Migrations 7 through 9 own the
+   separate Interior-project, Architecture-project, and global site-content
+   schemas and do not change these Product checks.
 3. Let `psql` read the same URL from `PGDATABASE`, verify the database identity,
    and inspect schema rather than content:
 
@@ -454,8 +454,8 @@ consecutive published-only numbers, uses ID to break equal sort positions,
 keeps detail numbering consistent with the list, hides draft, archived, and
 missing public slugs, and separately verifies protected all-state reads plus
 real create, publication, stale-version behavior, and cover replacement. Its
-complete migration lifecycle now reaches version 8. Its separate Interior and
-Architecture assertions do not replace the Product checks.
+complete migration lifecycle now reaches version 9. Its separate Interior,
+Architecture, and site-content assertions do not replace the Product checks.
 
 Follow the two-variable destructive opt-in in [database.md](database.md), then
 run:
@@ -483,7 +483,7 @@ git check-attr eol -- migrations/000006_add_product_content_and_cover.up.sql
 git check-attr eol -- migrations/000006_add_product_content_and_cover.down.sql
 ```
 
-## Explicitly deferred to future Product stages
+## Still deferred after Stage 24
 
 Stages 18–21 do not implement:
 
@@ -493,12 +493,13 @@ Stages 18–21 do not implement:
 - designers, prices, purchasing, or stock;
 - multiple Product images, gallery ordering, cover removal, cropping, focal
   points, or external object storage;
-- featured-homepage placement;
-- Product SEO title or description;
+- per-Product SEO title or description;
 - search, filtering, public pagination, or catalogue counts;
 - real Zafarmand Product records.
 
-Those changes expand mutation authority, validation, media security, content
+Stage 24 now provides one fixed cover-backed featured Product selection without
+changing Product ownership or lifecycle rules. The remaining changes expand
+mutation authority, validation, media security, content
 modeling, or public navigation. Future reviewed stages should design them from
 the protected administrative workflow outward instead of adding hidden writes
 to this public reader.

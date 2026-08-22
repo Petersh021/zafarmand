@@ -36,8 +36,9 @@ const (
 	// adminSessionLifetime is an absolute lifetime; requests never slide it
 	// forward, so every browser session eventually requires a fresh login.
 	adminSessionLifetime = 8 * time.Hour
-	// adminRepositoryTimeout prevents an unavailable database from holding a
-	// private authentication, inquiry, Product, or Interior request indefinitely.
+	// adminRepositoryTimeout prevents an unavailable database from holding any
+	// private authentication, inquiry, catalogue, project, or Site-content request
+	// indefinitely.
 	adminRepositoryTimeout = 5 * time.Second
 	// adminDummyPassword is not an account credential. It exists only to produce
 	// one startup-validated verifier for account-neutral missing-user logins.
@@ -121,6 +122,22 @@ type adminPageData struct {
 	// ArchitectureProjectCoverForm contains the authenticated reviewed-cover
 	// upload or replacement contract for one Architecture project revision.
 	ArchitectureProjectCoverForm *adminArchitectureProjectCoverFormPageData
+	// SiteContentOverview contains the protected Homepage and Contact settings
+	// navigation contract.
+	SiteContentOverview *adminSiteContentOverviewPageData
+	// HomepageContentDetail contains the protected read-only Homepage settings.
+	HomepageContentDetail *adminHomepageContentDetailPageData
+	// HomepageContentForm contains one optimistic Homepage edit contract.
+	HomepageContentForm *adminHomepageContentFormPageData
+	// HomepageHeroForm contains one reviewed managed-hero upload contract.
+	HomepageHeroForm *adminHomepageHeroFormPageData
+	// ContactContentDetail contains the protected read-only Contact settings.
+	ContactContentDetail *adminContactContentDetailPageData
+	// ContactContentForm contains one optimistic Contact edit contract.
+	ContactContentForm *adminContactContentFormPageData
+	// SiteContentConflict contains fixed recovery navigation after any stale
+	// Homepage, Contact, or managed-hero mutation.
+	SiteContentConflict *adminSiteContentConflictPageData
 }
 
 // adminIdentityPageData keeps persistence and authorization records out of the

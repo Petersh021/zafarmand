@@ -1377,3 +1377,315 @@ a {
 		border: 2px solid CanvasText;
 	}
 }
+
+/* --------------------------------------------------
+   Stage 24: Protected Homepage and Contact presentation settings
+
+   Global settings reuse the established private shell, light reading surfaces,
+   and native form language. These additions define only settings-specific card,
+   feature-slot, hero-preview, and fieldset behavior; public presentation remains
+   isolated in its own stylesheets.
+-------------------------------------------------- */
+
+/* Overview and detail pages share the same bounded workspace as record tools. */
+.admin-site-content,
+.admin-site-content-detail {
+	width: 100%;
+	max-width: 90rem;
+	margin-inline: auto;
+	padding: clamp(2.5rem, 7vw, 7rem) var(--admin-gutter);
+}
+
+.admin-site-content__cards {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: clamp(1rem, 3vw, 2rem);
+	margin-top: clamp(2.5rem, 6vw, 5rem);
+}
+
+/* Each semantic article stays legible without relying on color or hover. */
+.admin-site-content-card {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	min-width: 0;
+	padding: clamp(1.5rem, 4vw, 3rem);
+	border: 1px solid var(--admin-light-rule);
+}
+
+.admin-site-content-card h2 {
+	margin: 0;
+	font-family: var(--admin-serif);
+	font-size: clamp(2rem, 5vw, 4rem);
+	font-weight: 400;
+	line-height: 1.06;
+	overflow-wrap: anywhere;
+}
+
+.admin-site-content-card > p:not(.admin-eyebrow) {
+	max-width: 55ch;
+	margin: 1rem 0 0;
+	color: rgba(244, 239, 229, 0.72);
+}
+
+.admin-site-content-card .admin-primary-link {
+	margin-top: auto;
+	padding-top: 1.5rem;
+}
+
+/* Settings detail uses the same quiet light surface as managed records. */
+.admin-site-content-record {
+	min-width: 0;
+	padding: clamp(1.5rem, 5vw, 4.5rem);
+	background: var(--admin-surface);
+	color: var(--admin-ink);
+}
+
+.admin-site-content-record h1,
+.admin-site-content-record h2,
+.admin-site-content-record h3 {
+	margin: 0;
+	font-family: var(--admin-serif);
+	font-weight: 400;
+	line-height: 1.06;
+	overflow-wrap: anywhere;
+}
+
+.admin-site-content-record h1 {
+	font-size: clamp(2.6rem, 7vw, 6.5rem);
+}
+
+.admin-site-content-record__revision {
+	flex: 0 0 auto;
+	margin: 0;
+	padding: 0.35rem 0.55rem;
+	border: 1px solid currentColor;
+	font-size: 0.68rem;
+	font-weight: 700;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+
+.admin-site-content-section {
+	margin-top: clamp(2.5rem, 6vw, 5rem);
+	padding-top: clamp(2rem, 5vw, 3.5rem);
+	border-top: 1px solid var(--admin-rule);
+}
+
+.admin-site-content-section > p,
+.admin-site-content-section__heading p {
+	max-width: 65ch;
+	margin: 1rem 0 0;
+	color: var(--admin-ink-soft);
+}
+
+.admin-site-content-section__heading {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 1.25rem;
+}
+
+.admin-site-content-section__heading > div {
+	min-width: 0;
+}
+
+.admin-site-content-section__heading .admin-primary-link {
+	flex: 0 0 auto;
+	margin-top: 0;
+}
+
+/* Long managed values use balanced cells and preserve intentional line feeds. */
+.admin-site-content-facts {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-site-content-facts--audit {
+	margin-top: clamp(2.5rem, 6vw, 5rem);
+}
+
+.admin-preserve-lines {
+	white-space: pre-wrap;
+}
+
+/* Fixed feature cards remain in discipline order from left to right. */
+.admin-site-content-features {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 1rem;
+	margin-top: 1.5rem;
+}
+
+.admin-site-content-feature {
+	min-width: 0;
+	padding: 1.25rem;
+	border: 1px solid var(--admin-rule);
+}
+
+.admin-site-content-feature h3 {
+	font-size: clamp(1.35rem, 2.5vw, 2rem);
+}
+
+.admin-site-content-feature > p:not(.admin-eyebrow, .admin-feature-status) {
+	margin: 0.75rem 0 0;
+	color: var(--admin-ink-soft);
+	overflow-wrap: anywhere;
+}
+
+.admin-site-content-feature--empty {
+	background: rgba(27, 25, 21, 0.035);
+}
+
+/* Availability remains explicit text; color is only supplemental. */
+.admin-feature-status {
+	display: inline-flex;
+	margin: 1rem 0 0;
+	padding: 0.3rem 0.5rem;
+	border: 1px solid currentColor;
+	font-size: 0.68rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.admin-feature-status--eligible {
+	color: var(--admin-status-reviewed);
+}
+
+.admin-feature-status--unavailable {
+	color: var(--admin-error);
+}
+
+/* Exact protected hero previews retain their decoded ratio within the surface. */
+.admin-site-content-hero {
+	display: grid;
+	width: min(100%, 58rem);
+	margin: 1.5rem 0 0;
+	border: 1px solid var(--admin-rule);
+	background: #d8d0c2;
+}
+
+.admin-site-content-hero img {
+	display: block;
+	width: 100%;
+	height: auto;
+	max-height: 72vh;
+	object-fit: contain;
+}
+
+.admin-site-content-hero figcaption {
+	padding: 0.9rem 1rem;
+	border-top: 1px solid var(--admin-rule);
+	color: var(--admin-ink-soft);
+	overflow-wrap: anywhere;
+}
+
+/* The settings forms keep related pairs on a two-column desktop grid. */
+.admin-site-content-form {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-site-content-form .admin-product-form__field--wide,
+.admin-site-content-form .admin-product-form__actions,
+.admin-site-content-form__fieldset {
+	grid-column: 1 / -1;
+}
+
+/* Native fieldsets keep their semantic legend while matching adjacent fields. */
+.admin-site-content-form__fieldset {
+	display: grid;
+	gap: 0.75rem;
+	min-width: 0;
+	margin: 0;
+	padding: 1.15rem;
+	border: 1px solid var(--admin-rule);
+}
+
+.admin-site-content-form__fieldset legend {
+	padding-inline: 0.35rem;
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+/* Mutation pages state their immediate public consequence before form fields. */
+.admin-publication-warning {
+	margin-top: clamp(1.5rem, 4vw, 2.5rem);
+	padding: 1rem 1.15rem;
+	border: 1px solid currentColor;
+	color: #f1c98f;
+}
+
+.admin-publication-warning h2 {
+	margin: 0;
+	font-size: 0.78rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.admin-publication-warning p {
+	max-width: 68ch;
+	margin: 0.55rem 0 0;
+}
+
+.admin-choice {
+	display: inline-flex;
+	align-items: flex-start;
+	gap: 0.65rem;
+	width: fit-content;
+	min-height: 2.75rem;
+	padding-block: 0.55rem;
+	cursor: pointer;
+}
+
+.admin-choice input {
+	flex: 0 0 auto;
+	width: 1.15rem;
+	height: 1.15rem;
+	margin: 0.15rem 0 0;
+}
+
+/* Tablet layouts reduce to one robust source-order column before squeezing. */
+@media (max-width: 52rem) {
+	.admin-site-content__cards,
+	.admin-site-content-features,
+	.admin-site-content-form {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.admin-site-content-form .admin-product-form__field--wide,
+	.admin-site-content-form .admin-product-form__actions,
+	.admin-site-content-form__fieldset {
+		grid-column: auto;
+	}
+}
+
+@media (max-width: 36rem) {
+	.admin-site-content-section__heading {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.admin-site-content-section__heading .admin-primary-link {
+		width: 100%;
+		text-align: center;
+	}
+
+	.admin-site-content-facts {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+/* Forced-color mode retains every settings region, choice, and image boundary. */
+@media (forced-colors: active) {
+	.admin-site-content-card,
+	.admin-site-content-record,
+	.admin-site-content-feature,
+	.admin-site-content-hero,
+	.admin-site-content-form,
+	.admin-site-content-form__fieldset,
+	.admin-publication-warning {
+		border: 2px solid CanvasText;
+	}
+}

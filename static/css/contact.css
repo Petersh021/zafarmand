@@ -1,10 +1,10 @@
 /* --------------------------------------------------
-   Stage 14: Contact inquiry persistence
+   Stages 14 and 24: Contact inquiry and managed studio information
 
    This stylesheet is loaded only by contact.html. It creates an image-free
    editorial correspondence page: a dark studio introduction sits beside a
-   warm native form and truthful persistence responses. No declaration relies
-   on final contact details, photography, JavaScript, or admin-only content.
+   warm native form and truthful persistence responses. Optional reviewed
+   studio details remain secondary, responsive, and independent of JavaScript.
 -------------------------------------------------- */
 
 /*
@@ -33,9 +33,9 @@
 }
 
 /*
- * Route-local tokens keep this temporary contact palette from becoming a
- * global design decision. min-width:0 guards the landmark against long visitor
- * values, while the dark canvas fills space beyond the 120rem composition.
+ * Route-local tokens keep the Contact palette scoped to this composition.
+ * min-width:0 guards the landmark against long managed or visitor values, while
+ * the dark canvas fills space beyond the 120rem composition.
  */
 .contact-page {
 	--contact-dark: #11120f;
@@ -141,6 +141,73 @@
 	color: var(--contact-light-soft);
 	font-size: clamp(0.95rem, 0.9rem + 0.2vw, 1.1rem);
 	line-height: 1.75;
+	overflow-wrap: anywhere;
+	white-space: pre-wrap;
+}
+
+/*
+ * Managed direct details remain visually secondary to the primary inquiry
+ * route. The semantic address resets browser italics and provides a shrink
+ * boundary for long but validated mailbox and postal values.
+ */
+.contact-page__details {
+	max-width: 31rem;
+	min-width: 0;
+	margin: clamp(2rem, 4vw, 3.5rem) 0 0;
+	padding-top: 1.25rem;
+	border-top: 1px solid var(--contact-light-rule);
+	font-style: normal;
+}
+
+.contact-page__details-list {
+	display: grid;
+	gap: 1.25rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.contact-page__detail {
+	display: grid;
+	min-width: 0;
+	gap: 0.35rem;
+}
+
+.contact-page__detail-label {
+	color: var(--contact-light-soft);
+	font-family: var(--font-interface);
+	font-size: 0.7rem;
+	letter-spacing: 0.16em;
+	line-height: 1.4;
+	text-transform: uppercase;
+}
+
+.contact-page__detail-link {
+	display: inline-flex;
+	width: fit-content;
+	max-width: 100%;
+	min-height: 2.75rem;
+	align-items: center;
+	color: var(--contact-light);
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.22em;
+}
+
+.contact-page__detail-link:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 0.15rem;
+}
+
+/* Each reviewed address line receives its own visual row without injecting HTML. */
+.contact-page__address {
+	display: grid;
+	gap: 0.15rem;
+	margin: 0;
+	color: var(--contact-light);
+	line-height: 1.65;
 	overflow-wrap: anywhere;
 }
 
@@ -611,7 +678,8 @@
 	}
 
 	.contact-page__eyebrow,
-	.contact-page__introduction {
+	.contact-page__introduction,
+	.contact-page__detail-label {
 		color: var(--contact-light);
 	}
 
@@ -635,7 +703,7 @@
 }
 
 /*
- * Stage 14 adds no animation, transition, parallax, autoplay, or smooth
+ * These stages add no animation, transition, parallax, autoplay, or smooth
  * scrolling. Native focus, hover, validation, and route changes therefore
  * remain immediate under prefers-reduced-motion without a separate override.
  */

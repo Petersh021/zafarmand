@@ -25,6 +25,13 @@ func (app *application) routes() http.Handler {
 	// acting as a catch-all for unknown paths, which lets ServeMux return a
 	// correct 404 response for URLs the application does not define.
 	mux.HandleFunc("GET /{$}", app.homeHandler)
+	// The managed homepage hero uses one revisioned public media URL. Its
+	// handler returns bytes only for the exact current enabled revision, while
+	// the homepage keeps the checked-in image as its explicit bootstrap fallback.
+	mux.HandleFunc(
+		"GET /homepage/hero/{version}",
+		app.homepageHeroHandler,
+	)
 	mux.HandleFunc("GET /products", app.productsHandler)
 	// A cover revision is a separate ETag-validated binary response. The route
 	// remains public only while the owning Product is published.
@@ -374,6 +381,103 @@ func (app *application) routes() http.Handler {
 		),
 	)
 
+	// Site-content reads have an explicit allowlist independent from discipline
+	// records and inquiry data. Both current editorial roles may inspect the
+	// Homepage, Contact, and exact protected hero state; future roles remain
+	// denied until deliberately added here.
+	siteContentReaderRoles := requireAdminRoles(
+		adminRoleOwner,
+		adminRoleEditor,
+	)
+	mux.Handle(
+		"GET /admin/site-content",
+		app.requireAdmin(
+			siteContentReaderRoles(
+				http.HandlerFunc(app.adminSiteContentOverviewHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"GET /admin/site-content/homepage",
+		app.requireAdmin(
+			siteContentReaderRoles(
+				http.HandlerFunc(app.adminHomepageContentDetailHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"GET /admin/site-content/homepage/hero/{version}",
+		app.requireAdmin(
+			siteContentReaderRoles(
+				http.HandlerFunc(app.adminHomepageHeroAssetHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"GET /admin/site-content/contact",
+		app.requireAdmin(
+			siteContentReaderRoles(
+				http.HandlerFunc(app.adminContactContentDetailHandler),
+			),
+		),
+	)
+
+	// Homepage, hero, and Contact changes repeat the current Owner/Editor policy
+	// through a separate mutation allowlist. GET presents an authenticated form;
+	// POST validates CSRF and optimistic revision state before a 303 redirect.
+	siteContentWriterRoles := requireAdminRoles(
+		adminRoleOwner,
+		adminRoleEditor,
+	)
+	mux.Handle(
+		"GET /admin/site-content/homepage/edit",
+		app.requireAdmin(
+			siteContentWriterRoles(
+				http.HandlerFunc(app.adminHomepageContentEditHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"POST /admin/site-content/homepage",
+		app.requireAdmin(
+			siteContentWriterRoles(
+				http.HandlerFunc(app.adminHomepageContentUpdateHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"GET /admin/site-content/homepage/hero",
+		app.requireAdmin(
+			siteContentWriterRoles(
+				http.HandlerFunc(app.adminHomepageHeroFormHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"POST /admin/site-content/homepage/hero",
+		app.requireAdmin(
+			siteContentWriterRoles(
+				http.HandlerFunc(app.adminHomepageHeroUploadHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"GET /admin/site-content/contact/edit",
+		app.requireAdmin(
+			siteContentWriterRoles(
+				http.HandlerFunc(app.adminContactContentEditHandler),
+			),
+		),
+	)
+	mux.Handle(
+		"POST /admin/site-content/contact",
+		app.requireAdmin(
+			siteContentWriterRoles(
+				http.HandlerFunc(app.adminContactContentUpdateHandler),
+			),
+		),
+	)
+
 	// Inquiry content contains visitor personal data, so every list and detail
 	// request passes through authentication and an explicit role allowlist. Both
 	// current roles may read; future roles receive no access automatically.
@@ -414,7 +518,8 @@ func (app *application) routes() http.Handler {
 		),
 	)
 
-	// Applying headers outside ServeMux also protects its generated admin 404 and
-	// 405 responses while leaving the established public response policy intact.
-	return adminSecurityHeaders(mux)
+	// Applying policy outside ServeMux also covers its generated responses:
+	// private admin 404/405 pages retain the full security header set, and the
+	// exact Contact URL remains no-store even when a wrong method yields 405.
+	return contactPrivacyHeaders(adminSecurityHeaders(mux))
 }

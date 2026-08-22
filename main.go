@@ -130,6 +130,13 @@ func runServer(
 	if err != nil {
 		return err
 	}
+	// Site content remains an independent read boundary even though it borrows
+	// the same process-owned pool. It supplies only managed Homepage, Contact,
+	// featured-card, SEO, and exact current hero projections to public handlers.
+	siteContent, err := newPostgresSiteContentReader(database)
+	if err != nil {
+		return err
+	}
 	inquiries, err := newPostgresInquiryRepository(database)
 	if err != nil {
 		return err
@@ -166,6 +173,16 @@ func runServer(
 	if err != nil {
 		return err
 	}
+	// The protected reader and writer share the process-owned pool while keeping
+	// Site-content read and mutation authority separate at the application edge.
+	adminSiteContent, err := newPostgresAdminSiteContentReader(database)
+	if err != nil {
+		return err
+	}
+	adminSiteContentWrites, err := newPostgresAdminSiteContentWriter(database)
+	if err != nil {
+		return err
+	}
 	adminInquiries, err := newPostgresAdminInquiryReader(database)
 	if err != nil {
 		return err
@@ -179,6 +196,7 @@ func runServer(
 		products,
 		interiorProjects,
 		architectureProjects,
+		siteContent,
 		inquiries,
 		admins,
 		adminProducts,
@@ -187,6 +205,8 @@ func runServer(
 		adminInteriorProjectWrites,
 		adminArchitectureProjects,
 		adminArchitectureProjectWrites,
+		adminSiteContent,
+		adminSiteContentWrites,
 		adminInquiries,
 		adminInquiryStatuses,
 		newAdminPasswordManager(),

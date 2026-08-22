@@ -1,0 +1,45 @@
+{{/* The Contact detail is read-only; one separate native form owns mutations. */}}
+{{define "admin-content"}}
+<main class="admin-site-content-detail" id="admin-main-content">
+	<a class="admin-back-link" href="/admin/site-content"><span aria-hidden="true">&larr;</span> Site content</a>
+	<a class="admin-primary-link admin-product-edit-link" href="{{.ContactContentDetail.EditPath}}">Edit Contact content</a>
+	<article class="admin-site-content-record" aria-labelledby="admin-contact-content-title">
+		<header class="admin-product-record__header">
+			<div><p class="admin-eyebrow">Public route /contact</p><h1 id="admin-contact-content-title">Contact content</h1></div>
+			<p class="admin-site-content-record__revision">Revision {{.ContactContentDetail.Version}}</p>
+		</header>
+
+		<section class="admin-site-content-section" aria-labelledby="admin-contact-copy-title">
+			<h2 id="admin-contact-copy-title">Page introduction</h2>
+			<dl class="admin-product-facts admin-site-content-facts">
+				<div><dt>Eyebrow</dt><dd>{{.ContactContentDetail.Eyebrow}}</dd></div>
+				<div><dt>Heading</dt><dd>{{.ContactContentDetail.Heading}}</dd></div>
+				<div><dt>Introduction</dt><dd class="admin-preserve-lines">{{.ContactContentDetail.Introduction}}</dd></div>
+			</dl>
+		</section>
+
+		<section class="admin-site-content-section" aria-labelledby="admin-contact-details-title">
+			<h2 id="admin-contact-details-title">Direct contact details</h2>
+			<dl class="admin-product-facts admin-site-content-facts">
+				<div><dt>Email</dt><dd>{{if .ContactContentDetail.ContactEmail}}{{.ContactContentDetail.ContactEmail}}{{else}}Not added{{end}}</dd></div>
+				<div><dt>Phone display</dt><dd>{{if .ContactContentDetail.PhoneDisplay}}{{.ContactContentDetail.PhoneDisplay}}{{else}}Not added{{end}}</dd></div>
+				<div><dt>Phone destination</dt><dd>{{if .ContactContentDetail.PhoneE164}}{{.ContactContentDetail.PhoneE164}}{{else}}Not added{{end}}</dd></div>
+				<div><dt>Address</dt><dd class="admin-preserve-lines">{{if .ContactContentDetail.Address}}{{.ContactContentDetail.Address}}{{else}}Not added{{end}}</dd></div>
+			</dl>
+		</section>
+
+		<section class="admin-site-content-section" aria-labelledby="admin-contact-seo-title">
+			<h2 id="admin-contact-seo-title">Search metadata</h2>
+			<dl class="admin-product-facts admin-site-content-facts">
+				<div><dt>Complete title</dt><dd>{{.ContactContentDetail.SEOTitle}}</dd></div>
+				<div><dt>Description</dt><dd>{{.ContactContentDetail.SEODescription}}</dd></div>
+			</dl>
+		</section>
+
+		<dl class="admin-product-facts admin-site-content-facts admin-site-content-facts--audit">
+			<div><dt>Created</dt><dd><time datetime="{{.ContactContentDetail.CreatedAtISO}}">{{.ContactContentDetail.CreatedAtLabel}}</time></dd></div>
+			<div><dt>Last stored update</dt><dd><time datetime="{{.ContactContentDetail.UpdatedAtISO}}">{{.ContactContentDetail.UpdatedAtLabel}}</time></dd></div>
+		</dl>
+	</article>
+</main>
+{{end}}

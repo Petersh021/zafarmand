@@ -72,9 +72,8 @@ href="#main-content".
 		></div>
 
 		{{/*
-		The studio name is the page's primary heading. Both strings come from the
-		handler rather than being buried in CSS, establishing the data flow that
-		can later be backed by an administrative content source.
+		The studio name is the page's primary heading. Both strings come through
+		the public-only managed-content reader rather than being buried in CSS.
 		*/}}
 		<div class="home-hero__identity">
 			<h1
@@ -216,6 +215,90 @@ href="#main-content".
 		</div>
 	</section>
 	{{/* End the optional discipline slice and restore pageData as dot. */}}
+	{{end}}
+
+	{{/*
+	HomeFeatured contains only Published records that still own a current reviewed
+	cover. The repository fixes discipline order, and "with" omits the entire section
+	when no eligible selections exist, so private editorial choices never create
+	an empty public promise.
+	*/}}
+	{{with .HomeFeatured}}
+	<section
+		class="home-featured"
+		aria-labelledby="home-featured-title"
+	>
+		<div class="home-featured__inner">
+			<header class="home-featured__header">
+				<p class="home-featured__eyebrow">
+					Selected work
+				</p>
+
+				<h2
+					class="home-featured__title"
+					id="home-featured-title"
+				>
+					Featured across the studio
+				</h2>
+			</header>
+
+			{{/*
+			The unordered list communicates one related set without claiming that a
+			missing discipline has a public rank. Each article contains one native
+			anchor, avoiding nested controls and retaining ordinary browser behavior.
+			*/}}
+			<ul class="home-featured__list">
+				{{range .}}
+				<li class="home-featured__item">
+					<article class="home-feature">
+						<a
+							class="home-feature__link"
+							href="{{.Path}}"
+						>
+							<div class="home-feature__media">
+								{{/*
+								A real feature is cover-backed by repository contract. The else
+								branch is defensive presentation for an incomplete future mapper;
+								it stays decorative and never pretends to be an image.
+								*/}}
+								{{with .Cover}}
+								<img
+									class="home-feature__image"
+									src="{{.Path}}"
+									alt="{{.AltText}}"
+									width="{{.Width}}"
+									height="{{.Height}}"
+									loading="lazy"
+									decoding="async"
+								>
+								{{else}}
+								<div
+									class="home-feature__fallback"
+									aria-hidden="true"
+								></div>
+								{{end}}
+							</div>
+
+							<div class="home-feature__content">
+								<p class="home-feature__discipline">
+									{{.Discipline}}
+								</p>
+
+								<h3 class="home-feature__title">
+									{{.Title}}
+								</h3>
+
+								<p class="home-feature__classification">
+									{{.Classification}}
+								</p>
+							</div>
+						</a>
+					</article>
+				</li>
+				{{end}}
+			</ul>
+		</div>
+	</section>
 	{{end}}
 </main>
 {{end}}

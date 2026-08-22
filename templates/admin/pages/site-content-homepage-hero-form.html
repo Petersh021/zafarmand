@@ -1,0 +1,58 @@
+{{/*
+The file input accepts browser-selected JPEG/PNG files, but Go derives the true
+format from decoded pixels and re-encodes the image before storage. The hidden
+Homepage revision is concurrency control, never authorization evidence.
+*/}}
+{{define "admin-content"}}
+<main class="admin-product-form-page admin-site-content-form-page" id="admin-main-content">
+	<a class="admin-back-link" href="{{.HomepageHeroForm.CancelPath}}"><span aria-hidden="true">&larr;</span> Cancel and return</a>
+	<header class="admin-page-header admin-product-form-header">
+		<p class="admin-eyebrow">Homepage revision {{.HomepageHeroForm.HomepageVersion}}</p>
+		<h1>Manage Homepage hero</h1>
+		<p class="admin-page-header__lede">Upload one reviewed JPEG or PNG. Successful storage strips ancillary metadata, advances both revisions, and selects managed mode.</p>
+	</header>
+	<aside class="admin-publication-warning" aria-labelledby="admin-homepage-hero-public-warning-title">
+		<h2 id="admin-homepage-hero-public-warning-title">Immediate public image</h2>
+		<p>A successful upload enables managed mode and makes this image public on <strong>/</strong> immediately. Review orientation, people, and private details before submitting.</p>
+	</aside>
+
+	{{with .HomepageHeroForm.ExistingHero}}
+	<section class="admin-site-content-section" aria-labelledby="admin-current-homepage-hero-title">
+		<h2 id="admin-current-homepage-hero-title">Current managed hero</h2>
+		<figure class="admin-site-content-hero"><img src="{{.Path}}" alt="{{.AltText}}" width="{{.Width}}" height="{{.Height}}" decoding="async"><figcaption>Managed hero revision {{.Version}}</figcaption></figure>
+	</section>
+	{{end}}
+
+	{{if .HomepageHeroForm.HasErrors}}
+	<section class="admin-alert admin-alert--error" aria-labelledby="admin-homepage-hero-errors-title">
+		<h2 id="admin-homepage-hero-errors-title">Check the hero fields</h2>
+		<p>No image was stored. Choose the file again after correcting the marked fields.</p>
+		<ul>
+			{{with .HomepageHeroForm.Errors.Image}}<li><a href="#homepage-hero-image">{{.}}</a></li>{{end}}
+			{{with .HomepageHeroForm.Errors.AltText}}<li><a href="#homepage-hero-alt-text">{{.}}</a></li>{{end}}
+		</ul>
+	</section>
+	{{end}}
+
+	<form class="admin-product-form admin-site-content-form" action="{{.HomepageHeroForm.Action}}" method="post" enctype="multipart/form-data">
+		<input type="hidden" name="csrf_token" value="{{.SessionCSRFToken}}">
+		<input type="hidden" name="version" value="{{.HomepageHeroForm.HomepageVersion}}">
+		<div class="admin-product-form__field admin-product-form__field--wide">
+			<label for="homepage-hero-image">Image</label>
+			<p class="admin-product-form__hint" id="homepage-hero-image-hint">JPEG or PNG, at most 8 MiB, 10,000 pixels on either axis, and 25 megapixels total.</p>
+			<input id="homepage-hero-image" name="image" type="file" accept="image/jpeg,image/png" aria-describedby="homepage-hero-image-hint{{if .HomepageHeroForm.Errors.Image}} homepage-hero-image-error{{end}}" {{if .HomepageHeroForm.Errors.Image}}aria-invalid="true"{{end}} required>
+			{{with .HomepageHeroForm.Errors.Image}}<p class="admin-product-form__error" id="homepage-hero-image-error">{{.}}</p>{{end}}
+		</div>
+		<div class="admin-product-form__field admin-product-form__field--wide">
+			<label for="homepage-hero-alt-text">Alternative text</label>
+			<p class="admin-product-form__hint" id="homepage-hero-alt-text-hint">Describe meaningful visual information concisely; do not repeat “image of”.</p>
+			<input id="homepage-hero-alt-text" name="alt_text" type="text" value="{{.HomepageHeroForm.Values.AltText}}" maxlength="300" aria-describedby="homepage-hero-alt-text-hint{{if .HomepageHeroForm.Errors.AltText}} homepage-hero-alt-text-error{{end}}" {{if .HomepageHeroForm.Errors.AltText}}aria-invalid="true"{{end}} required>
+			{{with .HomepageHeroForm.Errors.AltText}}<p class="admin-product-form__error" id="homepage-hero-alt-text-error">{{.}}</p>{{end}}
+		</div>
+		<div class="admin-product-form__actions">
+			<button class="admin-status-button" type="submit">{{.HomepageHeroForm.SubmitLabel}}</button>
+			<a class="admin-secondary-link" href="{{.HomepageHeroForm.CancelPath}}">Cancel</a>
+		</div>
+	</form>
+</main>
+{{end}}

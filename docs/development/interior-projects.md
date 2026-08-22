@@ -33,8 +33,9 @@ Stage 22 includes:
 It does not include project deletion, cover deletion, galleries, gallery order,
 crop/focal-point controls, object storage, featured homepage placement, SEO,
 preview tokens, cross-discipline records, or real Zafarmand content. Stage 23
-adds Architecture through an independent model; the other omissions still
-require separate interface, retention, and operational decisions.
+adds Architecture through an independent model, and Stage 24 adds one fixed
+cover-backed Interior feature selector. The other omissions still require
+separate interface, retention, and operational decisions.
 
 ## Public and protected routes
 
@@ -357,8 +358,9 @@ into terminal output, screenshots, issues, or commits.
    go run . migrate status
    ```
 
-   Versions 1 through 8 should be Applied. Migration 8 owns the separate
-   Architecture schema and does not alter these Interior checks. A second
+   Versions 1 through 9 should be Applied. Migrations 8 and 9 own the separate
+   Architecture and global site-content schemas and do not alter these Interior
+   checks. A second
    `migrate up` should be a truthful no-op.
 
 2. Switch `DATABASE_URL` to the least-privilege runtime role in that same shell
@@ -420,14 +422,14 @@ Remove-Item Env:ZAFARMAND_TEST_DATABASE_CONFIRM -ErrorAction SilentlyContinue
 ```
 
 The guarded suite refuses an unconfirmed database or a name without `_test`,
-requires every reserved Stage 13–23 relation to be absent before starting, and
+requires every reserved Stage 13–24 relation to be absent before starting, and
 cleans only those exact relations afterward. It proves migration 7 defaults and
 named constraints, published-only numbering/visibility, protected all-state
 reads, create/edit and stale revision behavior, cover replacement, archive
 hiding, one-cover ownership, foreign-key cascade, rollback isolation,
-reapplication, and transaction atomicity. The complete v1-to-v8 cycle also
-checks the independent Architecture relations without weakening these Interior
-assertions.
+reapplication, and transaction atomicity. The complete v1-to-v9 cycle also
+checks the independent Architecture and site-content relations without
+weakening these Interior assertions.
 
 ## Rollback and reapplication
 
@@ -444,8 +446,9 @@ administrator tables remain at migration 6. Reapplying migration 7 creates empty
 Interior tables; it cannot restore removed content. Never use rollback as a
 cleanup strategy for production or shared development data.
 
-After Stage 23 is applied, migration 7 is no longer the latest version; the
-Architecture migration must be reversed first in a disposable environment.
+After Stage 24 is applied, migration 7 is no longer the latest version; the
+site-content and Architecture migrations must be reversed first in a disposable
+environment.
 Never edit or rename migration 7 after it has been applied anywhere, because
 the migration ledger will correctly report checksum drift.
 
@@ -465,7 +468,7 @@ git check-attr eol -- migrations/000007_create_interior_projects.down.sql
 The two migration files must report `eol: lf`. Review `git status` and `git diff`
 before staging only the intended Stage 22 files.
 
-## Deferred after Stage 22
+## Still deferred after Stage 24
 
 Stage 23 reuses the proven mechanics for Architecture without silently
 broadening Interior behavior. Still deferred for Interior are:
@@ -473,8 +476,7 @@ broadening Interior behavior. Still deferred for Interior are:
 - Interior deletion and retention confirmation;
 - multiple images or gallery ordering;
 - cover removal, crop, focal point, and object storage;
-- featured homepage selection;
-- SEO title/description controls;
+- per-project SEO title/description controls;
 - durable audit history and actor attribution;
 - public preview tokens for Draft records; and
 - final approved Zafarmand content and photography.

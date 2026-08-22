@@ -1,0 +1,109 @@
+{{/*
+The Homepage edit form posts one complete document revision. Feature values are
+server-built positive IDs grouped by fixed discipline; an unavailable stored
+selection is retained visibly so it can be cleared, but PostgreSQL rechecks every
+selection before committing.
+*/}}
+{{define "admin-content"}}
+<main class="admin-product-form-page admin-site-content-form-page" id="admin-main-content">
+	<a class="admin-back-link" href="{{.HomepageContentForm.CancelPath}}"><span aria-hidden="true">&larr;</span> Cancel and return</a>
+	<header class="admin-page-header admin-product-form-header">
+		<p class="admin-eyebrow">Homepage revision {{.HomepageContentForm.Version}}</p>
+		<h1>Edit Homepage content</h1>
+		<p class="admin-page-header__lede">Save identity, source, featured entrances, and search metadata as one optimistic revision.</p>
+	</header>
+	<aside class="admin-publication-warning" aria-labelledby="admin-homepage-public-warning-title">
+		<h2 id="admin-homepage-public-warning-title">Immediate public change</h2>
+		<p>Saved identity, hero source, featured entrances, and search metadata affect public <strong>/</strong> immediately.</p>
+	</aside>
+
+	{{if .HomepageContentForm.HasErrors}}
+	<section class="admin-alert admin-alert--error" aria-labelledby="admin-homepage-errors-title">
+		<h2 id="admin-homepage-errors-title">Check the Homepage fields</h2>
+		<p>No Homepage content was saved. Correct the marked fields and submit again.</p>
+		<ul>
+			{{with .HomepageContentForm.Errors.StudioName}}<li><a href="#homepage-studio-name">{{.}}</a></li>{{end}}
+			{{with .HomepageContentForm.Errors.Descriptor}}<li><a href="#homepage-descriptor">{{.}}</a></li>{{end}}
+			{{with .HomepageContentForm.Errors.HeroSource}}<li><a href="#homepage-hero-source">{{.}}</a></li>{{end}}
+			{{with .HomepageContentForm.Errors.FeaturedInteriorProjectID}}<li><a href="#homepage-featured-interior">{{.}}</a></li>{{end}}
+			{{with .HomepageContentForm.Errors.FeaturedArchitectureProjectID}}<li><a href="#homepage-featured-architecture">{{.}}</a></li>{{end}}
+			{{with .HomepageContentForm.Errors.FeaturedProductID}}<li><a href="#homepage-featured-product">{{.}}</a></li>{{end}}
+			{{with .HomepageContentForm.Errors.SEOTitle}}<li><a href="#homepage-seo-title">{{.}}</a></li>{{end}}
+			{{with .HomepageContentForm.Errors.SEODescription}}<li><a href="#homepage-seo-description">{{.}}</a></li>{{end}}
+		</ul>
+	</section>
+	{{end}}
+
+	<form class="admin-product-form admin-site-content-form" action="{{.HomepageContentForm.Action}}" method="post">
+		<input type="hidden" name="csrf_token" value="{{.SessionCSRFToken}}">
+		<input type="hidden" name="version" value="{{.HomepageContentForm.Version}}">
+
+		<div class="admin-product-form__field">
+			<label for="homepage-studio-name">Studio name</label>
+			<input id="homepage-studio-name" name="studio_name" type="text" value="{{.HomepageContentForm.Values.StudioName}}" maxlength="120" {{if .HomepageContentForm.Errors.StudioName}}aria-describedby="homepage-studio-name-error" aria-invalid="true"{{end}} required>
+			{{with .HomepageContentForm.Errors.StudioName}}<p class="admin-product-form__error" id="homepage-studio-name-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="homepage-descriptor">Descriptor</label>
+			<input id="homepage-descriptor" name="descriptor" type="text" value="{{.HomepageContentForm.Values.Descriptor}}" maxlength="160" {{if .HomepageContentForm.Errors.Descriptor}}aria-describedby="homepage-descriptor-error" aria-invalid="true"{{end}} required>
+			{{with .HomepageContentForm.Errors.Descriptor}}<p class="admin-product-form__error" id="homepage-descriptor-error">{{.}}</p>{{end}}
+		</div>
+
+		<fieldset class="admin-site-content-form__fieldset" id="homepage-hero-source" {{if .HomepageContentForm.Errors.HeroSource}}aria-describedby="homepage-hero-source-hint homepage-hero-source-error"{{else}}aria-describedby="homepage-hero-source-hint"{{end}}>
+			<legend>Public hero source</legend>
+			<p class="admin-product-form__hint" id="homepage-hero-source-hint">Managed mode requires an uploaded reviewed hero. An upload automatically selects managed mode.</p>
+			<label class="admin-choice"><input type="radio" name="hero_source" value="fallback" {{if eq .HomepageContentForm.Values.HeroSource "fallback"}}checked{{end}}> Static fallback</label>
+			<label class="admin-choice"><input type="radio" name="hero_source" value="managed" {{if eq .HomepageContentForm.Values.HeroSource "managed"}}checked{{end}}> Managed hero{{if not .HomepageContentForm.ManagedHeroAvailable}} (upload required){{end}}</label>
+			{{with .HomepageContentForm.Errors.HeroSource}}<p class="admin-product-form__error" id="homepage-hero-source-error">{{.}}</p>{{end}}
+		</fieldset>
+
+		<div class="admin-product-form__field">
+			<label for="homepage-featured-interior">Interior Design feature <span>(optional)</span></label>
+			<p class="admin-product-form__hint" id="homepage-featured-interior-hint">Only Published Interior projects with a current cover are available.</p>
+			<select id="homepage-featured-interior" name="featured_interior_project_id" aria-describedby="homepage-featured-interior-hint{{if .HomepageContentForm.Errors.FeaturedInteriorProjectID}} homepage-featured-interior-error{{end}}" {{if .HomepageContentForm.Errors.FeaturedInteriorProjectID}}aria-invalid="true"{{end}}>
+				<option value="" {{if .HomepageContentForm.InteriorSelectNone}}selected{{end}}>No Interior feature</option>
+				{{range .HomepageContentForm.InteriorOptions}}<option value="{{.Value}}" {{if .Selected}}selected{{end}}>{{.Label}}</option>{{end}}
+			</select>
+			{{with .HomepageContentForm.Errors.FeaturedInteriorProjectID}}<p class="admin-product-form__error" id="homepage-featured-interior-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="homepage-featured-architecture">Architecture Design feature <span>(optional)</span></label>
+			<p class="admin-product-form__hint" id="homepage-featured-architecture-hint">Only Published Architecture projects with a current cover are available.</p>
+			<select id="homepage-featured-architecture" name="featured_architecture_project_id" aria-describedby="homepage-featured-architecture-hint{{if .HomepageContentForm.Errors.FeaturedArchitectureProjectID}} homepage-featured-architecture-error{{end}}" {{if .HomepageContentForm.Errors.FeaturedArchitectureProjectID}}aria-invalid="true"{{end}}>
+				<option value="" {{if .HomepageContentForm.ArchitectureSelectNone}}selected{{end}}>No Architecture feature</option>
+				{{range .HomepageContentForm.ArchitectureOptions}}<option value="{{.Value}}" {{if .Selected}}selected{{end}}>{{.Label}}</option>{{end}}
+			</select>
+			{{with .HomepageContentForm.Errors.FeaturedArchitectureProjectID}}<p class="admin-product-form__error" id="homepage-featured-architecture-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field">
+			<label for="homepage-featured-product">Product feature <span>(optional)</span></label>
+			<p class="admin-product-form__hint" id="homepage-featured-product-hint">Only Published Products with a current cover are available.</p>
+			<select id="homepage-featured-product" name="featured_product_id" aria-describedby="homepage-featured-product-hint{{if .HomepageContentForm.Errors.FeaturedProductID}} homepage-featured-product-error{{end}}" {{if .HomepageContentForm.Errors.FeaturedProductID}}aria-invalid="true"{{end}}>
+				<option value="" {{if .HomepageContentForm.ProductSelectNone}}selected{{end}}>No Product feature</option>
+				{{range .HomepageContentForm.ProductOptions}}<option value="{{.Value}}" {{if .Selected}}selected{{end}}>{{.Label}}</option>{{end}}
+			</select>
+			{{with .HomepageContentForm.Errors.FeaturedProductID}}<p class="admin-product-form__error" id="homepage-featured-product-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field admin-product-form__field--wide">
+			<label for="homepage-seo-title">Complete SEO title</label>
+			<input id="homepage-seo-title" name="seo_title" type="text" value="{{.HomepageContentForm.Values.SEOTitle}}" maxlength="160" {{if .HomepageContentForm.Errors.SEOTitle}}aria-describedby="homepage-seo-title-error" aria-invalid="true"{{end}} required>
+			{{with .HomepageContentForm.Errors.SEOTitle}}<p class="admin-product-form__error" id="homepage-seo-title-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__field admin-product-form__field--wide">
+			<label for="homepage-seo-description">SEO description</label>
+			<input id="homepage-seo-description" name="seo_description" type="text" value="{{.HomepageContentForm.Values.SEODescription}}" maxlength="320" {{if .HomepageContentForm.Errors.SEODescription}}aria-describedby="homepage-seo-description-error" aria-invalid="true"{{end}} required>
+			{{with .HomepageContentForm.Errors.SEODescription}}<p class="admin-product-form__error" id="homepage-seo-description-error">{{.}}</p>{{end}}
+		</div>
+
+		<div class="admin-product-form__actions">
+			<button class="admin-status-button" type="submit">Save Homepage content</button>
+			<a class="admin-secondary-link" href="{{.HomepageContentForm.CancelPath}}">Cancel</a>
+		</div>
+	</form>
+</main>
+{{end}}

@@ -216,6 +216,6 @@ func TestAdminArchitectureDashboardEntryKeepsRealWorkspaceNavigation(t *testing.
 		response.Body,
 		`href="/admin/architecture-projects"`,
 		"Open Architecture portfolio",
-		"Architecture-project management",
+		"Architecture-project, and site-content management",
 	)
 }

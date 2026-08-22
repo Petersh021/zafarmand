@@ -12,10 +12,14 @@ publication controls, rich content, and one reviewed cover image. Stage 22
 applies the same explicit access decisions to the separate Interior-project
 publishing workflow. Stage 23 adds an equally separate Architecture-project
 workflow without widening either earlier discipline's repositories.
+Stage 24 adds a separate managed Homepage/Contact workspace, three fixed
+featured selections, and one reviewed Homepage hero without widening inquiry or
+discipline writers.
 See the [administrator inquiry guide](admin-inquiries.md) and
 [administrator Product guide](admin-products.md), plus the
 [Interior-project guide](interior-projects.md) and
-[Architecture-project guide](architecture-projects.md), for their exact
+[Architecture-project guide](architecture-projects.md), and the
+[site-content guide](site-content.md), for their exact
 authorization, privacy, and verification contracts.
 
 Stage 15 itself deliberately added no management feature; its first dashboard
@@ -34,9 +38,9 @@ maintenance without making it part of an HTTP request.
 The two current roles are `owner` and `editor`. Stage 15 validates and displays
 those labels. Later stages explicitly authorize both roles for their separate
 inquiry-read, inquiry-status, Product-read/write, Interior-project read/write,
-and Architecture-project read/write operations, including the three reviewed
-one-cover workflows. Those allowlists do not give either role broader
-management permission. Do not describe an owner as having working
+Architecture-project read/write, and site-content read/write operations,
+including the four reviewed single-image workflows. Those allowlists do not
+give either role broader management permission. Do not describe an owner as having working
 user-management powers or an editor as having unrestricted content mutation
 permission until later handlers enforce those rules.
 
@@ -67,21 +71,24 @@ go run . migrate up
 go run . migrate status
 ```
 
-The current Stage 23 application reports versions 1 through 8 applied.
+The current Stage 24 application reports versions 1 through 9 applied.
 Migrations 4–6 build Product storage, editing, rich content, and its one-cover
 relation as described in [products.md](products.md) and
 [admin-products.md](admin-products.md). Migration 7 independently creates the
 unseeded Interior-project and one-cover relations described in
 [interior-projects.md](interior-projects.md). Migration 8 adds the independent,
 unseeded Architecture-project and one-cover relations described in
-[architecture-projects.md](architecture-projects.md). Do not edit an applied
+[architecture-projects.md](architecture-projects.md). Migration 9 adds the
+Homepage, Homepage-hero, and Contact relations described in
+[site-content.md](site-content.md). Do not edit an applied
 migration; add a new version for a later schema correction.
 
 `go run . migrate down --confirm` reverses only the newest applied version. On
-the complete current catalog, the first rollback removes migration 8's
-Architecture cover and project tables, permanently deleting their rows. A
-second rollback removes migration 7's Interior relations. Only then can later
-rollback commands remove migration 6's Product cover/content,
+the complete current catalog, the first rollback removes migration 9's
+Homepage hero, Contact, and Homepage relations, permanently deleting their
+managed rows. A second rollback removes migration 8's Architecture cover and
+project tables, and a third removes migration 7's Interior relations. Only then
+can later rollback commands remove migration 6's Product cover/content,
 migration 5's Product revision, and migration 4's Product table. The following
 rollback would remove the Stage 15 session and user tables and destroy
 administrator access records. Use rollback only in a verified disposable
@@ -239,11 +246,26 @@ POST /admin/architecture-projects/{id}/cover         upload or replace one cover
 GET  /admin/architecture-projects/{id}/cover/{version} serve a protected preview
 ```
 
+Stage 24 adds an independent site-content read/write allowlist and these routes:
+
+```text
+GET  /admin/site-content                              open the content workspace
+GET  /admin/site-content/homepage                     inspect Homepage settings
+GET  /admin/site-content/homepage/edit                render the Homepage form
+POST /admin/site-content/homepage                     save a version-guarded edit
+GET  /admin/site-content/homepage/hero                render hero management
+POST /admin/site-content/homepage/hero                upload or replace the hero
+GET  /admin/site-content/homepage/hero/{version}      serve a protected preview
+GET  /admin/site-content/contact                      inspect Contact settings
+GET  /admin/site-content/contact/edit                 render the Contact form
+POST /admin/site-content/contact                      save a version-guarded edit
+```
+
 Both `owner` and `editor` are explicitly present on the separate inquiry,
-Product, Interior-project, and Architecture-project read/write allowlists. A
-future role is denied unless route composition deliberately adds it to the
-relevant operation. Viewing or refreshing a detail performs no hidden update;
-only the protected POST forms change state.
+Product, Interior-project, Architecture-project, and site-content read/write
+allowlists. A future role is denied unless route composition deliberately adds
+it to the relevant operation. Viewing or refreshing a detail performs no
+hidden update; only the protected POST forms change state.
 
 There is intentionally no `GET /admin/logout`: logout changes server state and
 therefore requires a protected POST. An unauthenticated visit to `/admin`
@@ -257,10 +279,12 @@ differences. Database or entropy failures return a generic unavailable response
 and do not include credentials or driver detail.
 
 The dashboard displays the authenticated email and trusted role label and links
-to the current Inquiries, Products, Interior Projects, and Architecture Projects
-workspaces. It provides logout, manual inquiry-status forms, and bounded
-Product/Interior/Architecture text, publication, and single-cover controls, but
-no gallery, user, deletion, bulk, or automatic workflow controls.
+to the current Inquiries, Products, Interior Projects, Architecture Projects,
+and Site Content workspaces. It provides logout, manual inquiry-status forms,
+and bounded
+Product/Interior/Architecture text, publication, single-cover, and global
+Homepage/Contact controls, but no gallery, user, deletion, bulk, or automatic
+workflow controls.
 
 ## How password storage works
 
@@ -313,8 +337,8 @@ unusable on its next lookup.
 
 The anonymous login form has its own short-lived, ten-minute CSRF cookie and
 hidden form value. Authenticated logout, inquiry-status, Product,
-Interior-project, and Architecture-project text/cover forms reuse the
-independent session-bound CSRF value. Keeping it valid for the complete session
+Interior-project, Architecture-project, and Homepage/Contact text/hero forms
+reuse the independent session-bound CSRF value. Keeping it valid for the complete session
 supports Back navigation and multiple tabs. URL-encoded and multipart forms are
 separately size-bounded, accept only their exact expected fields/parts, and
 reject unsupported content types, codings, or duplicated values.
@@ -401,13 +425,16 @@ Use separate credentials for these responsibilities:
   [interior-projects.md](interior-projects.md). Stage 23 requires the separate
   Architecture-project and one-cover grants listed in
   [architecture-projects.md](architecture-projects.md). A discipline's grants
-  do not imply access to either other discipline. Protected readers need
+  do not imply access to either other discipline. Stage 24 additionally needs
+  the independent Homepage/Contact singleton and hero grants listed in
+  [site-content.md](site-content.md). Protected readers need
   timestamps while public readers select smaller Published-only projections.
   The runtime also needs read access to
   active admin users (including the verifier needed for login) and narrow
   insert/select/update access for admin sessions. Logout updates `revoked_at`;
   it does not require table deletion. The server does not need permission to
-  update visitor content, create admin users, or modify their roles.
+  update visitor inquiry content, create admin users, modify their roles, or
+  delete managed site content.
 
 The CLI and server both read a variable named `DATABASE_URL`, but separate
 processes can and should supply different role-specific URLs. Define grants in
@@ -417,7 +444,7 @@ deployment.
 
 ## Manual verification without exposing secrets
 
-After the current migrations through version 8 are applied and a placeholder
+After the current migrations through version 9 are applied and a placeholder
 test administrator has been created locally, start the server in the same
 process environment that contains the runtime `DATABASE_URL`:
 
@@ -432,7 +459,7 @@ Then verify in a private browser window:
    authentication failure, without confirming whether the address exists.
 3. Sign in with the local test account. The browser should reach `/admin`,
    display the expected role label, and offer Products, Interior Projects,
-   Architecture Projects, and Inquiries links.
+   Architecture Projects, Site Content, and Inquiries links.
    With only fictional data, confirm an inquiry detail changes status through a
    POST and returns with HTTP 303; opening or refreshing either kind of detail
    must not mutate it. Follow [admin-products.md](admin-products.md) to compare
@@ -442,6 +469,8 @@ Then verify in a private browser window:
    Follow [architecture-projects.md](architecture-projects.md) for the separate
    Architecture workflow and confirm Draft/Archived records and covers remain
    unavailable on public routes.
+   Follow [site-content.md](site-content.md) for fictional Homepage, Contact,
+   feature, SEO, hero, and stale-form checks.
 4. In browser developer tools, inspect cookie **names and attributes only**.
    Confirm `HttpOnly`, `SameSite=Strict`, expiry, and paths; do not copy, log,
    screenshot, or paste cookie values. `Secure` is expected to be absent only
@@ -497,10 +526,11 @@ CSRF handling, cookie attributes, security headers, route methods, dashboard
 protection, explicit owner/editor inquiry read and mutation authorization,
 strict manual status updates, Post/Redirect/Get, logout, and expiry. Production
 continues to use the fixed 600,000 iteration manager; only tests can inject the
-inexpensive manager. Stages 19–23 additionally cover explicit Owner/Editor
+inexpensive manager. Stages 19–24 additionally cover explicit Owner/Editor
 Product, Interior-project, and Architecture-project reads/writes, strict
 protected URLs and URL-encoded/multipart forms, all-state mapping, image
-validation, version-conflict handling, and generic dependency errors.
+validation, version-conflict handling, generic dependency errors, and the
+separate managed Homepage/Contact workspace.
 
 The PostgreSQL tests are destructive and opt-in. Supply only a dedicated empty
 database whose name ends in `_test`; never use a development, shared, or
@@ -521,7 +551,7 @@ Remove-Item Env:ZAFARMAND_TEST_DATABASE_CONFIRM -ErrorAction SilentlyContinue
 ```
 
 `Set-SecretProcessVariable` is the history-safe helper defined earlier in this
-guide. The live suite covers the complete v1-to-v8 migration cycle, rollback
+guide. The live suite covers the complete v1-to-v9 migration cycle, rollback
 and reapplication, real PostgreSQL constraints, duplicate normalized email,
 session byte mapping, active-user filtering, expiry, revocation, the Stage 16
 inquiry list/detail reader, the Stage 17 status writer, and the Stage 18
@@ -532,7 +562,9 @@ and cover insertion/replacement behavior. Stage 22 adds migration 7 and verifies
 the separate Interior-project public/protected readers, writer, cover workflow,
 constraints, and empty rollback/reapply lifecycle. Stage 23 adds migration 8
 and repeats those checks against independently scoped Architecture tables,
-repositories, publication rules, revisions, and covers. Stage 17 still added
+repositories, publication rules, revisions, and covers. Stage 24 adds migration
+9 seeds and constraints plus real singleton reads, feature eligibility, managed
+hero visibility, and optimistic site-content writes. Stage 17 still added
 no schema version. The suite never falls back to `DATABASE_URL`
 and skips only when its explicit opt-in variables are absent. Ensure cleanup
 succeeds before reusing or removing the disposable database.

@@ -87,13 +87,13 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 
 	// A fresh database exposes the complete embedded history in order without
 	// claiming that any schema stage has already been applied.
-	assertMigrationIntegrationStatus(t, runner, false, false, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, false, false, false, false, false, false, false, false, false)
 
 	applied, err := runner.Up(t.Context())
 	if err != nil {
 		t.Fatalf("apply embedded migrations: %v", err)
 	}
-	if len(applied) != 8 ||
+	if len(applied) != 9 ||
 		applied[0].Version != 1 ||
 		applied[1].Version != 2 ||
 		applied[2].Version != 3 ||
@@ -101,10 +101,11 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		applied[4].Version != 5 ||
 		applied[5].Version != 6 ||
 		applied[6].Version != 7 ||
-		applied[7].Version != 8 {
-		t.Fatalf("applied migrations: got %#v, want versions 1 through 8", applied)
+		applied[7].Version != 8 ||
+		applied[8].Version != 9 {
+		t.Fatalf("applied migrations: got %#v, want versions 1 through 9", applied)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, true)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", true)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", true)
@@ -116,6 +117,16 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		database,
 		"interior_project_cover_images",
 		true,
+	)
+	assertMigrationIntegrationTableExists(t, database, "homepage_content", true)
+	assertMigrationIntegrationTableExists(t, database, "homepage_hero_images", true)
+	assertMigrationIntegrationTableExists(t, database, "contact_content", true)
+	assertMigrationIntegrationColumnExists(
+		t,
+		database,
+		"homepage_hero_images",
+		"caption",
+		false,
 	)
 	assertMigrationIntegrationTableExists(t, database, "architecture_projects", true)
 	assertMigrationIntegrationTableExists(
@@ -171,6 +182,10 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		"interior_project_cover_images",
 		0,
 	)
+	assertMigrationIntegrationTableRowCount(t, database, "homepage_content", 1)
+	assertMigrationIntegrationTableRowCount(t, database, "homepage_hero_images", 0)
+	assertMigrationIntegrationTableRowCount(t, database, "contact_content", 1)
+	assertMigrationIntegrationSiteContentSeeds(t, database)
 	assertMigrationIntegrationTableRowCount(t, database, "architecture_projects", 0)
 	assertMigrationIntegrationTableRowCount(
 		t,
@@ -292,18 +307,56 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		database,
 		architectureProjectID,
 	)
+	assertMigrationIntegrationSiteContentConstraintsAndIsolation(
+		t,
+		database,
+		productID,
+		interiorProjectID,
+		architectureProjectID,
+	)
 
-	// Down first reverses Stage 23. Version 000008 removes only Architecture's
+	// Down first reverses Stage 24. Its hero child and two singleton documents
+	// disappear without deleting any selected Product, Interior, or Architecture
+	// record protected by the homepage's RESTRICT references.
+	rolledBack, err := runner.Down(t.Context())
+	if err != nil {
+		t.Fatalf("roll back Stage 24 migration: %v", err)
+	}
+	if rolledBack == nil || rolledBack.Version != 9 {
+		t.Fatalf("rolled-back migration: got %#v, want version 9", rolledBack)
+	}
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, false)
+	assertMigrationIntegrationTableExists(t, database, "homepage_content", false)
+	assertMigrationIntegrationTableExists(t, database, "homepage_hero_images", false)
+	assertMigrationIntegrationTableExists(t, database, "contact_content", false)
+	assertMigrationIntegrationTableRowCount(t, database, "products", 1)
+	assertMigrationIntegrationTableRowCount(t, database, "product_cover_images", 1)
+	assertMigrationIntegrationTableRowCount(t, database, "interior_projects", 1)
+	assertMigrationIntegrationTableRowCount(
+		t,
+		database,
+		"interior_project_cover_images",
+		1,
+	)
+	assertMigrationIntegrationTableRowCount(t, database, "architecture_projects", 1)
+	assertMigrationIntegrationTableRowCount(
+		t,
+		database,
+		"architecture_project_cover_images",
+		1,
+	)
+
+	// The next rollback reverses Stage 23. Version 000008 removes Architecture's
 	// one-cover child and parent while retaining the complete Interior project,
 	// cover, index, and every earlier durable relation and synthetic row.
-	rolledBack, err := runner.Down(t.Context())
+	rolledBack, err = runner.Down(t.Context())
 	if err != nil {
 		t.Fatalf("roll back Stage 23 migration: %v", err)
 	}
 	if rolledBack == nil || rolledBack.Version != 8 {
 		t.Fatalf("rolled-back migration: got %#v, want version 8", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, false, false)
 	assertMigrationIntegrationTableExists(t, database, "architecture_projects", false)
 	assertMigrationIntegrationTableExists(
 		t,
@@ -336,7 +389,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 7 {
 		t.Fatalf("rolled-back migration: got %#v, want version 7", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "interior_projects", false)
 	assertMigrationIntegrationTableExists(
 		t,
@@ -382,7 +435,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 6 {
 		t.Fatalf("rolled-back migration: got %#v, want version 6", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "products", true)
 	assertMigrationIntegrationTableExists(t, database, "product_cover_images", false)
 	assertMigrationIntegrationColumnExists(t, database, "products", "description", false)
@@ -416,7 +469,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 5 {
 		t.Fatalf("rolled-back migration: got %#v, want version 5", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "products", true)
 	assertMigrationIntegrationColumnExists(t, database, "products", "version", false)
 	assertMigrationIntegrationIndexExists(
@@ -435,7 +488,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 4 {
 		t.Fatalf("rolled-back migration: got %#v, want version 4", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "products", false)
 	assertMigrationIntegrationIndexExists(
 		t,
@@ -466,7 +519,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 3 {
 		t.Fatalf("rolled-back migration: got %#v, want version 3", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, false, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", false)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", false)
@@ -515,7 +568,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 2 {
 		t.Fatalf("rolled-back migration: got %#v, want version 2", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, false, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, false, false, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
 	assertMigrationIntegrationColumnExists(
 		t,
@@ -540,24 +593,25 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	)
 
 	// Reapplying with version 000001 still present plans versions 000002 through
-	// 000008 in order. The key backfill preserves inquiry contact data, while the
-	// recreated admin, Product, Interior, and Architecture tables return empty
-	// after their deliberate strict drops.
+	// 000009 in order. The key backfill preserves inquiry contact data, while the
+	// recreated admin and discipline tables return empty and the two global
+	// content singletons return to their non-personal seed values.
 	applied, err = runner.Up(t.Context())
 	if err != nil {
-		t.Fatalf("reapply migrations 2 through 8: %v", err)
+		t.Fatalf("reapply migrations 2 through 9: %v", err)
 	}
-	if len(applied) != 7 ||
+	if len(applied) != 8 ||
 		applied[0].Version != 2 ||
 		applied[1].Version != 3 ||
 		applied[2].Version != 4 ||
 		applied[3].Version != 5 ||
 		applied[4].Version != 6 ||
 		applied[5].Version != 7 ||
-		applied[6].Version != 8 {
-		t.Fatalf("reapplied migrations: got %#v, want versions 2 through 8", applied)
+		applied[6].Version != 8 ||
+		applied[7].Version != 9 {
+		t.Fatalf("reapplied migrations: got %#v, want versions 2 through 9", applied)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, true)
 	assertMigrationIntegrationBackfilledKeys(t, database, 2)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", true)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", true)
@@ -606,6 +660,13 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		"interior_project_cover_images",
 		0,
 	)
+	assertMigrationIntegrationTableExists(t, database, "homepage_content", true)
+	assertMigrationIntegrationTableExists(t, database, "homepage_hero_images", true)
+	assertMigrationIntegrationTableExists(t, database, "contact_content", true)
+	assertMigrationIntegrationTableRowCount(t, database, "homepage_content", 1)
+	assertMigrationIntegrationTableRowCount(t, database, "homepage_hero_images", 0)
+	assertMigrationIntegrationTableRowCount(t, database, "contact_content", 1)
+	assertMigrationIntegrationSiteContentSeeds(t, database)
 	assertMigrationIntegrationTableExists(t, database, "architecture_projects", true)
 	assertMigrationIntegrationTableExists(
 		t,
@@ -667,15 +728,27 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	)
 	assertMigrationIntegrationTableRowCount(t, database, "admin_sessions", 0)
 
-	// A synthetic version 000009 fails after executing DDL. PostgreSQL must roll
-	// back that DDL while retaining all eight applied embedded versions.
+	// A synthetic version 000010 fails after executing DDL. PostgreSQL must roll
+	// back that DDL while retaining all nine applied embedded versions.
 	assertMigrationIntegrationAtomicFailure(t, database, catalog)
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, true)
 
-	// Eight explicit rollback calls prove the runner reverses the catalog one
-	// migration at a time: Architecture projects/cover, Interior projects/cover,
-	// Product content/cover, Product revision, Products, admin access, inquiry
-	// key, then inquiries.
+	// Nine explicit rollback calls prove the runner reverses the catalog one
+	// migration at a time: global site content, Architecture projects/cover,
+	// Interior projects/cover, Product content/cover, Product revision, Products,
+	// admin access, inquiry key, then inquiries.
+	rolledBack, err = runner.Down(t.Context())
+	if err != nil {
+		t.Fatalf("roll back Stage 24 migration before full rollback: %v", err)
+	}
+	if rolledBack == nil || rolledBack.Version != 9 {
+		t.Fatalf("rolled-back migration: got %#v, want version 9", rolledBack)
+	}
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, false)
+	assertMigrationIntegrationTableExists(t, database, "homepage_content", false)
+	assertMigrationIntegrationTableExists(t, database, "homepage_hero_images", false)
+	assertMigrationIntegrationTableExists(t, database, "contact_content", false)
+
 	rolledBack, err = runner.Down(t.Context())
 	if err != nil {
 		t.Fatalf("roll back Stage 23 migration before full rollback: %v", err)
@@ -683,7 +756,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 8 {
 		t.Fatalf("rolled-back migration: got %#v, want version 8", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, false, false)
 	assertMigrationIntegrationTableExists(t, database, "architecture_projects", false)
 	assertMigrationIntegrationTableExists(
 		t,
@@ -706,7 +779,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 7 {
 		t.Fatalf("rolled-back migration: got %#v, want version 7", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "interior_projects", false)
 	assertMigrationIntegrationTableExists(
 		t,
@@ -724,7 +797,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 6 {
 		t.Fatalf("rolled-back migration: got %#v, want version 6", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "product_cover_images", false)
 	assertMigrationIntegrationColumnExists(t, database, "products", "description", false)
 	assertMigrationIntegrationColumnExists(t, database, "products", "version", true)
@@ -736,7 +809,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 5 {
 		t.Fatalf("rolled-back migration: got %#v, want version 5", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "products", true)
 	assertMigrationIntegrationColumnExists(t, database, "products", "version", false)
 
@@ -747,7 +820,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 4 {
 		t.Fatalf("rolled-back migration: got %#v, want version 4", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "products", false)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", true)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", true)
@@ -760,7 +833,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 3 {
 		t.Fatalf("rolled-back migration: got %#v, want version 3", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, false, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", false)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", false)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
@@ -772,7 +845,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 2 {
 		t.Fatalf("rolled-back migration: got %#v, want version 2", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, false, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, false, false, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
 
 	rolledBack, err = runner.Down(t.Context())
@@ -783,7 +856,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		t.Fatalf("rolled-back migration: got %#v, want version 1", rolledBack)
 	}
 	assertMigrationIntegrationTableExists(t, database, "inquiries", false)
-	assertMigrationIntegrationStatus(t, runner, false, false, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, false, false, false, false, false, false, false, false, false)
 
 	if _, err := runner.Down(t.Context()); !errors.Is(err, errNoAppliedMigrations) {
 		t.Fatalf("empty rollback: got %v, want no applied migrations", err)
@@ -795,7 +868,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reapply embedded migrations after full rollback: %v", err)
 	}
-	if len(applied) != 8 ||
+	if len(applied) != 9 ||
 		applied[0].Version != 1 ||
 		applied[1].Version != 2 ||
 		applied[2].Version != 3 ||
@@ -803,10 +876,11 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		applied[4].Version != 5 ||
 		applied[5].Version != 6 ||
 		applied[6].Version != 7 ||
-		applied[7].Version != 8 {
-		t.Fatalf("reapplied migrations: got %#v, want versions 1 through 8", applied)
+		applied[7].Version != 8 ||
+		applied[8].Version != 9 {
+		t.Fatalf("reapplied migrations: got %#v, want versions 1 through 9", applied)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, true)
 }
 
 // loadMigrationIntegrationConfig requires two explicit environment values and
@@ -868,6 +942,9 @@ func requireMigrationIntegrationSchemaEmpty(
 	var interiorProjectCoversExist bool
 	var architectureProjectsExist bool
 	var architectureProjectCoversExist bool
+	var homepageContentExists bool
+	var homepageHeroExists bool
+	var contactContentExists bool
 	var ledgerExists bool
 	var atomicityProbeExists bool
 	var missingProbeExists bool
@@ -884,6 +961,9 @@ func requireMigrationIntegrationSchemaEmpty(
     to_regclass('public.interior_project_cover_images') IS NOT NULL,
     to_regclass('public.architecture_projects') IS NOT NULL,
     to_regclass('public.architecture_project_cover_images') IS NOT NULL,
+    to_regclass('public.homepage_content') IS NOT NULL,
+    to_regclass('public.homepage_hero_images') IS NOT NULL,
+    to_regclass('public.contact_content') IS NOT NULL,
     to_regclass('public.schema_migrations') IS NOT NULL,
     to_regclass('public.stage13_atomicity_probe') IS NOT NULL,
     to_regclass('public.stage13_intentionally_missing_table') IS NOT NULL`,
@@ -898,6 +978,9 @@ func requireMigrationIntegrationSchemaEmpty(
 		&interiorProjectCoversExist,
 		&architectureProjectsExist,
 		&architectureProjectCoversExist,
+		&homepageContentExists,
+		&homepageHeroExists,
+		&contactContentExists,
 		&ledgerExists,
 		&atomicityProbeExists,
 		&missingProbeExists,
@@ -916,6 +999,9 @@ func requireMigrationIntegrationSchemaEmpty(
 		interiorProjectCoversExist ||
 		architectureProjectsExist ||
 		architectureProjectCoversExist ||
+		homepageContentExists ||
+		homepageHeroExists ||
+		contactContentExists ||
 		ledgerExists ||
 		atomicityProbeExists ||
 		missingProbeExists {
@@ -927,9 +1013,10 @@ func requireMigrationIntegrationSchemaEmpty(
 }
 
 // cleanupMigrationIntegrationSchema removes only the exact tables owned or
-// probed by this test from the already-confirmed disposable database. Each
-// cover child precedes its parent, while sessions precede users, preserving the
-// same narrowly scoped foreign-key order as the real reverse migrations.
+// probed by this test from the already-confirmed disposable database. Image
+// children precede their parents, while the homepage precedes any
+// discipline parent it may reference and sessions precede users. This mirrors
+// the narrowly scoped dependency order of the real reverse migrations.
 func cleanupMigrationIntegrationSchema(t *testing.T, database *sql.DB) {
 	t.Helper()
 
@@ -950,6 +1037,9 @@ func cleanupMigrationIntegrationSchema(t *testing.T, database *sql.DB) {
 
 	for _, statement := range []string{
 		"DROP TABLE IF EXISTS public.stage13_atomicity_probe",
+		"DROP TABLE IF EXISTS public.homepage_hero_images",
+		"DROP TABLE IF EXISTS public.contact_content",
+		"DROP TABLE IF EXISTS public.homepage_content",
 		"DROP TABLE IF EXISTS public.architecture_project_cover_images",
 		"DROP TABLE IF EXISTS public.architecture_projects",
 		"DROP TABLE IF EXISTS public.interior_project_cover_images",
@@ -1145,6 +1235,12 @@ func assertMigrationIntegrationTableRowCount(
 		query = "SELECT COUNT(*) FROM public.architecture_projects"
 	case "architecture_project_cover_images":
 		query = "SELECT COUNT(*) FROM public.architecture_project_cover_images"
+	case "homepage_content":
+		query = "SELECT COUNT(*) FROM public.homepage_content"
+	case "homepage_hero_images":
+		query = "SELECT COUNT(*) FROM public.homepage_hero_images"
+	case "contact_content":
+		query = "SELECT COUNT(*) FROM public.contact_content"
 	default:
 		t.Fatalf("unsupported migration integration row-count table %q", tableName)
 	}
@@ -1156,6 +1252,488 @@ func assertMigrationIntegrationTableRowCount(
 	if count != expected {
 		t.Errorf("table %q rows: got %d, want %d", tableName, count, expected)
 	}
+}
+
+// assertMigrationIntegrationSiteContentSeeds proves migration 000009 preserves
+// the current public identity and Contact composition without manufacturing a
+// selected portfolio item, managed image, or personal contact detail.
+func assertMigrationIntegrationSiteContentSeeds(
+	t *testing.T,
+	database *sql.DB,
+) {
+	t.Helper()
+
+	var homepageID int16
+	var studioName string
+	var descriptor string
+	var managedHeroEnabled bool
+	var featuredProductID sql.NullInt64
+	var featuredInteriorProjectID sql.NullInt64
+	var featuredArchitectureProjectID sql.NullInt64
+	var homepageSEOTitle string
+	var homepageSEODescription string
+	var homepageVersion int64
+	var homepageCreatedAt time.Time
+	var homepageUpdatedAt time.Time
+	if err := database.QueryRowContext(
+		t.Context(),
+		`SELECT
+    id,
+    studio_name,
+    descriptor,
+    managed_hero_enabled,
+    featured_product_id,
+    featured_interior_project_id,
+    featured_architecture_project_id,
+    seo_title,
+    seo_description,
+    version,
+    created_at,
+    updated_at
+FROM public.homepage_content
+WHERE id = 1`,
+	).Scan(
+		&homepageID,
+		&studioName,
+		&descriptor,
+		&managedHeroEnabled,
+		&featuredProductID,
+		&featuredInteriorProjectID,
+		&featuredArchitectureProjectID,
+		&homepageSEOTitle,
+		&homepageSEODescription,
+		&homepageVersion,
+		&homepageCreatedAt,
+		&homepageUpdatedAt,
+	); err != nil {
+		t.Fatal("read migration-9 homepage seed")
+	}
+	if homepageID != 1 ||
+		studioName != "Zafarmand" ||
+		descriptor != "Design Studio" ||
+		managedHeroEnabled ||
+		featuredProductID.Valid ||
+		featuredInteriorProjectID.Valid ||
+		featuredArchitectureProjectID.Valid ||
+		homepageSEOTitle != "Home | Zafarmand" ||
+		homepageSEODescription != "Zafarmand design studio" ||
+		homepageVersion != 1 {
+		t.Error("migration-9 homepage seed does not match the public fallback contract")
+	}
+	if homepageCreatedAt.IsZero() || !homepageUpdatedAt.Equal(homepageCreatedAt) {
+		t.Errorf(
+			"initial homepage timestamps: got created=%s updated=%s, want equal nonzero values",
+			homepageCreatedAt,
+			homepageUpdatedAt,
+		)
+	}
+
+	var contactID int16
+	var eyebrow string
+	var heading string
+	var introduction string
+	var contactEmail string
+	var phoneDisplay string
+	var phoneE164 string
+	var address string
+	var contactSEOTitle string
+	var contactSEODescription string
+	var contactVersion int64
+	var contactCreatedAt time.Time
+	var contactUpdatedAt time.Time
+	if err := database.QueryRowContext(
+		t.Context(),
+		`SELECT
+    id,
+    eyebrow,
+    heading,
+    introduction,
+    contact_email,
+    phone_display,
+    phone_e164,
+    address,
+    seo_title,
+    seo_description,
+    version,
+    created_at,
+    updated_at
+FROM public.contact_content
+WHERE id = 1`,
+	).Scan(
+		&contactID,
+		&eyebrow,
+		&heading,
+		&introduction,
+		&contactEmail,
+		&phoneDisplay,
+		&phoneE164,
+		&address,
+		&contactSEOTitle,
+		&contactSEODescription,
+		&contactVersion,
+		&contactCreatedAt,
+		&contactUpdatedAt,
+	); err != nil {
+		t.Fatal("read migration-9 Contact seed")
+	}
+	if contactID != 1 ||
+		eyebrow != "Contact" ||
+		heading != "Begin a conversation" ||
+		introduction != "Choose a discipline and share the context Zafarmand should review." ||
+		contactEmail != "" ||
+		phoneDisplay != "" ||
+		phoneE164 != "" ||
+		address != "" ||
+		contactSEOTitle != "Contact | Zafarmand" ||
+		contactSEODescription != "Zafarmand design studio" ||
+		contactVersion != 1 {
+		t.Error("migration-9 Contact seed does not match the non-personal public fallback contract")
+	}
+	if contactCreatedAt.IsZero() || !contactUpdatedAt.Equal(contactCreatedAt) {
+		t.Errorf(
+			"initial Contact timestamps: got created=%s updated=%s, want equal nonzero values",
+			contactCreatedAt,
+			contactUpdatedAt,
+		)
+	}
+}
+
+// assertMigrationIntegrationSiteContentConstraintsAndIsolation bypasses every
+// Stage 24 application validator and exercises PostgreSQL directly. Each update
+// changes one rule, so the exact named constraint remains useful to a learner
+// diagnosing a rejected write instead of receiving an ambiguous database error.
+func assertMigrationIntegrationSiteContentConstraintsAndIsolation(
+	t *testing.T,
+	database *sql.DB,
+	productID int64,
+	interiorProjectID int64,
+	architectureProjectID int64,
+) {
+	t.Helper()
+
+	// Valid optional selections prove each discipline has an independent nullable
+	// foreign key. The database preserves references; public readers separately
+	// enforce Published-plus-current-cover visibility before rendering them.
+	if _, err := database.ExecContext(
+		t.Context(),
+		`UPDATE public.homepage_content
+SET featured_product_id = $1,
+    featured_interior_project_id = $2,
+    featured_architecture_project_id = $3,
+    version = version + 1,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = 1`,
+		productID,
+		interiorProjectID,
+		architectureProjectID,
+	); err != nil {
+		t.Fatal("select migration-9 featured content")
+	}
+
+	var storedProductID sql.NullInt64
+	var storedInteriorProjectID sql.NullInt64
+	var storedArchitectureProjectID sql.NullInt64
+	var homepageVersion int64
+	if err := database.QueryRowContext(
+		t.Context(),
+		`SELECT
+    featured_product_id,
+    featured_interior_project_id,
+    featured_architecture_project_id,
+    version
+FROM public.homepage_content
+WHERE id = 1`,
+	).Scan(
+		&storedProductID,
+		&storedInteriorProjectID,
+		&storedArchitectureProjectID,
+		&homepageVersion,
+	); err != nil {
+		t.Fatal("read migration-9 featured selections")
+	}
+	if !storedProductID.Valid || storedProductID.Int64 != productID ||
+		!storedInteriorProjectID.Valid || storedInteriorProjectID.Int64 != interiorProjectID ||
+		!storedArchitectureProjectID.Valid || storedArchitectureProjectID.Int64 != architectureProjectID ||
+		homepageVersion != 2 {
+		t.Error("migration-9 featured selections or homepage revision were not stored")
+	}
+
+	// RESTRICT prevents an administrator from deleting a still-selected record.
+	// The failed deletes also prove Stage 24 cannot mutate discipline data merely
+	// because the homepage points at it.
+	for _, test := range []struct {
+		// name identifies the independently selected discipline.
+		name string
+		// statement is closed, trusted test SQL rather than caller-controlled input.
+		statement string
+		// id is the selected parent identity passed as a query parameter.
+		id int64
+		// constraint is the exact Stage 24 foreign-key boundary.
+		constraint string
+	}{
+		{
+			name:       "Product selection",
+			statement:  "DELETE FROM public.products WHERE id = $1",
+			id:         productID,
+			constraint: "homepage_content_featured_product_id_foreign",
+		},
+		{
+			name:       "Interior selection",
+			statement:  "DELETE FROM public.interior_projects WHERE id = $1",
+			id:         interiorProjectID,
+			constraint: "homepage_content_featured_interior_project_id_foreign",
+		},
+		{
+			name:       "Architecture selection",
+			statement:  "DELETE FROM public.architecture_projects WHERE id = $1",
+			id:         architectureProjectID,
+			constraint: "homepage_content_featured_architecture_project_id_foreign",
+		},
+	} {
+		t.Run(test.name+" restricts delete", func(t *testing.T) {
+			_, err := database.ExecContext(t.Context(), test.statement, test.id)
+			// PostgreSQL classifies an explicit ON DELETE RESTRICT action as
+			// restrict_violation (23001). That is intentionally distinct from the
+			// foreign_key_violation (23503) raised when an UPDATE stores a missing
+			// referenced identity in the assignment checks below.
+			assertPostgresConstraintError(t, err, "23001", test.constraint, "")
+		})
+	}
+
+	// Each malformed homepage update changes only one named check. Foreign-key
+	// cases use a deliberately absent positive identity and therefore exercise the
+	// database relationship rather than a Go-level candidate filter.
+	homepageConstraintTests := []struct {
+		// name identifies one isolated homepage invariant.
+		name string
+		// assignment is trusted SQL selected from this closed test table.
+		assignment string
+		// sqlState distinguishes CHECK and foreign-key diagnostics.
+		sqlState string
+		// constraint is PostgreSQL's stable named failure boundary.
+		constraint string
+	}{
+		{name: "singleton", assignment: "id = 2", sqlState: postgresCheckViolationCode, constraint: "homepage_content_singleton"},
+		{name: "studio name trimmed", assignment: "studio_name = ' Zafarmand'", sqlState: postgresCheckViolationCode, constraint: "homepage_content_studio_name_trimmed"},
+		{name: "studio name required", assignment: "studio_name = ''", sqlState: postgresCheckViolationCode, constraint: "homepage_content_studio_name_length"},
+		{name: "studio name length", assignment: "studio_name = repeat('s', 121)", sqlState: postgresCheckViolationCode, constraint: "homepage_content_studio_name_length"},
+		{name: "studio name single line", assignment: "studio_name = E'Zafar\\nmand'", sqlState: postgresCheckViolationCode, constraint: "homepage_content_studio_name_single_line"},
+		{name: "descriptor trimmed", assignment: "descriptor = ' Design Studio'", sqlState: postgresCheckViolationCode, constraint: "homepage_content_descriptor_trimmed"},
+		{name: "descriptor required", assignment: "descriptor = ''", sqlState: postgresCheckViolationCode, constraint: "homepage_content_descriptor_length"},
+		{name: "descriptor length", assignment: "descriptor = repeat('d', 161)", sqlState: postgresCheckViolationCode, constraint: "homepage_content_descriptor_length"},
+		{name: "descriptor single line", assignment: "descriptor = E'Design\\rStudio'", sqlState: postgresCheckViolationCode, constraint: "homepage_content_descriptor_single_line"},
+		{name: "Product foreign key", assignment: "featured_product_id = 9223372036854775807", sqlState: "23503", constraint: "homepage_content_featured_product_id_foreign"},
+		{name: "Interior foreign key", assignment: "featured_interior_project_id = 9223372036854775807", sqlState: "23503", constraint: "homepage_content_featured_interior_project_id_foreign"},
+		{name: "Architecture foreign key", assignment: "featured_architecture_project_id = 9223372036854775807", sqlState: "23503", constraint: "homepage_content_featured_architecture_project_id_foreign"},
+		{name: "SEO title trimmed", assignment: "seo_title = ' Home | Zafarmand'", sqlState: postgresCheckViolationCode, constraint: "homepage_content_seo_title_trimmed"},
+		{name: "SEO title required", assignment: "seo_title = ''", sqlState: postgresCheckViolationCode, constraint: "homepage_content_seo_title_length"},
+		{name: "SEO title length", assignment: "seo_title = repeat('t', 161)", sqlState: postgresCheckViolationCode, constraint: "homepage_content_seo_title_length"},
+		{name: "SEO title single line", assignment: "seo_title = E'Home\\nZafarmand'", sqlState: postgresCheckViolationCode, constraint: "homepage_content_seo_title_single_line"},
+		{name: "SEO description trimmed", assignment: "seo_description = ' Description'", sqlState: postgresCheckViolationCode, constraint: "homepage_content_seo_description_trimmed"},
+		{name: "SEO description required", assignment: "seo_description = ''", sqlState: postgresCheckViolationCode, constraint: "homepage_content_seo_description_length"},
+		{name: "SEO description length", assignment: "seo_description = repeat('d', 321)", sqlState: postgresCheckViolationCode, constraint: "homepage_content_seo_description_length"},
+		{name: "SEO description single line", assignment: "seo_description = E'Description\\ncontinued'", sqlState: postgresCheckViolationCode, constraint: "homepage_content_seo_description_single_line"},
+		{name: "version positive", assignment: "version = 0", sqlState: postgresCheckViolationCode, constraint: "homepage_content_version_positive"},
+		{name: "timestamp order", assignment: "updated_at = created_at - INTERVAL '1 second'", sqlState: postgresCheckViolationCode, constraint: "homepage_content_timestamp_order"},
+	}
+	for _, test := range homepageConstraintTests {
+		t.Run("Homepage "+test.name, func(t *testing.T) {
+			_, err := database.ExecContext(
+				t.Context(),
+				"UPDATE public.homepage_content SET "+test.assignment+" WHERE id = 1",
+			)
+			assertPostgresConstraintError(t, err, test.sqlState, test.constraint, "")
+		})
+	}
+
+	contactConstraintTests := []struct {
+		// name identifies one isolated Contact-content invariant.
+		name string
+		// assignment is trusted SQL selected from this closed test table.
+		assignment string
+		// constraint is the exact named check expected from PostgreSQL.
+		constraint string
+	}{
+		{name: "singleton", assignment: "id = 2", constraint: "contact_content_singleton"},
+		{name: "eyebrow trimmed", assignment: "eyebrow = ' Contact'", constraint: "contact_content_eyebrow_trimmed"},
+		{name: "eyebrow required", assignment: "eyebrow = ''", constraint: "contact_content_eyebrow_length"},
+		{name: "eyebrow length", assignment: "eyebrow = repeat('e', 81)", constraint: "contact_content_eyebrow_length"},
+		{name: "eyebrow single line", assignment: "eyebrow = E'Con\\ntact'", constraint: "contact_content_eyebrow_single_line"},
+		{name: "heading trimmed", assignment: "heading = ' Begin a conversation'", constraint: "contact_content_heading_trimmed"},
+		{name: "heading required", assignment: "heading = ''", constraint: "contact_content_heading_length"},
+		{name: "heading length", assignment: "heading = repeat('h', 161)", constraint: "contact_content_heading_length"},
+		{name: "heading single line", assignment: "heading = E'Begin\\rconversation'", constraint: "contact_content_heading_single_line"},
+		{name: "introduction trimmed", assignment: "introduction = ' Introduction'", constraint: "contact_content_introduction_trimmed"},
+		{name: "introduction required", assignment: "introduction = ''", constraint: "contact_content_introduction_length"},
+		{name: "introduction length", assignment: "introduction = repeat('i', 1201)", constraint: "contact_content_introduction_length"},
+		{name: "email normalized", assignment: "contact_email = 'Studio@Example.Test'", constraint: "contact_content_email_normalized"},
+		{name: "email length", assignment: "contact_email = repeat('a', 243) || '@example.test'", constraint: "contact_content_email_length"},
+		{name: "email shape", assignment: "contact_email = 'studio@example'", constraint: "contact_content_email_shape"},
+		{name: "phone display trimmed", assignment: "phone_display = ' +98 21 1234', phone_e164 = '+982112345678'", constraint: "contact_content_phone_display_trimmed"},
+		{name: "phone display length", assignment: "phone_display = repeat('1', 61), phone_e164 = '+982112345678'", constraint: "contact_content_phone_display_length"},
+		{name: "phone display single line", assignment: "phone_display = E'+98\\n21', phone_e164 = '+982112345678'", constraint: "contact_content_phone_display_single_line"},
+		{name: "phone E.164 normalized", assignment: "phone_display = '+98 21 1234', phone_e164 = ' +982112345678'", constraint: "contact_content_phone_e164_normalized"},
+		{name: "phone display missing E.164", assignment: "phone_display = '+98 21 1234', phone_e164 = ''", constraint: "contact_content_phone_pair"},
+		{name: "phone E.164 missing display", assignment: "phone_display = '', phone_e164 = '+982112345678'", constraint: "contact_content_phone_pair"},
+		{name: "phone E.164 shape", assignment: "phone_display = '+98 21 1234', phone_e164 = '982112345678'", constraint: "contact_content_phone_pair"},
+		{name: "address trimmed", assignment: "address = ' Studio address'", constraint: "contact_content_address_trimmed"},
+		{name: "address length", assignment: "address = repeat('a', 501)", constraint: "contact_content_address_length"},
+		{name: "SEO title trimmed", assignment: "seo_title = ' Contact | Zafarmand'", constraint: "contact_content_seo_title_trimmed"},
+		{name: "SEO title required", assignment: "seo_title = ''", constraint: "contact_content_seo_title_length"},
+		{name: "SEO title length", assignment: "seo_title = repeat('t', 161)", constraint: "contact_content_seo_title_length"},
+		{name: "SEO title single line", assignment: "seo_title = E'Contact\\nZafarmand'", constraint: "contact_content_seo_title_single_line"},
+		{name: "SEO description trimmed", assignment: "seo_description = ' Description'", constraint: "contact_content_seo_description_trimmed"},
+		{name: "SEO description required", assignment: "seo_description = ''", constraint: "contact_content_seo_description_length"},
+		{name: "SEO description length", assignment: "seo_description = repeat('d', 321)", constraint: "contact_content_seo_description_length"},
+		{name: "SEO description single line", assignment: "seo_description = E'Description\\ncontinued'", constraint: "contact_content_seo_description_single_line"},
+		{name: "version positive", assignment: "version = 0", constraint: "contact_content_version_positive"},
+		{name: "timestamp order", assignment: "updated_at = created_at - INTERVAL '1 second'", constraint: "contact_content_timestamp_order"},
+	}
+	for _, test := range contactConstraintTests {
+		t.Run("Contact "+test.name, func(t *testing.T) {
+			_, err := database.ExecContext(
+				t.Context(),
+				"UPDATE public.contact_content SET "+test.assignment+" WHERE id = 1",
+			)
+			assertPostgresConstraintError(
+				t,
+				err,
+				postgresCheckViolationCode,
+				test.constraint,
+				"",
+			)
+		})
+	}
+
+	// A tiny deterministic byte sequence is sufficient here because migration
+	// tests prove database invariants, while the media repository tests own image
+	// decoding and normalization. The digest still uses the exact 32-byte shape.
+	insertHero := func(homepageContentID int16) error {
+		_, err := database.ExecContext(
+			t.Context(),
+			`INSERT INTO public.homepage_hero_images (
+    homepage_content_id,
+    content_type,
+    content,
+    byte_size,
+    width,
+    height,
+    sha256,
+    alt_text
+) VALUES ($1, 'image/png', $2, 4, 1, 1, $3, 'Migration hero')`,
+			homepageContentID,
+			[]byte{0x89, 0x50, 0x4e, 0x47},
+			bytes.Repeat([]byte{0x24}, 32),
+		)
+		return err
+	}
+	if err := insertHero(1); err != nil {
+		t.Fatal("insert valid migration-9 homepage hero")
+	}
+	assertMigrationIntegrationTableRowCount(t, database, "homepage_hero_images", 1)
+	var heroVersion int64
+	var heroCreatedAt time.Time
+	var heroUpdatedAt time.Time
+	if err := database.QueryRowContext(
+		t.Context(),
+		`SELECT version, created_at, updated_at
+FROM public.homepage_hero_images
+WHERE homepage_content_id = 1`,
+	).Scan(&heroVersion, &heroCreatedAt, &heroUpdatedAt); err != nil {
+		t.Fatal("read migration-9 homepage hero defaults")
+	}
+	if heroVersion != 1 ||
+		heroCreatedAt.IsZero() ||
+		!heroUpdatedAt.Equal(heroCreatedAt) {
+		t.Errorf(
+			"initial homepage hero revision/timestamps: version=%d created=%s updated=%s",
+			heroVersion,
+			heroCreatedAt,
+			heroUpdatedAt,
+		)
+	}
+	assertPostgresConstraintError(
+		t,
+		insertHero(1),
+		postgresUniqueViolationCode,
+		"homepage_hero_images_pkey",
+		"",
+	)
+	assertPostgresConstraintError(
+		t,
+		insertHero(2),
+		"23503",
+		"homepage_hero_images_homepage_content_id_foreign",
+		"",
+	)
+
+	heroConstraintTests := []struct {
+		// name identifies one isolated reviewed-image invariant.
+		name string
+		// assignment is trusted SQL selected from this closed test table.
+		assignment string
+		// constraint is the stable named check expected from PostgreSQL.
+		constraint string
+	}{
+		{name: "version positive", assignment: "version = 0", constraint: "homepage_hero_images_version_positive"},
+		{name: "content type", assignment: "content_type = 'image/gif'", constraint: "homepage_hero_images_content_type_supported"},
+		{name: "byte size range", assignment: "content = ''::bytea, byte_size = 0", constraint: "homepage_hero_images_byte_size_supported"},
+		{name: "content size", assignment: "byte_size = byte_size + 1", constraint: "homepage_hero_images_content_size_matches"},
+		{name: "width range", assignment: "width = 0", constraint: "homepage_hero_images_width_supported"},
+		{name: "height range", assignment: "height = 10001", constraint: "homepage_hero_images_height_supported"},
+		{name: "pixel count", assignment: "width = 5001, height = 5001", constraint: "homepage_hero_images_pixel_count_supported"},
+		{name: "digest length", assignment: "sha256 = decode('00', 'hex')", constraint: "homepage_hero_images_sha256_length"},
+		{name: "alt text trimmed", assignment: "alt_text = ' Padded alternative'", constraint: "homepage_hero_images_alt_text_trimmed"},
+		{name: "alt text required", assignment: "alt_text = ''", constraint: "homepage_hero_images_alt_text_length"},
+		{name: "alt text length", assignment: "alt_text = repeat('a', 301)", constraint: "homepage_hero_images_alt_text_length"},
+		{name: "timestamp order", assignment: "updated_at = created_at - INTERVAL '1 second'", constraint: "homepage_hero_images_timestamp_order"},
+	}
+	for _, test := range heroConstraintTests {
+		t.Run("Homepage hero "+test.name, func(t *testing.T) {
+			_, err := database.ExecContext(
+				t.Context(),
+				"UPDATE public.homepage_hero_images SET "+test.assignment+" WHERE homepage_content_id = 1",
+			)
+			assertPostgresConstraintError(
+				t,
+				err,
+				postgresCheckViolationCode,
+				test.constraint,
+				"",
+			)
+		})
+	}
+
+	// A transaction-scoped parent delete proves the one owned hero cascades while
+	// rollback preserves the singleton documents for the remaining lifecycle test.
+	transaction, err := database.BeginTx(t.Context(), nil)
+	if err != nil {
+		t.Fatal("begin homepage hero cascade proof")
+	}
+	defer func() {
+		_ = transaction.Rollback()
+	}()
+	if _, err := transaction.ExecContext(
+		t.Context(),
+		"DELETE FROM public.homepage_content WHERE id = 1",
+	); err != nil {
+		t.Fatal("delete homepage inside cascade proof")
+	}
+	var heroRows int
+	if err := transaction.QueryRowContext(
+		t.Context(),
+		"SELECT COUNT(*) FROM public.homepage_hero_images",
+	).Scan(&heroRows); err != nil {
+		t.Fatal("count homepage heroes inside cascade proof")
+	}
+	if heroRows != 0 {
+		t.Errorf("homepage hero rows after parent delete: got %d, want 0", heroRows)
+	}
+	if err := transaction.Rollback(); err != nil {
+		t.Fatal("roll back homepage hero cascade proof")
+	}
+	assertMigrationIntegrationTableRowCount(t, database, "homepage_content", 1)
+	assertMigrationIntegrationTableRowCount(t, database, "homepage_hero_images", 1)
 }
 
 // insertMigrationIntegrationProduct writes one valid schema-only fixture while
@@ -2644,10 +3222,10 @@ func assertMigrationIntegrationAtomicFailure(
 	t.Helper()
 
 	failingMigration := migrationDefinition{
-		// Versions 000001 through 000008 are the real embedded history. The probe
+		// Versions 000001 through 000009 are the real embedded history. The probe
 		// therefore uses the next contiguous version instead of colliding with the
-		// Stage 23 definition during catalog validation.
-		Version: 9,
+		// Stage 24 definition during catalog validation.
+		Version: 10,
 		Name:    "prove_atomicity",
 		UpSQL: `CREATE TABLE public.stage13_atomicity_probe (id bigint);
 SELECT * FROM public.stage13_intentionally_missing_table;`,
@@ -2689,7 +3267,7 @@ SELECT * FROM public.stage13_intentionally_missing_table;`,
 	).Scan(&ledgerRows); err != nil {
 		t.Fatal("count migration integration ledger rows")
 	}
-	if ledgerRows != 8 {
-		t.Errorf("ledger rows after failed migration: got %d, want 8", ledgerRows)
+	if ledgerRows != 9 {
+		t.Errorf("ledger rows after failed migration: got %d, want 9", ledgerRows)
 	}
 }

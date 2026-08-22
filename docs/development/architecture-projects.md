@@ -71,9 +71,9 @@ DROP TABLE public.architecture_projects;
 
 It intentionally omits `IF EXISTS` and `CASCADE`, so drift remains visible.
 Rollback permanently removes every Architecture project and cover and is safe
-only in a confirmed disposable database. Migration 8 is the latest member of
-the current contiguous 1-through-8 catalog; never edit it after it has been
-applied anywhere.
+only in a confirmed disposable database. Migration 8 remains immutable, while
+the current contiguous catalog continues through migration 9; never edit an
+applied migration.
 
 ## Public routes
 
@@ -240,7 +240,7 @@ go run . migrate up
 go run . migrate status
 ```
 
-Versions 1 through 8 should be Applied, and a second `migrate up` should be a
+Versions 1 through 9 should be Applied, and a second `migrate up` should be a
 truthful no-op. Replace `DATABASE_URL` with the least-privilege runtime-role URL
 before starting the application:
 
@@ -309,18 +309,17 @@ Remove-Item Env:ZAFARMAND_TEST_DATABASE_CONFIRM -ErrorAction SilentlyContinue
 
 The guard never falls back to `DATABASE_URL`. It verifies the configured and
 server-reported `_test` database name, refuses existing reserved relations,
-exercises the full 1-through-8 migration lifecycle and real Architecture
+exercises the full 1-through-9 migration lifecycle and real Architecture
 reader/writer/cover behavior, and cleans only its exact relations. Once opted
 in, an unreachable PostgreSQL server is a test failure rather than a skip.
 
-## Deferred after Stage 23
+## Still deferred after Stage 24
 
 - Architecture deletion and retention policy;
 - multiple-image galleries and drag ordering;
 - crop, focal-point, and rendition management;
 - client, site area, credits, and richer project facts;
-- featured Architecture selection and homepage placement;
 - preview-before-publishing links;
 - durable audit history and actor attribution;
-- SEO metadata; and
+- per-project SEO metadata; and
 - object storage or CDN operations.
