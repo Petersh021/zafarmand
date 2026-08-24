@@ -25,7 +25,7 @@ so a stage number never silently changes meaning.
 | 11 | Server-rendered Architecture project details | Complete |
 | 12 | Secure Contact inquiry preview and submission flow | Complete |
 
-## Completed persistence and administration foundation
+## Completed persistence, administration, and operations
 
 | Stage | Outcome | Status |
 | --- | --- | --- |
@@ -41,16 +41,16 @@ so a stage number never silently changes meaning.
 | 22 | PostgreSQL-backed Interior projects and protected management workflow | Complete |
 | 23 | PostgreSQL-backed Architecture projects and protected management workflow | Complete |
 | 24 | Homepage, Contact information, featured-content, and SEO management | Complete |
+| 25 | Security, privacy, retention, observability, backup, and operational hardening | Complete |
 
 ## Remaining focused stages
 
 | Stage | Planned outcome | Status |
 | --- | --- | --- |
-| 25 | Security, privacy, retention, observability, backup, and operational hardening | In progress |
 | 26 | End-to-end acceptance, accessibility/performance review, and deployment | Planned |
 
-Stage 25 is active. After its operational hardening is verified, Stage 26 is
-the final planned acceptance and deployment stage.
+Stage 25 is complete. Stage 26 is the final planned acceptance and deployment
+stage.
 
 Later stages must remain vertical. Stages 21-23 deliberately stop at one
 reviewed cover per Product, Interior project, or Architecture project instead
