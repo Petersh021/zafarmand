@@ -72,7 +72,7 @@ DROP TABLE public.architecture_projects;
 It intentionally omits `IF EXISTS` and `CASCADE`, so drift remains visible.
 Rollback permanently removes every Architecture project and cover and is safe
 only in a confirmed disposable database. Migration 8 remains immutable, while
-the current contiguous catalog continues through migration 9; never edit an
+the current contiguous catalog continues through migration 10; never edit an
 applied migration.
 
 ## Public routes
@@ -240,7 +240,8 @@ go run . migrate up
 go run . migrate status
 ```
 
-Versions 1 through 9 should be Applied, and a second `migrate up` should be a
+Versions 1 through 10 should be Applied; migration 10's inquiry-retention
+support does not alter Architecture behavior. A second `migrate up` should be a
 truthful no-op. Replace `DATABASE_URL` with the least-privilege runtime-role URL
 before starting the application:
 

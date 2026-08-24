@@ -21,6 +21,8 @@ func TestParseProgramCommand(t *testing.T) {
 		expectedError error
 		// expectedErrorText checks useful context for non-sentinel failures.
 		expectedErrorText string
+		// forbiddenErrorText protects untrusted arguments from process logs.
+		forbiddenErrorText string
 	}{
 		{
 			name:     "public server",
@@ -99,14 +101,16 @@ func TestParseProgramCommand(t *testing.T) {
 			},
 		},
 		{
-			name:              "unknown top-level command",
-			args:              []string{"database"},
-			expectedErrorText: "unknown command",
+			name:               "unknown top-level command",
+			args:               []string{"database-private-value"},
+			expectedErrorText:  "unknown command",
+			forbiddenErrorText: "database-private-value",
 		},
 		{
-			name:              "unknown migration action",
-			args:              []string{"migrate", "reset"},
-			expectedErrorText: "unknown migration action",
+			name:               "unknown migration action",
+			args:               []string{"migrate", "private-action-value"},
+			expectedErrorText:  "unknown migration action",
+			forbiddenErrorText: "private-action-value",
 		},
 		{
 			name:              "unknown admin action",
@@ -154,6 +158,14 @@ func TestParseProgramCommand(t *testing.T) {
 					"error: got %v, want text %q",
 					err,
 					test.expectedErrorText,
+				)
+			}
+			if err != nil && test.forbiddenErrorText != "" &&
+				strings.Contains(err.Error(), test.forbiddenErrorText) {
+				t.Errorf(
+					"error exposes command argument %q: %v",
+					test.forbiddenErrorText,
+					err,
 				)
 			}
 			if actual != test.expected {

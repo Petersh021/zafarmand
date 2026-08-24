@@ -1,4 +1,4 @@
-# Stage 13-24 database development on Windows
+# Stage 13-25 database development on Windows
 
 Stage 13 establishes an explicit PostgreSQL migration workflow. Stage 14 uses
 that foundation for the first database-backed public feature: Contact inquiry
@@ -32,6 +32,11 @@ Stage 24 adds migration 9's independent Homepage and Contact singletons, one
 reviewed Homepage hero, fixed featured-work references, and managed public SEO.
 Its exact schema, privacy, authorization, and verification contract is in the
 [site-content development guide](site-content.md).
+Stage 25 adds migration 10's digest-only inquiry replay tombstones and archived
+retention index. Its separate maintenance credential, offline purge commands,
+and backup/restore safeguards are documented in the [retention and recovery
+guide](retention.md); HTTP deployment and readiness are documented in the
+[operations runbook](operations.md).
 
 The boundary is intentional:
 
@@ -43,6 +48,9 @@ The boundary is intentional:
   uses Post/Redirect/Get.
 - A per-form key makes retries idempotent; the same submission cannot create a
   second row.
+- A digest-only tombstone prevents a purged archived inquiry from being
+  recreated by an old browser POST. Deletion authority exists only in the
+  offline maintenance command, never an HTTP repository.
 - The private login stores one-way password verifiers and only digests of the
   browser's session and CSRF secrets.
 - Authenticated owners and editors can read bounded inquiry pages through a
@@ -114,17 +122,22 @@ connection strings, commands, and exit behavior.
 
 ## Supplying `DATABASE_URL` safely
 
-Migration commands and the public server each read one required environment
-variable named `DATABASE_URL`. Set it only for the current PowerShell process:
+Migration commands, administrator bootstrap, and the public server each read
+one required environment variable named `DATABASE_URL`. Define the hidden-prompt
+`Set-SecretProcessVariable` helper from
+[`admin-access.md`](admin-access.md#creating-the-first-administrator-safely),
+then set it only for the current PowerShell process:
 
 ```powershell
-$env:DATABASE_URL = 'postgres://<user>:<password>@localhost:5432/<database>?sslmode=disable'
+Set-SecretProcessVariable `
+    -Name 'DATABASE_URL' `
+    -Prompt 'Enter the PostgreSQL URL for this database role'
 ```
 
-Replace every angle-bracketed value locally. Percent-encode characters that
-have a special meaning inside a URL. `sslmode=disable` is suitable only for a
-trusted local development server; deployment must use the TLS policy required
-by its PostgreSQL provider.
+At the prompt, enter a complete URL such as the credential supplied by the
+PostgreSQL provider. Percent-encode characters that have a special meaning
+inside a URL. `sslmode=disable` is suitable only for a trusted local development
+server; deployment must use the TLS policy required by its PostgreSQL provider.
 
 Use a direct PostgreSQL endpoint, or a pooler explicitly configured for session
 pooling, for migration commands. The runner holds a PostgreSQL session advisory
@@ -160,10 +173,31 @@ adds column-level `SELECT`/`UPDATE` on the two content singletons and narrow
 `SELECT`/`INSERT`/`UPDATE` on the Homepage hero, as listed in
 [site-content.md](site-content.md). The runtime also needs `SELECT` on
 `public.admin_users` and `SELECT`, `INSERT`, and `UPDATE` on
-`public.admin_sessions`. The broader inquiry read is required by Stage 16's
+`public.admin_sessions`. Stage 25 additionally requires read-only runtime access
+to `public.schema_migrations` for readiness and to the
+`submission_key_hash` column of `public.inquiry_submission_tombstones` for
+Contact replay protection. The broader inquiry read is required by Stage 16's
 protected list/detail, while the narrow inquiry update belongs to Stage 17.
-Stages 20–24 still need no Product, Interior-project, Architecture-project,
-cover, or site-content `DELETE` privilege and no schema ownership. Separate
+The exact Stage 25 additions are:
+
+```sql
+GRANT SELECT (version, name, checksum)
+    ON TABLE public.schema_migrations
+    TO chosen_runtime_role;
+
+GRANT SELECT (submission_key_hash)
+    ON TABLE public.inquiry_submission_tombstones
+    TO chosen_runtime_role;
+```
+
+The Contact writer also takes PostgreSQL's transaction-scoped shared advisory
+lock. Built-in function execution is normally available through `PUBLIC`; a
+deployment that has revoked it must use the narrow function grants in
+[retention.md](retention.md).
+
+The long-running server still needs no Product, Interior-project,
+Architecture-project, cover, site-content, session, or inquiry `DELETE`
+privilege and no schema ownership. Separate
 application interfaces keep inquiry and unpublished catalogue capabilities
 outside public handlers. Inquiry, Product, Interior-project,
 Architecture-project, and administrator identity sequences need only the access
@@ -173,6 +207,10 @@ administrator bootstrap process additionally needs `INSERT` on
 should own the schema or receive migration privileges. Keep role creation and
 credentials outside this repository and follow the deployment provider's
 role-management documentation.
+
+The Stage 25 maintenance role is separate from both schema owner and runtime.
+It alone receives the narrow live-data deletion grants documented in
+[retention.md](retention.md); the HTTP process remains without `DELETE`.
 
 Never:
 
@@ -186,8 +224,8 @@ Never:
 The repository ignores `.env` and `.env.*` files while permitting a future
 credential-free `.env.example`. Go does **not** automatically load `.env`
 files, and this project intentionally adds no dotenv package. Creating a local
-`.env` file therefore does not configure the program; use the PowerShell
-environment variable shown above.
+`.env` file therefore does not configure the program; use the hidden PowerShell
+prompt shown above.
 
 You can confirm the ignore rules without displaying a secret:
 
@@ -205,6 +243,10 @@ produce no match because `.env.example` is explicitly allowed.
 Stages 13–23 use `database/sql` with pgx as the PostgreSQL driver. A `*sql.DB` is
 a concurrency-safe database handle and connection pool, not one permanently
 open socket.
+
+Stages 24 and 25 continue the same pool ownership. Stage 25 adds explicit open,
+idle, idle-time, and lifetime bounds rather than allowing traffic to grow the
+pool without a ceiling.
 
 The explicit migration command owns its complete lifecycle:
 
@@ -230,12 +272,14 @@ migration code, and closes it once. Individual migration functions do not own
 or close the pool. Opening a new pool for each statement would hide ownership,
 waste connections, and teach the wrong request lifecycle.
 
-In Stages 14–23, the long-running application—not an HTTP handler—owns the
-shared pool. Public inquiry, Product, Interior, and Architecture repositories
-plus their separate protected readers/writers, inquiry workflow, and
-administrator authentication repository borrow it and accept request contexts.
-The server opens and pings the pool before listening, stops accepting requests
-on Ctrl+C, waits for active handlers, and then closes the pool.
+Since Stage 14, the long-running application—not an HTTP handler—owns the shared
+pool. The current public and protected repositories borrow it and accept
+request contexts. The Stage 25 server opens and pings the pool before binding,
+handles both Ctrl+C and `SIGTERM`, stops accepting requests, waits within its
+bounded graceful-shutdown window, and only then closes the pool. Readiness also
+checks that the complete embedded migration catalog matches the read-only
+ledger before the deployment edge admits traffic; see
+[operations.md](operations.md).
 
 See the official Go documentation for [`sql.DB`
 connection management](https://go.dev/doc/database/manage-connections) and the
@@ -289,8 +333,8 @@ Migration history is compiled into the Go executable from `migrations/`. Every
 new schema version must follow one strict contract:
 
 1. Add an exact pair such as
-   `000009_descriptive_name.up.sql` and
-   `000009_descriptive_name.down.sql`.
+   `000011_descriptive_name.up.sql` and
+   `000011_descriptive_name.down.sql`.
 2. Use six digits, the next contiguous positive version, and a globally unique
    lowercase name made from words separated by single underscores.
 3. Put the forward change in `up` and the narrow exact reverse in `down`. Avoid
@@ -379,6 +423,8 @@ psql -X --set ON_ERROR_STOP=on --command '\di interior_projects_published_order_
 psql -X --set ON_ERROR_STOP=on --command '\d architecture_projects'
 psql -X --set ON_ERROR_STOP=on --command '\d architecture_project_cover_images'
 psql -X --set ON_ERROR_STOP=on --command '\di architecture_projects_published_order_idx'
+psql -X --set ON_ERROR_STOP=on --command '\d inquiry_submission_tombstones'
+psql -X --set ON_ERROR_STOP=on --command '\di inquiries_archived_updated_at_id_idx'
 ```
 
 Inspect table definitions only. Do not select or copy password hashes, session
@@ -391,7 +437,7 @@ server in the same PowerShell process so it can read `DATABASE_URL`:
 go run .
 ```
 
-Open `http://localhost:8080/contact`, submit one test inquiry, and verify the
+Open `http://127.0.0.1:8080/contact`, submit one test inquiry, and verify the
 browser reaches `/contact#contact-form-response` with the saved-for-review
 confirmation. Refreshing that GET must not submit again or repeat the one-time
 confirmation. Stop the server with `Ctrl+C`, then inspect only disposable test
@@ -449,6 +495,10 @@ reviewed Homepage hero, three nullable discipline-owned feature references,
 independent optimistic versions, and complete managed SEO for those two public
 routes. It seeds no personal contact details, media, or portfolio records. See
 [site-content.md](site-content.md) for its exact contract and rollback order.
+Migration 10 adds a digest-only Contact replay-tombstone table and the partial
+archived-inquiry retention index. Its destructive commands use a separate
+credential, require every web-server instance to be stopped, and are documented
+with backup and restore safeguards in [retention.md](retention.md).
 
 To exercise rollback, first switch `DATABASE_URL` to a separate disposable
 database. Reconfirm the connection before doing anything destructive:
@@ -494,6 +544,8 @@ protected reader/writer, normalized cover workflow, and archive boundaries.
 Stage 24 adds migration-9 singleton constraints and seeds, public managed
 Homepage/Contact reads, featured publication-and-cover filtering, exact managed
 hero visibility, and protected optimistic content writes.
+Stage 25 adds migration-10 lifecycle checks, tombstone-aware Contact replay,
+offline retention and targeted-purge checks, and PostgreSQL-backed readiness.
 
 On the verified local Windows PostgreSQL 18 installation, the guarded helper
 can run the same acceptance cycle without persisting or printing a password:
@@ -503,8 +555,10 @@ can run the same acceptance cycle without persisting or printing a password:
 ```
 
 The helper keeps its historical Stage 14 filename and disposable database name,
-but its `Postgres` test selection runs the complete current v1-to-v9 suite,
-including Stage 15 admin schema/repository checks and Stage 16 inquiry reads.
+but its `Postgres` test selection runs the complete current database-scoped
+v1-to-v10 suite, including Stage 15 admin schema/repository checks and Stage 16
+inquiry reads. It intentionally skips the separate cluster-global role-grant
+gate, which runs only against CI's disposable PostgreSQL service.
 It also checks Stage 17 status updates and Stage 18's unseeded Product schema,
 published ordering, numbering, detail mapping, and non-public exclusion. Stage
 19 additionally checks the all-state administrator projection and missing ID;
@@ -513,7 +567,9 @@ checks migration-6 content and cover persistence; Stage 22 checks migration-7
 Interior constraints, ordering, publication, revisions, and cover behavior;
 Stage 23 checks the separate migration-8 Architecture lifecycle; and Stage 24
 checks migration-9 seeds, constraints, singleton reads, feature visibility,
-managed hero publication, and optimistic writes.
+managed hero publication, and optimistic writes. Stage 25 checks migration-10
+tombstones and its partial index, retention cutoffs and database confirmation,
+targeted archived-only purges, replay suppression, and exact-ledger readiness.
 
 The helper uses a visible secure password prompt, refuses to reuse a database,
 creates only `zafarmand_stage14_codex_test`, runs the opt-in integration tests
@@ -523,7 +579,8 @@ A failed cleanup is reported explicitly rather than broadening the deletion
 target.
 
 Create a dedicated empty database whose name ends in `_test`. It must not
-contain `public.inquiries`, `public.admin_users`, `public.admin_sessions`,
+contain `public.inquiries`, `public.inquiry_submission_tombstones`,
+`public.admin_users`, `public.admin_sessions`,
 `public.product_cover_images`, `public.products`, `public.interior_projects`,
 `public.interior_project_cover_images`, `public.schema_migrations`,
 `public.architecture_projects`, `public.architecture_project_cover_images`,
@@ -534,17 +591,31 @@ contain `public.inquiries`, `public.admin_users`, `public.admin_sessions`,
 variables:
 
 ```powershell
-$env:ZAFARMAND_TEST_DATABASE_URL = 'postgres://<user>:<password>@localhost:5432/zafarmand_stage14_test?sslmode=disable'
+Set-SecretProcessVariable `
+    -Name 'ZAFARMAND_TEST_DATABASE_URL' `
+    -Prompt 'Enter the PostgreSQL URL for the disposable _test database'
 $env:ZAFARMAND_TEST_DATABASE_CONFIRM = 'stage13-disposable-database'
 go test -count=1 -run 'Postgres' ./...
 ```
+
+Those two values authorize mutations only inside the named disposable database.
+They deliberately do not enable the Stage 25 grant smoke test, because that test
+creates two fixed `NOLOGIN` roles and PostgreSQL roles are cluster-global. The
+isolated CI PostgreSQL service additionally sets the exact
+`ZAFARMAND_TEST_CLUSTER_CONFIRM` value maintained beside that test. Do not set
+that third variable on a normal development, shared, hosted, or otherwise
+valuable cluster merely because one database is disposable. If the grant gate
+is run manually, use an entirely disposable cluster and a test-only superuser;
+deployed runtime and maintenance roles must remain non-superusers without
+role-management rights.
 
 The test never falls back to `DATABASE_URL`, verifies both the configured and
 server-reported database names, and checks every reserved relation before
 mutation. It cleans up only the Homepage hero, Contact and Homepage singletons,
 `public.admin_sessions`, `public.admin_users`, the three exact cover children
 before their Product, Interior, and Architecture parents,
-`public.inquiries`, `public.schema_migrations`, and its exact
+`public.inquiry_submission_tombstones`, `public.inquiries`,
+`public.schema_migrations`, and its exact
 atomicity-probe table; the intentionally missing relation is checked but never
 dropped. Still use a database created solely for this test; the confirmation is
 a safety gate, not a backup.
@@ -554,14 +625,17 @@ Remove the test credentials afterward:
 ```powershell
 Remove-Item Env:ZAFARMAND_TEST_DATABASE_URL -ErrorAction SilentlyContinue
 Remove-Item Env:ZAFARMAND_TEST_DATABASE_CONFIRM -ErrorAction SilentlyContinue
+Remove-Item Env:ZAFARMAND_TEST_CLUSTER_CONFIRM -ErrorAction SilentlyContinue
 ```
 
-The integration tests skip only when their explicit opt-in variables are
-absent; they never fall back to development credentials. Once opted in, an
-unreachable PostgreSQL server is a test failure. The Go tests connect through
-pgx and do not require `psql`; `psql` is required only for the guarded helper
-and the manual inspection commands above. Run the selected check and record its
-result before treating the local database runtime as verified.
+The database-scoped integration tests skip only when their two explicit opt-in
+variables are absent; the cluster-role smoke test independently skips unless its
+third exact confirmation is present. None falls back to development credentials.
+Once a test is opted in, an unreachable PostgreSQL server is a failure. The Go
+tests connect through pgx and do not require `psql`; `psql` is required only for
+the guarded helper and the manual inspection commands above. Run the selected
+check and record its result before treating the local database runtime as
+verified.
 
 ## Normal development checks
 
@@ -570,8 +644,10 @@ authorization, Stage 18 public Products, Stage 19 protected Product reads,
 Stage 20 Product forms/writes, Stage 21 rich-content/cover checks, Stage 22
 public/protected Interior workflow checks, and Stage 23 Architecture workflow
 checks, plus Stage 24 Homepage/Contact, feature, SEO, hero, protected-form, and
-concurrency checks must remain database-independent. They should pass even when
-PostgreSQL is stopped or absent:
+concurrency checks and Stage 25 configuration, TLS, health, logging,
+backpressure, shutdown, maintenance-command, and repository unit checks must
+remain database-independent. They should pass even when PostgreSQL is stopped
+or absent:
 
 ```powershell
 go fmt ./...
@@ -582,6 +658,11 @@ go vet ./...
 The opt-in integration test described above is intentionally skipped unless its
 separate test URL and confirmation are both supplied. It must never silently
 reuse `DATABASE_URL` from a development or production environment.
+
+The repository CI workflow uses the Go version from `go.mod`, verifies modules
+and formatting, runs `go vet`, executes the race-enabled full suite against a
+disposable PostgreSQL 18 `_test` database, and runs `govulncheck`. A passing
+database-independent local run does not replace that release gate.
 
 Before committing a database stage, review only intended files:
 
@@ -610,6 +691,8 @@ git check-attr eol -- migrations/000008_create_architecture_projects.up.sql
 git check-attr eol -- migrations/000008_create_architecture_projects.down.sql
 git check-attr eol -- migrations/000009_create_homepage_contact_content.up.sql
 git check-attr eol -- migrations/000009_create_homepage_contact_content.down.sql
+git check-attr eol -- migrations/000010_add_inquiry_retention_support.up.sql
+git check-attr eol -- migrations/000010_add_inquiry_retention_support.down.sql
 ```
 
 The reported value should be `lf`. Use the actual migration filename if it

@@ -101,8 +101,8 @@ func newInquirySuccessFlashWithSigningKey(
 // The value contains a new server-generated nonce and an HMAC signature. It
 // never copies the untrusted hidden submission token, so even a crafted token
 // containing reversible visitor data cannot enter the cookie. HttpOnly blocks
-// page scripts, SameSite=Lax fits the same-site redirect, and direct TLS
-// requests receive Secure.
+// page scripts, SameSite=Lax fits the same-site redirect, and direct TLS or an
+// operator-declared HTTPS edge receives Secure.
 func (flash *inquirySuccessFlash) issue(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -132,7 +132,7 @@ func (flash *inquirySuccessFlash) issue(
 				encodedSignature,
 			Path:     "/contact",
 			HttpOnly: true,
-			Secure:   r.TLS != nil,
+			Secure:   requestUsesSecureCookies(r),
 			SameSite: http.SameSiteLaxMode,
 			MaxAge:   inquirySuccessFlashMaxAge,
 			Expires: time.Now().UTC().Add(
@@ -235,7 +235,7 @@ func deleteInquirySuccessFlashCookie(
 			Value:    "",
 			Path:     "/contact",
 			HttpOnly: true,
-			Secure:   r.TLS != nil,
+			Secure:   requestUsesSecureCookies(r),
 			SameSite: http.SameSiteLaxMode,
 			MaxAge:   -1,
 			Expires:  time.Unix(1, 0).UTC(),

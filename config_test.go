@@ -17,23 +17,36 @@ func TestLoadDatabaseConfig(t *testing.T) {
 		lookup environmentLookup
 		// expectedConnectionString is nonempty only for the successful case.
 		expectedConnectionString string
+		// expectedRequireTLS is the strict transport declaration returned on success.
+		expectedRequireTLS bool
 		// expectedError identifies the stable, credential-safe failure.
 		expectedError error
 	}{
 		{
 			name: "trimmed value",
 			lookup: func(name string) (string, bool) {
-				if name != databaseURLEnvironmentName {
-					t.Fatalf(
-						"environment name: got %q, want %q",
-						name,
-						databaseURLEnvironmentName,
-					)
+				if name == databaseURLEnvironmentName {
+					return "  postgres://user:password@localhost/zafarmand  ", true
 				}
 
-				return "  postgres://user:password@localhost/zafarmand  ", true
+				return "", false
 			},
 			expectedConnectionString: "postgres://user:password@localhost/zafarmand",
+		},
+		{
+			name: "TLS required",
+			lookup: func(name string) (string, bool) {
+				switch name {
+				case databaseURLEnvironmentName:
+					return "postgres://user:password@database.example/zafarmand", true
+				case databaseRequireTLSEnvironmentName:
+					return "true", true
+				default:
+					return "", false
+				}
+			},
+			expectedConnectionString: "postgres://user:password@database.example/zafarmand",
+			expectedRequireTLS:       true,
 		},
 		{
 			name:          "nil lookup",
@@ -52,6 +65,16 @@ func TestLoadDatabaseConfig(t *testing.T) {
 				return "  \t\r\n  ", true
 			},
 			expectedError: errDatabaseURLRequired,
+		},
+		{
+			name: "invalid TLS declaration",
+			lookup: func(name string) (string, bool) {
+				if name == databaseURLEnvironmentName {
+					return "postgres://localhost/zafarmand", true
+				}
+				return "TRUE", true
+			},
+			expectedError: errDatabaseRequireTLSInvalid,
 		},
 	}
 
@@ -80,6 +103,14 @@ func TestLoadDatabaseConfig(t *testing.T) {
 					"ping timeout: got %v, want %v",
 					config.pingTimeout,
 					defaultDatabasePingTimeout,
+				)
+			}
+			if test.expectedError == nil &&
+				config.requireTLS != test.expectedRequireTLS {
+				t.Errorf(
+					"require TLS: got %t, want %t",
+					config.requireTLS,
+					test.expectedRequireTLS,
 				)
 			}
 		})

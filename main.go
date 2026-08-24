@@ -1,5 +1,6 @@
 // Package main assembles the Zafarmand web application and its explicit
-// PostgreSQL migration and administrator-bootstrap commands.
+// PostgreSQL migration, administrator-bootstrap, and offline maintenance
+// commands.
 //
 // The executable is intentionally small: routing, request handling, and
 // template work live in separate files so each concern can be learned and
@@ -9,17 +10,18 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
+	"io"
 	"log"
+	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"syscall"
 	"time"
 )
 
 const (
-	// serverAddress is the local development address used by the public site.
-	serverAddress = ":8080"
 	// serverReadHeaderTimeout limits slow or incomplete request headers before a
 	// handler receives control.
 	serverReadHeaderTimeout = 5 * time.Second
@@ -28,19 +30,36 @@ const (
 	serverReadTimeout = 15 * time.Second
 	// serverIdleTimeout bounds how long an unused keep-alive connection remains.
 	serverIdleTimeout = 60 * time.Second
+	// serverWriteTimeout prevents a slow or disconnected client from occupying a
+	// response connection indefinitely. Current HTML and reviewed media responses
+	// are bounded, so they fit comfortably inside this deadline.
+	serverWriteTimeout = 30 * time.Second
+	// serverMaximumHeaderBytes is an explicit request-header memory ceiling. Form
+	// and upload bodies retain their smaller route-specific limits.
+	serverMaximumHeaderBytes = 64 << 10
 	// serverShutdownTimeout gives active handlers a bounded opportunity to finish
-	// after Ctrl+C before the process returns.
+	// after an operator or service-manager signal before the process returns.
 	serverShutdownTimeout = 5 * time.Second
 )
 
 // main is the application's composition root and process entry point.
 //
-// It validates process arguments before selecting one of three isolated paths:
-// the ordinary HTTP server, an operator-requested migration action, or the
-// environment-protected administrator bootstrap. Fatal logging stays at this
-// outer boundary so lower-level functions can return testable errors without
-// deciding how the process exits.
+// It validates process arguments before selecting one of four isolated paths:
+// the ordinary HTTP server, an operator-requested migration action, the
+// environment-protected administrator bootstrap, or offline retention work.
+// Fatal logging stays at this outer boundary so lower-level functions can
+// return testable errors without deciding how the process exits.
 func main() {
+	// Configure machine-readable logging before parsing commands so startup and
+	// fatal failures share the same operational stream. Existing fixed standard-log
+	// messages are bridged explicitly at error severity for alerting.
+	operationalLogger := newOperationalLogger(os.Stderr)
+	slog.SetDefault(operationalLogger)
+	legacyLogger := newOperationalLegacyLogger(operationalLogger)
+	log.SetFlags(0)
+	log.SetPrefix("")
+	log.SetOutput(legacyLogger.Writer())
+
 	command, err := parseProgramCommand(os.Args[1:])
 	if err != nil {
 		log.Fatal(err)
@@ -52,6 +71,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
+		syscall.SIGTERM,
 	)
 	defer stop()
 
@@ -79,6 +99,18 @@ func main() {
 
 		return
 	}
+	if command.Name == programCommandMaintenance {
+		if err := executeMaintenanceCommand(
+			ctx,
+			command.Maintenance,
+			os.LookupEnv,
+			os.Stdout,
+		); err != nil {
+			log.Fatal(err)
+		}
+
+		return
+	}
 
 	if err := runServer(ctx, os.LookupEnv); err != nil {
 		log.Fatal(err)
@@ -89,7 +121,7 @@ func main() {
 // readers, their protected read/write boundaries, Contact and inquiry services,
 // administrator authentication, templates, routes, and interrupt-aware server.
 //
-// Opening and pinging PostgreSQL before ListenAndServe prevents the site from
+// Opening and pinging PostgreSQL before binding the HTTP listener prevents the site from
 // starting when its configured persistence dependency is unreachable. Schema
 // versions remain an explicit migration responsibility; an outdated schema is
 // reported through safe Product, Interior, Contact, or administrator
@@ -100,6 +132,11 @@ func runServer(
 	ctx context.Context,
 	lookup environmentLookup,
 ) error {
+	operationalConfig, err := loadOperationalConfig(lookup)
+	if err != nil {
+		return err
+	}
+
 	databaseConfig, err := loadDatabaseConfig(lookup)
 	if err != nil {
 		return err
@@ -191,6 +228,10 @@ func runServer(
 	if err != nil {
 		return err
 	}
+	readiness, err := newPostgresOperationalReadiness(database)
+	if err != nil {
+		return err
+	}
 
 	app, err := newApplication(
 		products,
@@ -215,24 +256,44 @@ func runServer(
 		return err
 	}
 
-	server := &http.Server{
-		Addr:              serverAddress,
-		Handler:           app.routes(),
-		ReadHeaderTimeout: serverReadHeaderTimeout,
-		ReadTimeout:       serverReadTimeout,
-		IdleTimeout:       serverIdleTimeout,
+	operationalHandler, err := newOperationalHTTPHandler(
+		app.routes(),
+		readiness,
+		operationalConfig,
+		slog.Default(),
+	)
+	if err != nil {
+		return err
 	}
-
-	log.Printf(
-		"Zafarmand website is running at http://localhost%s",
-		serverAddress,
+	server := newHTTPServer(
+		operationalConfig.httpAddress,
+		operationalHandler,
+		slog.Default(),
 	)
 
-	// A buffered channel lets ListenAndServe report an immediate bind failure
-	// even if the process context is canceled at the same moment.
+	// Binding synchronously makes an unavailable address a startup failure before
+	// the process emits a listening event or waits for shutdown.
+	listener, err := net.Listen("tcp", operationalConfig.httpAddress)
+	if err != nil {
+		return errors.New("listen for HTTP requests")
+	}
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	slog.Info(
+		"server_listening",
+		"address",
+		listener.Addr().String(),
+		"external_https",
+		operationalConfig.externalHTTPS,
+	)
+
+	// A buffered channel lets Serve publish its terminal result without waiting
+	// for the select or shutdown path to receive it.
 	serverErrors := make(chan error, 1)
 	go func() {
-		serverErrors <- server.ListenAndServe()
+		serverErrors <- server.Serve(listener)
 	}()
 
 	select {
@@ -241,7 +302,7 @@ func runServer(
 			return nil
 		}
 
-		return fmt.Errorf("serve HTTP: %w", err)
+		return errors.New("serve HTTP requests")
 	case <-ctx.Done():
 		// Shutdown receives a fresh context because the process context has already
 		// been canceled. It stops new connections and waits for active handlers up
@@ -252,19 +313,79 @@ func runServer(
 		)
 		defer cancel()
 
+		slog.Info("server_shutdown_started")
 		if err := server.Shutdown(shutdownContext); err != nil {
 			// A deadline means active handlers did not finish in the graceful window.
 			// Close forces their connections down before the deferred database close,
 			// preserving the rule that no handler can outlive its shared pool.
 			_ = server.Close()
-			return fmt.Errorf("shut down HTTP server: %w", err)
+			return errors.New("shut down HTTP server")
 		}
 
 		if err := <-serverErrors; err != nil &&
 			!errors.Is(err, http.ErrServerClosed) {
-			return fmt.Errorf("serve HTTP during shutdown: %w", err)
+			return errors.New("serve HTTP requests during shutdown")
 		}
 
+		slog.Info("server_shutdown_completed")
 		return nil
 	}
+}
+
+// newOperationalLogger emits one JSON object per event. stderr keeps logs
+// separate from migration, bootstrap, and maintenance command output.
+func newOperationalLogger(output io.Writer) *slog.Logger {
+	return slog.New(
+		slog.NewJSONHandler(
+			output,
+			&slog.HandlerOptions{Level: slog.LevelInfo},
+		),
+	)
+}
+
+// newOperationalLegacyLogger bridges the existing fixed application failure
+// messages into the structured handler at error severity. New request-aware
+// events should use slog directly so they can attach their request ID.
+func newOperationalLegacyLogger(logger *slog.Logger) *log.Logger {
+	return slog.NewLogLogger(logger.Handler(), slog.LevelError)
+}
+
+// newHTTPServer centralizes transport limits so production wiring and unit
+// tests cannot silently use different request-resource boundaries.
+func newHTTPServer(
+	address string,
+	handler http.Handler,
+	logger *slog.Logger,
+) *http.Server {
+	return &http.Server{
+		Addr:              address,
+		Handler:           handler,
+		ReadHeaderTimeout: serverReadHeaderTimeout,
+		ReadTimeout:       serverReadTimeout,
+		WriteTimeout:      serverWriteTimeout,
+		IdleTimeout:       serverIdleTimeout,
+		MaxHeaderBytes:    serverMaximumHeaderBytes,
+		ErrorLog: log.New(
+			&redactedHTTPServerErrorWriter{logger: logger},
+			"",
+			0,
+		),
+	}
+}
+
+// redactedHTTPServerErrorWriter collapses net/http diagnostics because its
+// default messages may contain a remote address or attacker-controlled request
+// text. Application request telemetry supplies the safe correlation record.
+type redactedHTTPServerErrorWriter struct {
+	logger *slog.Logger
+}
+
+// Write records only the fixed event category while satisfying log.Logger's
+// complete-write contract.
+func (writer *redactedHTTPServerErrorWriter) Write(message []byte) (int, error) {
+	if writer != nil && writer.logger != nil {
+		writer.logger.Error("http_server_error")
+	}
+
+	return len(message), nil
 }

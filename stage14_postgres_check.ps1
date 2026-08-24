@@ -35,6 +35,7 @@ $managedEnvironmentNames = @(
     "DATABASE_URL",
     "ZAFARMAND_TEST_DATABASE_URL",
     "ZAFARMAND_TEST_DATABASE_CONFIRM",
+    "ZAFARMAND_TEST_CLUSTER_CONFIRM",
     "GOCACHE"
 )
 $originalProcessEnvironment = @{}
@@ -190,6 +191,14 @@ try {
     )
     $env:ZAFARMAND_TEST_DATABASE_URL = $testDatabaseURL
     $env:ZAFARMAND_TEST_DATABASE_CONFIRM = $integrationConfirmation
+    # This helper owns one database, not the PostgreSQL cluster. Explicitly
+    # suppress the independent cluster-global role-DDL test even if the caller
+    # had that CI-only opt-in in the parent PowerShell process.
+    [Environment]::SetEnvironmentVariable(
+        "ZAFARMAND_TEST_CLUSTER_CONFIRM",
+        $null,
+        [EnvironmentVariableTarget]::Process
+    )
     $env:DATABASE_URL = $testDatabaseURL
 
     # The managed execution environment cannot write Go's default user cache.

@@ -358,9 +358,9 @@ into terminal output, screenshots, issues, or commits.
    go run . migrate status
    ```
 
-   Versions 1 through 9 should be Applied. Migrations 8 and 9 own the separate
-   Architecture and global site-content schemas and do not alter these Interior
-   checks. A second
+   Versions 1 through 10 should be Applied. Migrations 8 and 9 own the separate
+   Architecture and global site-content schemas, while migration 10 adds
+   inquiry-retention support; none alters these Interior checks. A second
    `migrate up` should be a truthful no-op.
 
 2. Switch `DATABASE_URL` to the least-privilege runtime role in that same shell
@@ -422,12 +422,12 @@ Remove-Item Env:ZAFARMAND_TEST_DATABASE_CONFIRM -ErrorAction SilentlyContinue
 ```
 
 The guarded suite refuses an unconfirmed database or a name without `_test`,
-requires every reserved Stage 13–24 relation to be absent before starting, and
+requires every reserved Stage 13–25 relation to be absent before starting, and
 cleans only those exact relations afterward. It proves migration 7 defaults and
 named constraints, published-only numbering/visibility, protected all-state
 reads, create/edit and stale revision behavior, cover replacement, archive
 hiding, one-cover ownership, foreign-key cascade, rollback isolation,
-reapplication, and transaction atomicity. The complete v1-to-v9 cycle also
+reapplication, and transaction atomicity. The complete v1-to-v10 cycle also
 checks the independent Architecture and site-content relations without
 weakening these Interior assertions.
 

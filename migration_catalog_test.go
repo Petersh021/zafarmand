@@ -453,7 +453,7 @@ func TestLoadMigrationCatalogRejectsNonRegularEntries(t *testing.T) {
 }
 
 // TestEmbeddedMigrationCatalog verifies the production catalog contains the
-// inquiry table, its idempotency key, the admin-access boundary, the Product,
+// inquiry table and retention support, the admin-access boundary, the Product,
 // Interior, and Architecture content boundaries, and the independent homepage,
 // hero, and Contact content boundary with exact ordered identities and
 // independently reversible schema changes.
@@ -462,8 +462,8 @@ func TestEmbeddedMigrationCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load embedded migration catalog: %v", err)
 	}
-	if len(catalog) != 9 {
-		t.Fatalf("embedded catalog length: got %d, want 9", len(catalog))
+	if len(catalog) != 10 {
+		t.Fatalf("embedded catalog length: got %d, want 10", len(catalog))
 	}
 
 	initialDefinition := catalog[0]
@@ -1509,5 +1509,64 @@ ALTER TABLE public.products
 		if strings.Contains(upperSiteContentDownSQL, forbiddenSQL) {
 			t.Errorf("site-content down SQL contains forbidden %q", forbiddenSQL)
 		}
+	}
+
+	retentionDefinition := catalog[9]
+	if retentionDefinition.Version != 10 ||
+		retentionDefinition.Name != "add_inquiry_retention_support" {
+		t.Errorf(
+			"embedded migration identity: got %06d_%s",
+			retentionDefinition.Version,
+			retentionDefinition.Name,
+		)
+	}
+	for _, expectedSQL := range []string{
+		"CREATE TABLE public.inquiry_submission_tombstones",
+		"submission_key_hash bytea PRIMARY KEY",
+		"purged_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP",
+		"CONSTRAINT inquiry_submission_tombstones_hash_length",
+		"CHECK (octet_length(submission_key_hash) = 32)",
+		"CREATE INDEX inquiries_archived_updated_at_id_idx",
+		"ON public.inquiries (updated_at, id)",
+		"WHERE status = 'archived'",
+	} {
+		if !strings.Contains(retentionDefinition.UpSQL, expectedSQL) {
+			t.Errorf("retention up SQL does not contain %q", expectedSQL)
+		}
+	}
+	upperRetentionUpSQL := strings.ToUpper(retentionDefinition.UpSQL)
+	for _, forbiddenSQL := range []string{
+		"INSERT INTO",
+		"UPDATE ",
+		"DELETE FROM",
+		"CASCADE",
+		"ADMIN_USERS",
+		"PRODUCTS",
+		"INTERIOR_PROJECTS",
+		"ARCHITECTURE_PROJECTS",
+		"HOMEPAGE_CONTENT",
+		"CONTACT_CONTENT",
+	} {
+		if strings.Contains(upperRetentionUpSQL, forbiddenSQL) {
+			t.Errorf("retention up SQL contains forbidden %q", forbiddenSQL)
+		}
+	}
+	expectedRetentionDownSQL := []string{
+		"DROP INDEX public.inquiries_archived_updated_at_id_idx;",
+		"DROP TABLE public.inquiry_submission_tombstones;",
+	}
+	previousPosition = -1
+	for _, expectedSQL := range expectedRetentionDownSQL {
+		position := strings.Index(retentionDefinition.DownSQL, expectedSQL)
+		if position < 0 || position <= previousPosition {
+			t.Errorf("retention down SQL is missing or misorders %q", expectedSQL)
+		}
+		previousPosition = position
+	}
+	upperRetentionDownSQL := strings.ToUpper(retentionDefinition.DownSQL)
+	if strings.Contains(upperRetentionDownSQL, "CASCADE") ||
+		strings.Contains(upperRetentionDownSQL, "IF EXISTS") ||
+		strings.Contains(upperRetentionDownSQL, "DROP TABLE PUBLIC.INQUIRIES") {
+		t.Error("retention down SQL contains a broad or unrelated drop")
 	}
 }

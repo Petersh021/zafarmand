@@ -4,3 +4,12 @@
 .env
 .env.*
 !.env.example
+
+# PostgreSQL archives contain private inquiries, credential verifiers, and
+# managed media. Keep complete dumps, checksums, and in-progress artifacts out
+# of source control even when an operator temporarily places them in this tree.
+/backups/
+*.pgdump
+*.pgdump.sha256
+*.pgdump.tmp
+*.sha256.tmp

@@ -7,15 +7,17 @@ import (
 	"io"
 )
 
-// Program, migration, and administrator command constants define the complete
-// accepted CLI grammar in one auditable location.
+// Program and migration constants define the top-level CLI grammar and the
+// complete migration vocabulary in one auditable location.
 const (
 	// programCommandServe identifies the existing public HTTP-server mode.
 	programCommandServe = "serve"
 	// programCommandMigrate identifies the explicit PostgreSQL schema mode.
 	programCommandMigrate = "migrate"
-	// programCommandAdmin identifies one explicit administrator maintenance mode.
+	// programCommandAdmin identifies one explicit administrator-bootstrap mode.
 	programCommandAdmin = "admin"
+	// programCommandMaintenance identifies offline privacy and retention work.
+	programCommandMaintenance = "maintenance"
 	// migrationActionUp applies every validated pending migration.
 	migrationActionUp = "up"
 	// migrationActionStatus reports applied and pending catalog entries.
@@ -26,7 +28,7 @@ const (
 	// reach the migration runner.
 	migrationDownConfirmation = "--confirm"
 	// programUsage is returned for every unsupported command shape.
-	programUsage = "usage: go run . [migrate [up|status|down --confirm] | admin create-user --email <email> --role <owner|editor>]"
+	programUsage = "usage: go run . [migrate [up|status|down --confirm] | admin create-user --email <email> --role <owner|editor> | maintenance retention <status|apply> ... | maintenance purge-inquiry ...]"
 )
 
 // Migration command errors identify confirmation and dependency boundaries
@@ -45,12 +47,15 @@ var (
 
 // programCommand is the validated instruction selected from process arguments.
 type programCommand struct {
-	// Name selects the server, migration, or administrator maintenance mode.
+	// Name selects the server, migration, administrator-bootstrap, or offline
+	// retention-maintenance mode.
 	Name string
 	// MigrationAction is populated only when Name is programCommandMigrate.
 	MigrationAction string
 	// AdminCreateUser is populated only for the strict admin create-user mode.
 	AdminCreateUser adminCreateUserCommand
+	// Maintenance is populated only for a validated offline maintenance mode.
+	Maintenance maintenanceCommand
 }
 
 // parseProgramCommand converts process arguments into one strict, documented
@@ -58,8 +63,8 @@ type programCommand struct {
 //
 // No arguments preserves the existing `go run .` server behavior. `migrate`
 // alone is a convenience alias for `migrate up`; rollback always requires both
-// its action and the literal confirmation flag. The separate admin branch
-// delegates its password-free flag grammar to parseAdminCreateUserCommand.
+// its action and the literal confirmation flag. Separate admin and maintenance
+// branches delegate their detailed grammars to their focused parsers.
 func parseProgramCommand(args []string) (programCommand, error) {
 	if len(args) == 0 {
 		return programCommand{Name: programCommandServe}, nil
@@ -82,10 +87,20 @@ func parseProgramCommand(args []string) (programCommand, error) {
 			AdminCreateUser: createUser,
 		}, nil
 	}
+	if args[0] == programCommandMaintenance {
+		maintenance, err := parseMaintenanceCommand(args[1:])
+		if err != nil {
+			return programCommand{}, err
+		}
+
+		return programCommand{
+			Name:        programCommandMaintenance,
+			Maintenance: maintenance,
+		}, nil
+	}
 	if args[0] != programCommandMigrate {
 		return programCommand{}, fmt.Errorf(
-			"unknown command %q; %s",
-			args[0],
+			"unknown command; %s",
 			programUsage,
 		)
 	}
@@ -123,8 +138,7 @@ func parseProgramCommand(args []string) (programCommand, error) {
 		}, nil
 	default:
 		return programCommand{}, fmt.Errorf(
-			"unknown migration action %q; %s",
-			args[1],
+			"unknown migration action; %s",
 			programUsage,
 		)
 	}
@@ -156,10 +170,7 @@ func executeMigrationCommand(
 		// Continue only after the action has passed the same closed set accepted
 		// by parseProgramCommand.
 	default:
-		return fmt.Errorf(
-			"unsupported migration action %q",
-			command.MigrationAction,
-		)
+		return errors.New("unsupported migration action")
 	}
 
 	// Validate the compiled schema history before reading credentials or opening

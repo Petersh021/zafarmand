@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 )
@@ -21,9 +22,10 @@ var (
 	errInquiryCreateFailed = errors.New(
 		"create inquiry: database operation failed",
 	)
-	// errInquirySubmissionConflict reports that an existing key belongs to
-	// different normalized fields. It contains no stored or submitted value and
-	// lets the handler avoid recommending an impossible same-key retry.
+	// errInquirySubmissionConflict reports either that an existing live key belongs
+	// to different normalized fields or that a retained purge tombstone blocks the
+	// key. It contains no stored or submitted value and lets the handler rotate the
+	// key instead of recommending an impossible same-key retry.
 	errInquirySubmissionConflict = errors.New(
 		"create inquiry: submission key conflicts with different data",
 	)
@@ -33,9 +35,10 @@ var (
 // opaque submission key as the idempotency boundary.
 //
 // Every visitor-controlled value is supplied through a PostgreSQL parameter;
-// none is interpolated into SQL text. ON CONFLICT turns a repeated key into a
-// successful zero-row result, allowing the handler to use Post/Redirect/Get
-// without creating a second inquiry when the same submission is replayed.
+// none is interpolated into SQL text. A repeated live key or the digest of a
+// deliberately purged key suppresses the insert. A live exact replay can then
+// succeed without creating a second inquiry, while a tombstone safely forces a
+// fresh submission key.
 const createInquirySQL = `INSERT INTO public.inquiries (
     submission_key,
     name,
@@ -43,24 +46,47 @@ const createInquirySQL = `INSERT INTO public.inquiries (
     discipline,
     message
 )
-VALUES ($1, $2, $3, $4, $5)
+SELECT $1, $2, $3, $4, $5
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM public.inquiry_submission_tombstones
+    WHERE submission_key_hash = $6
+)
 ON CONFLICT (submission_key) DO NOTHING`
 
-// exactInquiryReplaySQL compares a conflicting row with the complete
-// normalized submission that attempted to reuse its key.
+// exactInquiryReplaySQL distinguishes an exact live-row replay from either a
+// changed-payload collision or a deliberately retained purge tombstone.
 //
 // A hidden form field is untrusted even when the server originally generated
 // it. Treating every key collision as a successful replay could therefore tell
 // a visitor that changed name or email data was saved when PostgreSQL retained
 // a different row. The parameterized comparison recognizes a replay only when
-// all persisted visitor fields are identical.
-const exactInquiryReplaySQL = `SELECT
-    name = $2 AND
-    email = $3 AND
-    discipline = $4 AND
-    message = $5
-FROM public.inquiries
-WHERE submission_key = $1`
+// all persisted visitor fields are identical. The tombstone branch returns
+// false because its original personal fields no longer exist to prove an exact
+// replay. A tombstone-only match therefore makes the handler rotate the stale
+// submission key; a live row retains precedence if defensive drift ever leaves
+// both records present.
+const exactInquiryReplaySQL = `SELECT exact_replay
+FROM (
+    SELECT
+        0 AS precedence,
+        name = $2 AND
+        email = $3 AND
+        discipline = $4 AND
+        message = $5 AS exact_replay
+    FROM public.inquiries
+    WHERE submission_key = $1
+
+    UNION ALL
+
+    SELECT
+        1 AS precedence,
+        FALSE AS exact_replay
+    FROM public.inquiry_submission_tombstones
+    WHERE submission_key_hash = $6
+) AS replay_candidates
+ORDER BY precedence
+LIMIT 1`
 
 // inquirySubmission is the persistence input produced only after the Contact
 // handler has normalized and validated every visitor-editable value.
@@ -112,49 +138,73 @@ type inquiryRepository interface {
 	) (inquiryCreateResult, error)
 }
 
-// inquiryExecutor is the small part of database/sql used by the PostgreSQL
-// repository.
-//
-// Keeping this seam narrower than *sql.DB lets unit tests prove the SQL,
-// parameter order, context propagation, and result handling without a third-
-// party mocking package or a live database.
-type inquiryExecutor interface {
+// inquiryTransaction is the exact database/sql transaction surface required
+// to serialize a Contact insert against destructive retention and then verify
+// a possible replay before committing.
+type inquiryTransaction interface {
 	ExecContext(
 		context.Context,
 		string,
 		...any,
 	) (sql.Result, error)
+	QueryRowContext(context.Context, string, ...any) inquiryRowScanner
+	Commit() error
+	Rollback() error
 }
 
 // inquiryRowScanner is the result behavior needed to inspect one possible
-// idempotency-key collision.
-//
-// *sql.Row satisfies this interface in production. A narrow interface lets
-// unit tests return deterministic values without a database mocking package.
+// idempotency-key collision. *sql.Row satisfies it in production.
 type inquiryRowScanner interface {
 	Scan(...any) error
 }
 
-// inquiryQueryRow performs the read-only comparison used after an INSERT is
-// suppressed by ON CONFLICT.
-//
-// A function type is used because database/sql returns the concrete *sql.Row;
-// the constructor adapts that concrete result to inquiryRowScanner while tests
-// can inject a small recording implementation.
-type inquiryQueryRow func(
+// sqlInquiryTransaction adapts database/sql's concrete row return to the
+// narrow transaction seam used by deterministic repository tests.
+type sqlInquiryTransaction struct {
+	transaction *sql.Tx
+}
+
+// ExecContext delegates the shared lock and INSERT to the owned transaction.
+func (transaction *sqlInquiryTransaction) ExecContext(
+	ctx context.Context,
+	query string,
+	arguments ...any,
+) (sql.Result, error) {
+	return transaction.transaction.ExecContext(ctx, query, arguments...)
+}
+
+// QueryRowContext adapts *sql.Row to the narrow replay-scanner interface.
+func (transaction *sqlInquiryTransaction) QueryRowContext(
+	ctx context.Context,
+	query string,
+	arguments ...any,
+) inquiryRowScanner {
+	return transaction.transaction.QueryRowContext(ctx, query, arguments...)
+}
+
+// Commit makes either the new inquiry or confirmed replay transaction durable.
+func (transaction *sqlInquiryTransaction) Commit() error {
+	return transaction.transaction.Commit()
+}
+
+// Rollback releases the shared advisory lock after any incomplete path.
+func (transaction *sqlInquiryTransaction) Rollback() error {
+	return transaction.transaction.Rollback()
+}
+
+// inquiryBeginTransaction keeps pool ownership with the application while
+// allowing unit tests to supply a deterministic transaction implementation.
+type inquiryBeginTransaction func(
 	context.Context,
-	string,
-	...any,
-) inquiryRowScanner
+	*sql.TxOptions,
+) (inquiryTransaction, error)
 
 // postgresInquiryRepository writes validated inquiries through the shared
 // database pool owned by the long-running application process.
 type postgresInquiryRepository struct {
-	// executor is *sql.DB in production and a narrow recording stub in tests.
-	executor inquiryExecutor
-	// queryRow verifies that a zero-row insert was an exact replay rather than a
-	// key collision carrying different visitor data.
-	queryRow inquiryQueryRow
+	// begin opens the transaction that owns the shared retention lock, insert,
+	// optional replay comparison, and final commit.
+	begin inquiryBeginTransaction
 }
 
 // Compile-time interface verification protects the application dependency
@@ -175,13 +225,16 @@ func newPostgresInquiryRepository(
 	}
 
 	return &postgresInquiryRepository{
-		executor: database,
-		queryRow: func(
+		begin: func(
 			ctx context.Context,
-			query string,
-			arguments ...any,
-		) inquiryRowScanner {
-			return database.QueryRowContext(ctx, query, arguments...)
+			options *sql.TxOptions,
+		) (inquiryTransaction, error) {
+			transaction, err := database.BeginTx(ctx, options)
+			if err != nil {
+				return nil, err
+			}
+
+			return &sqlInquiryTransaction{transaction: transaction}, nil
 		},
 	}, nil
 }
@@ -197,14 +250,40 @@ func (repository *postgresInquiryRepository) Create(
 	ctx context.Context,
 	submission inquirySubmission,
 ) (inquiryCreateResult, error) {
-	if repository == nil || repository.executor == nil {
+	if repository == nil || repository.begin == nil || ctx == nil {
 		return 0, errInquiryCreateFailed
 	}
 
+	// READ COMMITTED is explicit because the shared-lock statement must finish
+	// before PostgreSQL takes the separate INSERT statement's snapshot. If an
+	// exclusive purge was already running, that fresh snapshot observes its
+	// committed tombstone instead of recreating the deleted personal row.
+	transaction, err := repository.begin(
+		ctx,
+		&sql.TxOptions{Isolation: sql.LevelReadCommitted},
+	)
+	if err != nil || transaction == nil {
+		return 0, errInquiryCreateFailed
+	}
+	defer func() { _ = transaction.Rollback() }()
+
+	if _, err := transaction.ExecContext(
+		ctx,
+		acquireInquiryRetentionSharedLockSQL,
+		inquiryRetentionAdvisoryLockID,
+	); err != nil {
+		return 0, errInquiryCreateFailed
+	}
+
+	// A retention tombstone stores only this one-way digest. Supplying it to both
+	// statements prevents a stale browser POST from recreating personal data
+	// after an operator has deliberately purged the original archived inquiry.
+	submissionKeyHash := sha256.Sum256(submission.SubmissionKey)
+
 	// The argument order mirrors the numbered placeholders in createInquirySQL.
-	// Passing the byte slice and strings as parameters keeps every submitted
+	// Passing the byte slices and strings as parameters keeps every submitted
 	// value separate from the trusted SQL statement.
-	result, err := repository.executor.ExecContext(
+	result, err := transaction.ExecContext(
 		ctx,
 		createInquirySQL,
 		submission.SubmissionKey,
@@ -212,6 +291,7 @@ func (repository *postgresInquiryRepository) Create(
 		submission.Email,
 		submission.Discipline,
 		submission.Message,
+		submissionKeyHash[:],
 	)
 	if err != nil {
 		return 0, errInquiryCreateFailed
@@ -225,22 +305,21 @@ func (repository *postgresInquiryRepository) Create(
 		return 0, errInquiryCreateFailed
 	}
 
-	// PostgreSQL reports one affected row for a new insert and zero when ON
-	// CONFLICT suppresses a key collision. Any other count contradicts this
-	// single-row statement and is treated as a safe failure rather than guessed
-	// at.
+	// PostgreSQL reports one affected row for a new insert and zero when either
+	// the live-key conflict path or the tombstone guard suppresses it. Any other
+	// count contradicts this single-row statement and is treated as a safe
+	// failure rather than guessed at.
 	switch rowsAffected {
 	case 1:
-		return inquiryCreateResultCreated, nil
-	case 0:
-		if repository.queryRow == nil {
+		if err := transaction.Commit(); err != nil {
 			return 0, errInquiryCreateFailed
 		}
-
-		// Only the exact normalized payload may turn the collision into replay
-		// success. A different name, email, discipline, or message leaves the
-		// original row untouched and becomes a distinct non-retryable conflict.
-		row := repository.queryRow(
+		return inquiryCreateResultCreated, nil
+	case 0:
+		// Only the exact normalized payload of a live row may become replay
+		// success. Changed visitor data and tombstoned keys become the same safe,
+		// non-retryable conflict so the handler can issue a fresh key.
+		row := transaction.QueryRowContext(
 			ctx,
 			exactInquiryReplaySQL,
 			submission.SubmissionKey,
@@ -248,6 +327,7 @@ func (repository *postgresInquiryRepository) Create(
 			submission.Email,
 			submission.Discipline,
 			submission.Message,
+			submissionKeyHash[:],
 		)
 		if row == nil {
 			return 0, errInquiryCreateFailed
@@ -260,6 +340,9 @@ func (repository *postgresInquiryRepository) Create(
 		}
 		if !exactReplay {
 			return 0, errInquirySubmissionConflict
+		}
+		if err := transaction.Commit(); err != nil {
+			return 0, errInquiryCreateFailed
 		}
 
 		return inquiryCreateResultReplay, nil

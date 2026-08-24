@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# Verification never needs write access to repository contents or pull requests.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          # These inert credentials exist only inside the disposable CI service.
+          POSTGRES_USER: zafarmand_ci
+          POSTGRES_PASSWORD: zafarmand_ci_service_only
+          POSTGRES_DB: zafarmand_ci_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U zafarmand_ci -d zafarmand_ci_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go from go.mod
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Download and verify modules
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Check Go formatting
+        shell: bash
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [[ -n "$unformatted" ]]; then
+            echo "::error::Go source files require gofmt"
+            printf '%s\n' "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet packages
+        run: go vet ./...
+
+      - name: Test with race detector and PostgreSQL
+        # The separate confirmation and `_test` name activate the repository's
+        # destructive-test guards without ever consulting a real DATABASE_URL.
+        env:
+          ZAFARMAND_TEST_DATABASE_URL: postgresql://zafarmand_ci:zafarmand_ci_service_only@127.0.0.1:5432/zafarmand_ci_test?sslmode=disable
+          ZAFARMAND_TEST_DATABASE_CONFIRM: stage13-disposable-database
+          # Only this job-owned PostgreSQL service may authorize cluster-global
+          # smoke-role creation. A disposable database alone is insufficient.
+          ZAFARMAND_TEST_CLUSTER_CONFIRM: stage25-disposable-postgresql-cluster
+        run: go test -race -count=1 ./...
+
+      - name: Check known Go vulnerabilities
+        uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # v1.1.0
+        with:
+          repo-checkout: false
+          # Emptying the action's stable-version default lets go.mod remain the
+          # single authoritative toolchain source for every verification step.
+          go-version-input: ''
+          go-version-file: go.mod
+          cache: false
+          go-package: ./...

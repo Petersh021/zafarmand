@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"testing"
@@ -58,7 +59,8 @@ type postgresInquiryRecord struct {
 
 // TestPostgresInquiryRepositoryIntegration exercises the real PostgreSQL
 // boundary that an executor stub cannot prove: embedded migrations, bytea
-// mapping, database defaults, idempotent replay behavior, and key constraints.
+// mapping, database defaults, idempotent and tombstone-suppressed replay
+// behavior, and key constraints.
 //
 // The test reuses the Stage 13 two-part opt-in and `_test` database-name guard.
 // It therefore skips during ordinary `go test ./...` runs and never falls back
@@ -222,6 +224,45 @@ func TestPostgresInquiryRepositoryIntegration(t *testing.T) {
 		t.Errorf("row count after distinct key: got %d, want 2", rowCount)
 	}
 
+	// A digest-only retention tombstone blocks a stale form key without storing
+	// any visitor field. The existing safe conflict tells the HTTP layer to issue
+	// a fresh key rather than falsely claiming that this payload persisted.
+	tombstonedKey := []byte("stage25-tombstone-key-0000000000")
+	if len(tombstonedKey) != inquirySubmissionTokenByteLength {
+		t.Fatal("integration tombstone key must contain 32 bytes")
+	}
+	tombstonedHash := sha256.Sum256(tombstonedKey)
+	if _, err := database.ExecContext(
+		t.Context(),
+		`INSERT INTO public.inquiry_submission_tombstones (
+    submission_key_hash
+)
+VALUES ($1)`,
+		tombstonedHash[:],
+	); err != nil {
+		t.Fatal("insert synthetic inquiry tombstone")
+	}
+	createResult, err = repository.Create(
+		t.Context(),
+		inquirySubmission{
+			SubmissionKey: tombstonedKey,
+			Name:          "Purged Stage Twenty Five Visitor",
+			Email:         "purged-stage25@example.test",
+			Discipline:    "products",
+			Message:       "This stale form must not recreate purged personal data.",
+		},
+	)
+	if !errors.Is(err, errInquirySubmissionConflict) || createResult != 0 {
+		t.Fatalf(
+			"tombstoned submission: result=%d error=%v, want safe conflict",
+			createResult,
+			err,
+		)
+	}
+	if rowCount := countPostgresInquiries(t, database); rowCount != 2 {
+		t.Errorf("row count after tombstoned key: got %d, want 2", rowCount)
+	}
+
 	assertPostgresInquiryKeyConstraints(t, database, firstSubmission)
 	if rowCount := countPostgresInquiries(t, database); rowCount != 2 {
 		t.Errorf("row count after rejected keys: got %d, want 2", rowCount)
@@ -237,7 +278,7 @@ func applyRepositoryIntegrationMigrations(t *testing.T, database *sql.DB) {
 	if err != nil {
 		t.Fatalf("load repository integration migration catalog: %v", err)
 	}
-	if len(catalog) != 9 ||
+	if len(catalog) != 10 ||
 		catalog[0].Version != 1 ||
 		catalog[1].Version != 2 ||
 		catalog[2].Version != 3 ||
@@ -246,9 +287,10 @@ func applyRepositoryIntegrationMigrations(t *testing.T, database *sql.DB) {
 		catalog[5].Version != 6 ||
 		catalog[6].Version != 7 ||
 		catalog[7].Version != 8 ||
-		catalog[8].Version != 9 {
+		catalog[8].Version != 9 ||
+		catalog[9].Version != 10 {
 		t.Fatalf(
-			"migration catalog: got %#v, want versions 1 through 9",
+			"migration catalog: got %#v, want versions 1 through 10",
 			catalog,
 		)
 	}

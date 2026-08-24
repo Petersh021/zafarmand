@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"reflect"
@@ -9,225 +10,291 @@ import (
 	"testing"
 )
 
-// inquiryExecutorStub records one repository call and returns a controlled SQL
-// result or driver-like error.
-//
-// Its fields are intentionally explicit so each test can prove that Create
-// forwards the original context, trusted statement, and parameters exactly
-// once without relying on a third-party database mocking package.
-type inquiryExecutorStub struct {
-	// result is returned when execError is nil.
+// inquiryExecResponse lets one transaction double return independent outcomes
+// for the shared-lock statement and the later INSERT statement.
+type inquiryExecResponse struct {
 	result sql.Result
-	// execError simulates a failure from database/sql or the pgx driver.
-	execError error
-	// calls records how many statements the repository attempted.
-	calls int
-	// context records the exact context received by ExecContext.
-	context context.Context
-	// query records the complete SQL statement received by ExecContext.
-	query string
-	// arguments records the positional values supplied to the statement.
+	err    error
+}
+
+// inquiryExecCall records one lock or insert execution and its bound arguments.
+type inquiryExecCall struct {
+	context   context.Context
+	query     string
 	arguments []any
 }
 
-// inquiryRowScannerStub supplies one boolean comparison result or a controlled
-// database-like error to the replay verification path.
-type inquiryRowScannerStub struct {
-	// exactReplay is copied into the repository's boolean destination.
-	exactReplay bool
-	// scanError simulates a missing row, canceled query, or driver failure.
-	scanError error
-	// calls proves the comparison row is inspected exactly once.
-	calls int
-}
-
-// Scan implements inquiryRowScanner without exposing any simulated driver
-// detail through the repository boundary.
-func (stub *inquiryRowScannerStub) Scan(destinations ...any) error {
-	stub.calls++
-	if stub.scanError != nil {
-		return stub.scanError
-	}
-	if len(destinations) != 1 {
-		return errors.New("replay scanner expected one destination")
-	}
-
-	exactReplay, ok := destinations[0].(*bool)
-	if !ok {
-		return errors.New("replay scanner expected a boolean destination")
-	}
-	*exactReplay = stub.exactReplay
-
-	return nil
-}
-
-// inquiryQueryRowStub records the read-only replay comparison separately from
-// the INSERT executor so tests can verify both trusted SQL statements and
-// their parameter order.
-type inquiryQueryRowStub struct {
-	// row is returned to the repository for Scan.
-	row inquiryRowScanner
-	// calls records how many comparison queries were attempted.
-	calls int
-	// context records the exact context received by the comparison.
-	context context.Context
-	// query records the trusted comparison SQL.
-	query string
-	// arguments records its positional values.
+// inquiryQueryCall records one exact-replay lookup and its bound arguments.
+type inquiryQueryCall struct {
+	context   context.Context
+	query     string
 	arguments []any
 }
 
-// QueryRow matches inquiryQueryRow and records the complete invocation before
-// returning the configured scanner.
-func (stub *inquiryQueryRowStub) QueryRow(
-	ctx context.Context,
-	query string,
-	arguments ...any,
-) inquiryRowScanner {
-	stub.calls++
-	stub.context = ctx
-	stub.query = query
-	stub.arguments = append([]any(nil), arguments...)
-
-	return stub.row
+// inquiryTransactionStub records transaction order without requiring a live
+// database or weakening the production transaction interface.
+type inquiryTransactionStub struct {
+	execResponses []inquiryExecResponse
+	execCalls     []inquiryExecCall
+	queryCalls    []inquiryQueryCall
+	row           inquiryRowScanner
+	commitError   error
+	commitCalls   int
+	rollbackCalls int
+	operations    []string
 }
 
-// ExecContext implements inquiryExecutor and records its complete invocation
-// before returning the configured result.
-func (stub *inquiryExecutorStub) ExecContext(
+// ExecContext records ordered statements and consumes one configured result.
+func (transaction *inquiryTransactionStub) ExecContext(
 	ctx context.Context,
 	query string,
 	arguments ...any,
 ) (sql.Result, error) {
-	stub.calls++
-	stub.context = ctx
-	stub.query = query
-	stub.arguments = append([]any(nil), arguments...)
+	transaction.execCalls = append(transaction.execCalls, inquiryExecCall{
+		context:   ctx,
+		query:     query,
+		arguments: append([]any(nil), arguments...),
+	})
+	transaction.operations = append(transaction.operations, "exec:"+query)
+	if len(transaction.execResponses) == 0 {
+		return nil, errors.New("unexpected inquiry execution")
+	}
+	response := transaction.execResponses[0]
+	transaction.execResponses = transaction.execResponses[1:]
 
-	return stub.result, stub.execError
+	return response.result, response.err
 }
 
-// inquirySQLResultStub controls RowsAffected and records whether the repository
-// ever requests an unsupported generated identifier.
+// QueryRowContext records replay inspection and returns the configured scanner.
+func (transaction *inquiryTransactionStub) QueryRowContext(
+	ctx context.Context,
+	query string,
+	arguments ...any,
+) inquiryRowScanner {
+	transaction.queryCalls = append(transaction.queryCalls, inquiryQueryCall{
+		context:   ctx,
+		query:     query,
+		arguments: append([]any(nil), arguments...),
+	})
+	transaction.operations = append(transaction.operations, "query:"+query)
+
+	return transaction.row
+}
+
+// Commit records durability order and returns the injected commit outcome.
+func (transaction *inquiryTransactionStub) Commit() error {
+	transaction.commitCalls++
+	transaction.operations = append(transaction.operations, "commit")
+
+	return transaction.commitError
+}
+
+// Rollback records deferred cleanup after both success and failure.
+func (transaction *inquiryTransactionStub) Rollback() error {
+	transaction.rollbackCalls++
+	transaction.operations = append(transaction.operations, "rollback")
+
+	return nil
+}
+
+// inquiryBeginStub captures transaction options and returns one configured seam.
+type inquiryBeginStub struct {
+	transaction inquiryTransaction
+	err         error
+	calls       int
+	context     context.Context
+	options     *sql.TxOptions
+}
+
+// Begin implements the repository's transaction factory for unit tests.
+func (begin *inquiryBeginStub) Begin(
+	ctx context.Context,
+	options *sql.TxOptions,
+) (inquiryTransaction, error) {
+	begin.calls++
+	begin.context = ctx
+	begin.options = options
+
+	return begin.transaction, begin.err
+}
+
+// inquiryRowScannerStub supplies one replay comparison result or a controlled
+// private driver-like failure.
+type inquiryRowScannerStub struct {
+	exactReplay bool
+	scanError   error
+	calls       int
+}
+
+// Scan maps one exact-replay Boolean or returns an injected private failure.
+func (row *inquiryRowScannerStub) Scan(destinations ...any) error {
+	row.calls++
+	if row.scanError != nil {
+		return row.scanError
+	}
+	if len(destinations) != 1 {
+		return errors.New("replay scanner expected one destination")
+	}
+	exactReplay, ok := destinations[0].(*bool)
+	if !ok {
+		return errors.New("replay scanner expected a boolean destination")
+	}
+	*exactReplay = row.exactReplay
+
+	return nil
+}
+
+// inquirySQLResultStub controls RowsAffected without relying on the generated-
+// identifier API that PostgreSQL does not support through database/sql.
 type inquirySQLResultStub struct {
-	// rowsAffected is the count returned by RowsAffected when its error is nil.
-	rowsAffected int64
-	// rowsAffectedError simulates result-inspection failure.
+	rowsAffected      int64
 	rowsAffectedError error
-	// lastInsertIDCalls protects the INSERT contract from relying on an API that
-	// PostgreSQL does not support through database/sql.
-	lastInsertIDCalls int
-	// rowsAffectedCalls proves the successful Exec result is inspected once.
 	rowsAffectedCalls int
+	lastInsertIDCalls int
 }
 
-// LastInsertId satisfies sql.Result while recording an unexpected call.
+// LastInsertId records accidental use of an API unsupported by PostgreSQL.
 func (result *inquirySQLResultStub) LastInsertId() (int64, error) {
 	result.lastInsertIDCalls++
 
 	return 0, errors.New("LastInsertId is unsupported")
 }
 
-// RowsAffected satisfies sql.Result and returns the test's controlled count or
-// error.
+// RowsAffected supplies the configured INSERT outcome.
 func (result *inquirySQLResultStub) RowsAffected() (int64, error) {
 	result.rowsAffectedCalls++
 
 	return result.rowsAffected, result.rowsAffectedError
 }
 
-// inquiryRepositoryContextKey is a private comparable type used to prove that
-// Create forwards the caller's exact context instead of replacing it.
+// inquiryRepositoryContextKey proves request context identity survives the seam.
 type inquiryRepositoryContextKey struct{}
 
-// TestNewPostgresInquiryRepository verifies constructor dependency validation
-// and confirms a valid pool is borrowed rather than replaced.
-func TestNewPostgresInquiryRepository(t *testing.T) {
-	t.Run("nil database", func(t *testing.T) {
-		repository, err := newPostgresInquiryRepository(nil)
-		if !errors.Is(err, errInquiryRepositoryDatabaseRequired) {
-			t.Fatalf(
-				"error: got %v, want database-required sentinel",
-				err,
-			)
-		}
-		if repository != nil {
-			t.Errorf(
-				"repository: got %#v, want nil",
-				repository,
-			)
-		}
-	})
-
-	t.Run("valid database", func(t *testing.T) {
-		// A zero database/sql value is sufficient for constructor identity testing;
-		// no method is called and no connection is opened by the constructor.
-		database := new(sql.DB)
-		repository, err := newPostgresInquiryRepository(database)
-		if err != nil {
-			t.Fatalf("create repository: %v", err)
-		}
-		if repository.executor != database {
-			t.Error("repository did not borrow the supplied database pool")
-		}
-	})
+// TestInquiryRetentionAdvisoryLockNamespace protects stable, distinct shared and
+// exclusive lock definitions from colliding with the migration runner.
+func TestInquiryRetentionAdvisoryLockNamespace(t *testing.T) {
+	if inquiryRetentionAdvisoryLockID <= 0 {
+		t.Fatal("inquiry retention advisory lock must use a stable positive ID")
+	}
+	if inquiryRetentionAdvisoryLockID == migrationAdvisoryLockID {
+		t.Fatal("inquiry retention and migration operations share one lock ID")
+	}
+	if acquireInquiryRetentionSharedLockSQL == acquireInquiryRetentionExclusiveLockSQL {
+		t.Fatal("Contact and maintenance unexpectedly use the same lock mode")
+	}
 }
 
-// TestPostgresInquiryRepositoryCreate verifies the complete successful insert
-// contract, including SQL text, positional argument order, context propagation,
-// and the additional exact-payload check required before replay success.
-func TestPostgresInquiryRepositoryCreate(t *testing.T) {
-	tests := []struct {
-		// name labels the affected-row outcome in verbose test output.
-		name string
-		// rowsAffected is the exact count reported by the SQL result.
-		rowsAffected int64
-		// expectedResult is the repository's semantic outcome.
-		expectedResult inquiryCreateResult
-		// verifyReplay says the zero-row INSERT must run the comparison query.
-		verifyReplay bool
-	}{
-		{
-			name:           "created",
-			rowsAffected:   1,
-			expectedResult: inquiryCreateResultCreated,
-		},
-		{
-			name:           "exact replay",
-			rowsAffected:   0,
-			expectedResult: inquiryCreateResultReplay,
-			verifyReplay:   true,
-		},
+// TestInquiryRepositorySQLContract freezes parameterized lock, insert, tombstone,
+// and exact-replay SQL at the repository boundary.
+func TestInquiryRepositorySQLContract(t *testing.T) {
+	const expectedSharedLockSQL = `SELECT pg_catalog.pg_advisory_xact_lock_shared($1::bigint)`
+	if acquireInquiryRetentionSharedLockSQL != expectedSharedLockSQL {
+		t.Errorf(
+			"shared lock SQL:\n%s\nwant:\n%s",
+			acquireInquiryRetentionSharedLockSQL,
+			expectedSharedLockSQL,
+		)
+	}
+	const expectedExclusiveLockSQL = `SELECT pg_catalog.pg_advisory_xact_lock($1::bigint)`
+	if acquireInquiryRetentionExclusiveLockSQL != expectedExclusiveLockSQL {
+		t.Errorf(
+			"exclusive lock SQL:\n%s\nwant:\n%s",
+			acquireInquiryRetentionExclusiveLockSQL,
+			expectedExclusiveLockSQL,
+		)
 	}
 
-	for _, test := range tests {
+	const expectedCreateSQL = `INSERT INTO public.inquiries (
+    submission_key,
+    name,
+    email,
+    discipline,
+    message
+)
+SELECT $1, $2, $3, $4, $5
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM public.inquiry_submission_tombstones
+    WHERE submission_key_hash = $6
+)
+ON CONFLICT (submission_key) DO NOTHING`
+	if createInquirySQL != expectedCreateSQL {
+		t.Errorf("create SQL:\n%s\nwant:\n%s", createInquirySQL, expectedCreateSQL)
+	}
+
+	const expectedReplaySQL = `SELECT exact_replay
+FROM (
+    SELECT
+        0 AS precedence,
+        name = $2 AND
+        email = $3 AND
+        discipline = $4 AND
+        message = $5 AS exact_replay
+    FROM public.inquiries
+    WHERE submission_key = $1
+
+    UNION ALL
+
+    SELECT
+        1 AS precedence,
+        FALSE AS exact_replay
+    FROM public.inquiry_submission_tombstones
+    WHERE submission_key_hash = $6
+) AS replay_candidates
+ORDER BY precedence
+LIMIT 1`
+	if exactInquiryReplaySQL != expectedReplaySQL {
+		t.Errorf(
+			"replay SQL:\n%s\nwant:\n%s",
+			exactInquiryReplaySQL,
+			expectedReplaySQL,
+		)
+	}
+}
+
+// TestNewPostgresInquiryRepository covers nil rejection and valid pool wiring.
+func TestNewPostgresInquiryRepository(t *testing.T) {
+	repository, err := newPostgresInquiryRepository(nil)
+	if !errors.Is(err, errInquiryRepositoryDatabaseRequired) || repository != nil {
+		t.Fatalf("nil database: repository=%#v error=%v", repository, err)
+	}
+
+	repository, err = newPostgresInquiryRepository(new(sql.DB))
+	if err != nil || repository == nil || repository.begin == nil {
+		t.Fatalf("valid database: repository=%#v error=%v", repository, err)
+	}
+}
+
+// TestPostgresInquiryRepositoryCreateTransaction verifies explicit isolation,
+// shared-lock ordering, digest arguments, replay behavior, and commit cleanup.
+func TestPostgresInquiryRepositoryCreateTransaction(t *testing.T) {
+	for _, test := range []struct {
+		name           string
+		rowsAffected   int64
+		expectedResult inquiryCreateResult
+		verifyReplay   bool
+	}{
+		{"created", 1, inquiryCreateResultCreated, false},
+		{"exact replay", 0, inquiryCreateResultReplay, true},
+	} {
 		t.Run(test.name, func(t *testing.T) {
-			sqlResult := &inquirySQLResultStub{
-				rowsAffected: test.rowsAffected,
-			}
-			executor := &inquiryExecutorStub{
-				result: sqlResult,
-			}
-			replayRow := &inquiryRowScannerStub{
-				exactReplay: true,
-			}
-			queryRow := &inquiryQueryRowStub{
+			result := &inquirySQLResultStub{rowsAffected: test.rowsAffected}
+			replayRow := &inquiryRowScannerStub{exactReplay: true}
+			transaction := &inquiryTransactionStub{
+				execResponses: []inquiryExecResponse{
+					{},
+					{result: result},
+				},
 				row: replayRow,
 			}
-			repository := &postgresInquiryRepository{
-				executor: executor,
-				queryRow: queryRow.QueryRow,
-			}
+			begin := &inquiryBeginStub{transaction: transaction}
+			repository := &postgresInquiryRepository{begin: begin.Begin}
 			submission := inquirySubmission{
-				// The migration requires the same 32-byte key width produced by the
-				// submission-token helper at the HTTP boundary.
-				SubmissionKey: []byte(
-					"0123456789abcdef0123456789abcdef",
-				),
-				Name:       "Test Visitor",
-				Email:      "visitor@example.com",
-				Discipline: "architecture-design",
-				Message:    "A carefully normalized project inquiry.",
+				SubmissionKey: []byte("0123456789abcdef0123456789abcdef"),
+				Name:          "Test Visitor",
+				Email:         "visitor@example.com",
+				Discipline:    "architecture-design",
+				Message:       "A carefully normalized project inquiry.",
 			}
 			ctx := context.WithValue(
 				context.Background(),
@@ -235,327 +302,277 @@ func TestPostgresInquiryRepositoryCreate(t *testing.T) {
 				"request-context-marker",
 			)
 
-			createResult, err := repository.Create(ctx, submission)
-			if err != nil {
-				t.Fatalf("create inquiry: %v", err)
+			created, err := repository.Create(ctx, submission)
+			if err != nil || created != test.expectedResult {
+				t.Fatalf("create inquiry: result=%d error=%v", created, err)
 			}
-			if createResult != test.expectedResult {
-				t.Errorf(
-					"result: got %d, want %d",
-					createResult,
-					test.expectedResult,
-				)
+			if begin.calls != 1 || begin.context != ctx || begin.options == nil ||
+				begin.options.Isolation != sql.LevelReadCommitted || begin.options.ReadOnly {
+				t.Errorf("begin call: %#v", begin)
 			}
-			if executor.calls != 1 {
-				t.Errorf(
-					"ExecContext calls: got %d, want 1",
-					executor.calls,
-				)
+			if len(transaction.execCalls) != 2 {
+				t.Fatalf("execution count: got %d, want 2", len(transaction.execCalls))
 			}
-			if executor.context != ctx {
-				t.Error("ExecContext did not receive the caller's exact context")
+			lockCall := transaction.execCalls[0]
+			if lockCall.context != ctx ||
+				lockCall.query != acquireInquiryRetentionSharedLockSQL ||
+				!reflect.DeepEqual(
+					lockCall.arguments,
+					[]any{inquiryRetentionAdvisoryLockID},
+				) {
+				t.Errorf("shared-lock call: %#v", lockCall)
 			}
-
-			// Keep a test-owned copy of the statement so an accidental change to the
-			// production constant cannot make the assertion pass automatically.
-			const expectedSQL = `INSERT INTO public.inquiries (
-    submission_key,
-    name,
-    email,
-    discipline,
-    message
-)
-VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (submission_key) DO NOTHING`
-			if executor.query != expectedSQL {
-				t.Errorf(
-					"query:\n%s\nwant:\n%s",
-					executor.query,
-					expectedSQL,
-				)
+			insertCall := transaction.execCalls[1]
+			if insertCall.context != ctx || insertCall.query != createInquirySQL {
+				t.Errorf("insert call: %#v", insertCall)
 			}
-
+			submissionKeyHash := sha256.Sum256(submission.SubmissionKey)
 			expectedArguments := []any{
 				submission.SubmissionKey,
 				submission.Name,
 				submission.Email,
 				submission.Discipline,
 				submission.Message,
+				submissionKeyHash[:],
 			}
-			if !reflect.DeepEqual(
-				executor.arguments,
-				expectedArguments,
-			) {
+			if !reflect.DeepEqual(insertCall.arguments, expectedArguments) {
+				t.Errorf("insert arguments: got %#v", insertCall.arguments)
+			}
+			if result.rowsAffectedCalls != 1 || result.lastInsertIDCalls != 0 {
 				t.Errorf(
-					"arguments: got %#v, want %#v",
-					executor.arguments,
-					expectedArguments,
+					"result inspection calls: rows=%d ID=%d",
+					result.rowsAffectedCalls,
+					result.lastInsertIDCalls,
 				)
 			}
-			if sqlResult.rowsAffectedCalls != 1 {
+			if transaction.commitCalls != 1 || transaction.rollbackCalls != 1 {
 				t.Errorf(
-					"RowsAffected calls: got %d, want 1",
-					sqlResult.rowsAffectedCalls,
-				)
-			}
-			if sqlResult.lastInsertIDCalls != 0 {
-				t.Errorf(
-					"LastInsertId calls: got %d, want 0",
-					sqlResult.lastInsertIDCalls,
+					"commit/rollback calls: %d/%d",
+					transaction.commitCalls,
+					transaction.rollbackCalls,
 				)
 			}
 
-			if !test.verifyReplay {
-				if queryRow.calls != 0 || replayRow.calls != 0 {
-					t.Error("new insert unnecessarily queried for a replay")
+			expectedOperations := []string{
+				"exec:" + acquireInquiryRetentionSharedLockSQL,
+				"exec:" + createInquirySQL,
+			}
+			if test.verifyReplay {
+				expectedOperations = append(
+					expectedOperations,
+					"query:"+exactInquiryReplaySQL,
+				)
+				if len(transaction.queryCalls) != 1 || replayRow.calls != 1 {
+					t.Fatalf(
+						"replay query/scan calls: %d/%d",
+						len(transaction.queryCalls),
+						replayRow.calls,
+					)
 				}
-				return
+				queryCall := transaction.queryCalls[0]
+				if queryCall.context != ctx ||
+					queryCall.query != exactInquiryReplaySQL ||
+					!reflect.DeepEqual(queryCall.arguments, expectedArguments) {
+					t.Errorf("replay comparison call: %#v", queryCall)
+				}
+			} else if len(transaction.queryCalls) != 0 || replayRow.calls != 0 {
+				t.Error("new insert unnecessarily queried for a replay")
 			}
-
-			if queryRow.calls != 1 || replayRow.calls != 1 {
+			expectedOperations = append(expectedOperations, "commit", "rollback")
+			if !reflect.DeepEqual(transaction.operations, expectedOperations) {
 				t.Errorf(
-					"replay query/scan calls: got %d/%d, want 1/1",
-					queryRow.calls,
-					replayRow.calls,
-				)
-			}
-			if queryRow.context != ctx {
-				t.Error("replay comparison did not receive the caller's context")
-			}
-			const expectedReplaySQL = `SELECT
-    name = $2 AND
-    email = $3 AND
-    discipline = $4 AND
-    message = $5
-FROM public.inquiries
-WHERE submission_key = $1`
-			if queryRow.query != expectedReplaySQL {
-				t.Errorf(
-					"replay query:\n%s\nwant:\n%s",
-					queryRow.query,
-					expectedReplaySQL,
-				)
-			}
-			if !reflect.DeepEqual(queryRow.arguments, expectedArguments) {
-				t.Errorf(
-					"replay arguments: got %#v, want %#v",
-					queryRow.arguments,
-					expectedArguments,
+					"transaction order:\n got %#v\nwant %#v",
+					transaction.operations,
+					expectedOperations,
 				)
 			}
 		})
 	}
 }
 
-// TestPostgresInquiryRepositoryCreateFailures verifies every lower-level
-// failure becomes one generic sentinel that contains no credential or visitor
-// data from a simulated driver error.
+// TestPostgresInquiryRepositoryCreateFailures maps every transaction failure to
+// one redacted sentinel and rolls back incomplete work.
 func TestPostgresInquiryRepositoryCreateFailures(t *testing.T) {
 	const sensitiveDetail = "password=database-secret visitor@example.com"
+	assertSafeFailure := func(
+		t *testing.T,
+		repository *postgresInquiryRepository,
+		ctx context.Context,
+	) {
+		t.Helper()
+		result, err := repository.Create(ctx, inquirySubmission{})
+		if !errors.Is(err, errInquiryCreateFailed) || result != 0 {
+			t.Fatalf("failure: result=%d error=%v", result, err)
+		}
+		if strings.Contains(err.Error(), "database-secret") ||
+			strings.Contains(err.Error(), "visitor@example.com") {
+			t.Errorf("error exposes sensitive detail: %q", err)
+		}
+	}
+
+	t.Run("invalid repository or context", func(t *testing.T) {
+		assertSafeFailure(t, nil, context.Background())
+		assertSafeFailure(t, &postgresInquiryRepository{}, context.Background())
+		assertSafeFailure(
+			t,
+			&postgresInquiryRepository{begin: (&inquiryBeginStub{}).Begin},
+			nil,
+		)
+	})
+
+	for _, test := range []struct {
+		name        string
+		transaction inquiryTransaction
+		beginError  error
+	}{
+		{"begin failure", nil, errors.New(sensitiveDetail)},
+		{"nil transaction", nil, nil},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			begin := &inquiryBeginStub{
+				transaction: test.transaction,
+				err:         test.beginError,
+			}
+			assertSafeFailure(
+				t,
+				&postgresInquiryRepository{begin: begin.Begin},
+				context.Background(),
+			)
+		})
+	}
 
 	tests := []struct {
-		// name labels the failing repository boundary.
-		name string
-		// repository is the concrete value exercised by the test.
-		repository *postgresInquiryRepository
-		// expectedExecCalls proves whether SQL should have been attempted.
-		expectedExecCalls int
-		// expectedRowsAffectedCalls proves result inspection stops at the error.
-		expectedRowsAffectedCalls int
+		name            string
+		execResponses   []inquiryExecResponse
+		row             inquiryRowScanner
+		commitError     error
+		expectedExecs   int
+		expectedQueries int
 	}{
 		{
-			name:       "nil repository",
-			repository: nil,
+			name:          "shared lock failure",
+			execResponses: []inquiryExecResponse{{err: errors.New(sensitiveDetail)}},
+			expectedExecs: 1,
 		},
 		{
-			name:       "nil executor",
-			repository: &postgresInquiryRepository{},
-		},
-		{
-			name: "execute failure",
-			repository: &postgresInquiryRepository{
-				executor: &inquiryExecutorStub{
-					execError: errors.New(sensitiveDetail),
-				},
+			name: "insert failure",
+			execResponses: []inquiryExecResponse{
+				{}, {err: errors.New(sensitiveDetail)},
 			},
-			expectedExecCalls: 1,
+			expectedExecs: 2,
 		},
 		{
-			name: "nil SQL result",
-			repository: &postgresInquiryRepository{
-				executor: &inquiryExecutorStub{},
-			},
-			expectedExecCalls: 1,
+			name:          "nil insert result",
+			execResponses: []inquiryExecResponse{{}, {}},
+			expectedExecs: 2,
 		},
 		{
-			name: "RowsAffected failure",
-			repository: &postgresInquiryRepository{
-				executor: &inquiryExecutorStub{
-					result: &inquirySQLResultStub{
-						rowsAffectedError: errors.New(sensitiveDetail),
-					},
-				},
+			name: "rows affected failure",
+			execResponses: []inquiryExecResponse{
+				{}, {result: &inquirySQLResultStub{rowsAffectedError: errors.New(sensitiveDetail)}},
 			},
-			expectedExecCalls:         1,
-			expectedRowsAffectedCalls: 1,
+			expectedExecs: 2,
 		},
 		{
-			name: "impossible affected-row count",
-			repository: &postgresInquiryRepository{
-				executor: &inquiryExecutorStub{
-					result: &inquirySQLResultStub{
-						rowsAffected: 2,
-					},
-				},
+			name: "impossible affected count",
+			execResponses: []inquiryExecResponse{
+				{}, {result: &inquirySQLResultStub{rowsAffected: 2}},
 			},
-			expectedExecCalls:         1,
-			expectedRowsAffectedCalls: 1,
+			expectedExecs: 2,
 		},
 		{
-			name: "replay comparison unavailable",
-			repository: &postgresInquiryRepository{
-				executor: &inquiryExecutorStub{
-					result: &inquirySQLResultStub{
-						rowsAffected: 0,
-					},
-				},
+			name: "missing replay row",
+			execResponses: []inquiryExecResponse{
+				{}, {result: &inquirySQLResultStub{rowsAffected: 0}},
 			},
-			expectedExecCalls:         1,
-			expectedRowsAffectedCalls: 1,
+			expectedExecs:   2,
+			expectedQueries: 1,
+		},
+		{
+			name: "replay scan failure",
+			execResponses: []inquiryExecResponse{
+				{}, {result: &inquirySQLResultStub{rowsAffected: 0}},
+			},
+			row:             &inquiryRowScannerStub{scanError: errors.New(sensitiveDetail)},
+			expectedExecs:   2,
+			expectedQueries: 1,
+		},
+		{
+			name: "created commit failure",
+			execResponses: []inquiryExecResponse{
+				{}, {result: &inquirySQLResultStub{rowsAffected: 1}},
+			},
+			commitError:   errors.New(sensitiveDetail),
+			expectedExecs: 2,
+		},
+		{
+			name: "replay commit failure",
+			execResponses: []inquiryExecResponse{
+				{}, {result: &inquirySQLResultStub{rowsAffected: 0}},
+			},
+			row:             &inquiryRowScannerStub{exactReplay: true},
+			commitError:     errors.New(sensitiveDetail),
+			expectedExecs:   2,
+			expectedQueries: 1,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result, err := test.repository.Create(
+			transaction := &inquiryTransactionStub{
+				execResponses: test.execResponses,
+				row:           test.row,
+				commitError:   test.commitError,
+			}
+			begin := &inquiryBeginStub{transaction: transaction}
+			assertSafeFailure(
+				t,
+				&postgresInquiryRepository{begin: begin.Begin},
 				context.Background(),
-				inquirySubmission{},
 			)
-			if !errors.Is(err, errInquiryCreateFailed) {
-				t.Fatalf(
-					"error: got %v, want generic create sentinel",
-					err,
-				)
-			}
-			if result != 0 {
-				t.Errorf("result: got %d, want zero on failure", result)
-			}
-			if strings.Contains(err.Error(), sensitiveDetail) ||
-				strings.Contains(err.Error(), "visitor@example.com") ||
-				strings.Contains(err.Error(), "database-secret") {
-				t.Errorf("error exposes sensitive driver detail: %q", err)
-			}
-
-			if test.repository == nil || test.repository.executor == nil {
-				return
-			}
-			executor, ok := test.repository.executor.(*inquiryExecutorStub)
-			if !ok {
-				t.Fatal("test repository does not contain its recording executor")
-			}
-			if executor.calls != test.expectedExecCalls {
+			if len(transaction.execCalls) != test.expectedExecs ||
+				len(transaction.queryCalls) != test.expectedQueries ||
+				transaction.rollbackCalls != 1 {
 				t.Errorf(
-					"ExecContext calls: got %d, want %d",
-					executor.calls,
-					test.expectedExecCalls,
-				)
-			}
-			if sqlResult, ok := executor.result.(*inquirySQLResultStub); ok &&
-				sqlResult.rowsAffectedCalls != test.expectedRowsAffectedCalls {
-				t.Errorf(
-					"RowsAffected calls: got %d, want %d",
-					sqlResult.rowsAffectedCalls,
-					test.expectedRowsAffectedCalls,
+					"exec/query/rollback calls: %d/%d/%d",
+					len(transaction.execCalls),
+					len(transaction.queryCalls),
+					transaction.rollbackCalls,
 				)
 			}
 		})
 	}
 }
 
-// TestPostgresInquiryRepositoryRejectsKeyCollisions verifies a conflicting
-// key is successful only when PostgreSQL confirms the stored name, email,
-// discipline, and message all match the attempted normalized payload.
+// TestPostgresInquiryRepositoryRejectsKeyCollisions distinguishes a changed
+// payload or tombstoned key from a successful exact replay.
 func TestPostgresInquiryRepositoryRejectsKeyCollisions(t *testing.T) {
-	const sensitiveDetail = "visitor@example.com password=database-secret"
-
-	tests := []struct {
-		// name labels the unsafe or unreadable collision outcome.
-		name string
-		// row is returned by the comparison query; nil tests a defensive boundary.
-		row inquiryRowScanner
-		// expectedError distinguishes a permanent payload conflict from an
-		// unreadable comparison that may be transient.
-		expectedError error
-	}{
-		{
-			name: "different persisted payload",
-			row: &inquiryRowScannerStub{
-				exactReplay: false,
-			},
-			expectedError: errInquirySubmissionConflict,
+	transaction := &inquiryTransactionStub{
+		execResponses: []inquiryExecResponse{
+			{}, {result: &inquirySQLResultStub{rowsAffected: 0}},
 		},
-		{
-			name: "comparison query failure",
-			row: &inquiryRowScannerStub{
-				scanError: errors.New(sensitiveDetail),
-			},
-			expectedError: errInquiryCreateFailed,
-		},
-		{
-			name:          "missing comparison row",
-			expectedError: errInquiryCreateFailed,
-		},
+		row: &inquiryRowScannerStub{exactReplay: false},
 	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			executor := &inquiryExecutorStub{
-				result: &inquirySQLResultStub{
-					rowsAffected: 0,
-				},
-			}
-			queryRow := &inquiryQueryRowStub{
-				row: test.row,
-			}
-			repository := &postgresInquiryRepository{
-				executor: executor,
-				queryRow: queryRow.QueryRow,
-			}
-			submission := inquirySubmission{
-				SubmissionKey: []byte(
-					"0123456789abcdef0123456789abcdef",
-				),
-				Name:       "Expected Visitor",
-				Email:      "expected@example.com",
-				Discipline: "products",
-				Message:    "The complete expected payload.",
-			}
-
-			result, err := repository.Create(
-				context.Background(),
-				submission,
-			)
-			if !errors.Is(err, test.expectedError) {
-				t.Fatalf(
-					"error: got %v, want %v",
-					err,
-					test.expectedError,
-				)
-			}
-			if result != 0 {
-				t.Errorf("result: got %d, want zero on collision", result)
-			}
-			if strings.Contains(err.Error(), "visitor@example.com") ||
-				strings.Contains(err.Error(), "database-secret") {
-				t.Errorf("collision error exposes driver detail: %q", err)
-			}
-			if executor.calls != 1 || queryRow.calls != 1 {
-				t.Errorf(
-					"insert/comparison calls: got %d/%d, want 1/1",
-					executor.calls,
-					queryRow.calls,
-				)
-			}
-		})
+	begin := &inquiryBeginStub{transaction: transaction}
+	repository := &postgresInquiryRepository{begin: begin.Begin}
+	result, err := repository.Create(
+		context.Background(),
+		inquirySubmission{
+			SubmissionKey: []byte("0123456789abcdef0123456789abcdef"),
+			Name:          "Expected Visitor",
+			Email:         "expected@example.com",
+			Discipline:    "products",
+			Message:       "The complete expected payload.",
+		},
+	)
+	if !errors.Is(err, errInquirySubmissionConflict) || result != 0 {
+		t.Fatalf("collision: result=%d error=%v", result, err)
+	}
+	if transaction.commitCalls != 0 || transaction.rollbackCalls != 1 {
+		t.Errorf(
+			"collision commit/rollback calls: %d/%d",
+			transaction.commitCalls,
+			transaction.rollbackCalls,
+		)
 	}
 }

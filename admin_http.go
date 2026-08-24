@@ -10,6 +10,7 @@ import (
 	"log"
 	"mime"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -40,6 +41,13 @@ const (
 	// private authentication, inquiry, catalogue, project, or Site-content request
 	// indefinitely.
 	adminRepositoryTimeout = 5 * time.Second
+	// adminLoginPasswordWorkLimit bounds simultaneous account lookup and PBKDF2
+	// work. The nonblocking guard protects the process from CPU amplification
+	// without retaining client addresses or attacker-controlled account keys.
+	adminLoginPasswordWorkLimit = 2
+	// adminLoginRetryAfterSeconds gives a saturated client one neutral retry hint.
+	// It is deliberately independent of account state and carries no identifier.
+	adminLoginRetryAfterSeconds = 1
 	// adminDummyPassword is not an account credential. It exists only to produce
 	// one startup-validated verifier for account-neutral missing-user logins.
 	adminDummyPassword = "zafarmand dummy administrator credential"
@@ -214,6 +222,31 @@ func (app *application) adminLoginHandler(
 		return
 	}
 
+	// Acquire before either account lookup or password derivation. A full guard
+	// fails immediately instead of queueing unbounded expensive work. The defer
+	// releases permits on every repository error and unexpected panic; the normal
+	// path releases immediately after Verify so token/session work is not counted
+	// as password work.
+	if app == nil || !app.beginAdminLoginPasswordWork() {
+		w.Header().Set(
+			"Retry-After",
+			strconv.Itoa(adminLoginRetryAfterSeconds),
+		)
+		http.Error(
+			w,
+			"sign in temporarily unavailable",
+			http.StatusTooManyRequests,
+		)
+
+		return
+	}
+	passwordWorkActive := true
+	defer func() {
+		if passwordWorkActive {
+			app.endAdminLoginPasswordWork()
+		}
+	}()
+
 	normalizedEmail, emailErr := normalizeAdminEmail(form.Get("email"))
 	password := form.Get("password")
 
@@ -253,6 +286,8 @@ func (app *application) adminLoginHandler(
 		password,
 		passwordHash,
 	)
+	app.endAdminLoginPasswordWork()
+	passwordWorkActive = false
 	if verifyErr != nil {
 		// Invalid visitor input and a corrupt stored encoding receive the same
 		// external result. The safe sentinel is useful in local logs without an
@@ -321,6 +356,27 @@ func (app *application) adminLoginHandler(
 	)
 	clearAdminLoginCSRFCookie(w, r)
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+}
+
+// beginAdminLoginPasswordWork reserves one bounded password-work permit
+// without waiting. A missing guard fails closed because production construction
+// always initializes it before the application can serve requests.
+func (app *application) beginAdminLoginPasswordWork() bool {
+	if app == nil || app.adminLoginPasswordWork == nil {
+		return false
+	}
+
+	select {
+	case app.adminLoginPasswordWork <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+// endAdminLoginPasswordWork releases exactly one permit acquired by begin.
+func (app *application) endAdminLoginPasswordWork() {
+	<-app.adminLoginPasswordWork
 }
 
 // renderAdminLoginFailure rotates the anonymous CSRF token and renders the one
@@ -581,6 +637,8 @@ func authenticatedAdminFromContext(
 
 // issueAdminLoginCSRFToken generates the anonymous double-submit value and
 // stores its browser copy with the narrowest path used by the login endpoint.
+// Secure follows direct TLS or the private operator-declared HTTPS marker,
+// never a client-supplied forwarding header.
 func (app *application) issueAdminLoginCSRFToken(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -598,7 +656,7 @@ func (app *application) issueAdminLoginCSRFToken(
 		Expires:  expiresAt,
 		MaxAge:   int(adminLoginCSRFLifetime / time.Second),
 		HttpOnly: true,
-		Secure:   r.TLS != nil,
+		Secure:   requestUsesSecureCookies(r),
 		SameSite: http.SameSiteStrictMode,
 	})
 
@@ -663,6 +721,8 @@ func decodeAndHashAdminToken(
 // setAdminSessionCookies emits the bearer and CSRF secrets with identical
 // absolute expiry and admin-only scope. HttpOnly prevents script access, while
 // the server can still copy the CSRF value into a protected form after lookup.
+// The centralized secure-cookie decision supports both direct TLS and the
+// explicitly configured HTTPS edge without trusting forwarding headers.
 func setAdminSessionCookies(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -689,7 +749,7 @@ func setAdminSessionCookies(
 		cookie.Expires = expiresAt
 		cookie.MaxAge = maxAge
 		cookie.HttpOnly = true
-		cookie.Secure = r.TLS != nil
+		cookie.Secure = requestUsesSecureCookies(r)
 		cookie.SameSite = http.SameSiteStrictMode
 		http.SetCookie(w, cookie)
 	}
@@ -721,6 +781,8 @@ func clearAdminSessionCookies(
 
 // expireAdminCookie reproduces the security attributes and original path while
 // setting a past expiry and negative MaxAge, as required for reliable deletion.
+// It uses the same trusted HTTPS decision as creation so edge-terminated
+// deployments cannot downgrade a deletion response's cookie policy.
 func expireAdminCookie(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -734,7 +796,7 @@ func expireAdminCookie(
 		Expires:  time.Unix(1, 0).UTC(),
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   r.TLS != nil,
+		Secure:   requestUsesSecureCookies(r),
 		SameSite: http.SameSiteStrictMode,
 	})
 }

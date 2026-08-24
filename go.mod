@@ -3,11 +3,11 @@ module github.com/petersh021/zafarmand
 
 // The Go directive records the minimum Go version and language semantics
 // required when building and testing the module.
-go 1.24.3
+go 1.26.7
 
 // pgx supplies PostgreSQL parsing, connections, and the database/sql adapter
 // used by migrations, Contact persistence, and administrator authentication.
-require github.com/jackc/pgx/v5 v5.8.0
+require github.com/jackc/pgx/v5 v5.10.0
 
 // These modules are pgx's transitive implementation dependencies. Go records
 // them explicitly so builds resolve the same complete module graph.

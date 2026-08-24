@@ -661,10 +661,7 @@ func (app *application) contactHandler(
 		// Random-source failure is an internal condition. The response deliberately
 		// excludes implementation details and never renders a form without CSRF
 		// protection.
-		log.Printf(
-			"could not create inquiry CSRF token: %v",
-			err,
-		)
+		log.Print("could not create inquiry CSRF token")
 		http.Error(
 			w,
 			"internal server error",
@@ -678,10 +675,7 @@ func (app *application) contactHandler(
 		// As with CSRF generation, a missing cryptographic token is an internal
 		// failure. Rendering a form without a safe database identity would allow a
 		// retry to create duplicate inquiries.
-		log.Printf(
-			"could not create inquiry submission token: %v",
-			err,
-		)
+		log.Print("could not create inquiry submission token")
 		http.Error(
 			w,
 			"internal server error",
@@ -867,7 +861,9 @@ func (app *application) inquirySubmissionHandler(
 			return
 		}
 
-		log.Print("Contact inquiry submission key conflicted")
+		// The outer request record already captures this neutral 409 with its
+		// server-owned request ID. Do not promote a client-triggerable stale key to
+		// an application ERROR event or emit a second uncorrelated record.
 		app.renderContactPage(
 			w,
 			r,

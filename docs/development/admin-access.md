@@ -31,9 +31,10 @@ still has no Product, Interior-project, or Architecture-project deletion;
 galleries/cropping; account management; password change or recovery;
 multi-factor authentication; or audit-reporting workflow.
 
-Expired rows are rejected during authentication but Stage 15 does not yet run
-a scheduled session-pruning job. The expiry index prepares for that later
-maintenance without making it part of an HTTP request.
+Expired rows are rejected during authentication. Stage 15 deliberately added
+no pruning job; Stage 25 now provides an offline operator command that can
+remove expired sessions without putting `DELETE` authority in an HTTP handler.
+It is still not an automatic scheduler. See [retention.md](retention.md).
 
 The two current roles are `owner` and `editor`. Stage 15 validates and displays
 those labels. Later stages explicitly authorize both roles for their separate
@@ -71,7 +72,7 @@ go run . migrate up
 go run . migrate status
 ```
 
-The current Stage 24 application reports versions 1 through 9 applied.
+The current Stage 25 application reports versions 1 through 10 applied.
 Migrations 4–6 build Product storage, editing, rich content, and its one-cover
 relation as described in [products.md](products.md) and
 [admin-products.md](admin-products.md). Migration 7 independently creates the
@@ -80,19 +81,20 @@ unseeded Interior-project and one-cover relations described in
 unseeded Architecture-project and one-cover relations described in
 [architecture-projects.md](architecture-projects.md). Migration 9 adds the
 Homepage, Homepage-hero, and Contact relations described in
-[site-content.md](site-content.md). Do not edit an applied
-migration; add a new version for a later schema correction.
+[site-content.md](site-content.md). Migration 10 adds the digest-only inquiry
+replay tombstones and archived-retention index described in
+[retention.md](retention.md). Do not edit an applied migration; add a new
+version for a later schema correction.
 
 `go run . migrate down --confirm` reverses only the newest applied version. On
-the complete current catalog, the first rollback removes migration 9's
-Homepage hero, Contact, and Homepage relations, permanently deleting their
-managed rows. A second rollback removes migration 8's Architecture cover and
-project tables, and a third removes migration 7's Interior relations. Only then
-can later rollback commands remove migration 6's Product cover/content,
-migration 5's Product revision, and migration 4's Product table. The following
-rollback would remove the Stage 15 session and user tables and destroy
-administrator access records. Use rollback only in a verified disposable
-database, never as a production cleanup technique.
+the complete current catalog, the first rollback removes migration 10's replay
+tombstones and archived-retention index, weakening protection against stale
+Contact replays. The next rollback removes migration 9's Homepage hero,
+Contact, and Homepage relations, permanently deleting their managed rows. Later
+rollbacks remove the Architecture, Interior, and Product changes before one can
+remove the Stage 15 session and user tables and destroy administrator access
+records. Use rollback only in a verified disposable database, never as a
+production cleanup technique.
 
 ## Creating the first administrator safely
 
@@ -368,34 +370,32 @@ security-header policy:
 
 ## Local HTTP and production HTTPS
 
-Local development uses `http://localhost:8080`. The current cookie code sets
-the `Secure` flag when Go sees a TLS request (`r.TLS != nil`), so cookies are
-not marked Secure during this deliberate local HTTP workflow.
+Local development defaults to the loopback-only listener
+`http://127.0.0.1:8080`. Cookies are not marked `Secure` during that deliberate
+local HTTP workflow.
 
-Public or shared deployment must use HTTPS. If Go terminates TLS itself, it can
-observe TLS directly and mark the cookies Secure. A TLS-terminating reverse
-proxy is more subtle: the backend may receive plain HTTP even though the browser
-used HTTPS. The application does **not** currently trust or interpret
-`X-Forwarded-Proto`, because accepting that header from arbitrary clients would
-let them spoof connection security.
+The Go server does not terminate production TLS. Public or shared deployment
+must pass through a reviewed HTTPS edge and set exact
+`ZAFARMAND_EXTERNAL_HTTPS=true`. A wildcard or any host other than `localhost`
+or a loopback IP fails startup without that declaration. The outer request
+policy then marks administrator, Contact-CSRF, and Contact-flash cookies
+`Secure` and emits HSTS.
+Do not enable the declaration when the application listener itself is publicly
+reachable over plaintext HTTP.
 
-Before deploying behind a proxy, establish and review an explicit trusted-proxy
-boundary. The proxy must replace forwarding headers, accept traffic only from
-the intended network path, and preserve the Secure-cookie guarantee through a
-reviewed application or edge configuration. Do not expose the admin routes
-publicly while the backend incorrectly believes production requests are HTTP.
-End-to-end TLS between browser, proxy, and Go is the simplest interpretation.
-The Go server also does not emit HTTP Strict Transport Security during this
-local-HTTP stage. A production HTTPS edge should add HSTS only after the domain,
-subdomains, certificate renewal, and rollback plan have been verified.
+The application never trusts `Forwarded` or `X-Forwarded-Proto` to make this
+decision. The edge must replace client-supplied forwarding headers, restrict
+access to the application listener, redirect public HTTP to HTTPS, and preserve
+application security headers. See [operations.md](operations.md) for the exact
+listener, PostgreSQL TLS, health, log, and shutdown contract.
 
-Stage 15 also has no distributed login rate limiter. Before any public
-exposure, configure throttling at a trusted deployment edge such as the reverse
-proxy, load balancer, or managed web-application firewall. It must apply
-consistently across every application instance and must derive client identity
-only from forwarding data supplied by that trusted edge. PBKDF2 is intentionally
-expensive and is not a rate limiter; without edge throttling, repeated login
-attempts can consume CPU as well as guess passwords.
+Stage 25 adds a small nonblocking process guard around administrator lookup and
+password derivation. It protects one process from unbounded expensive password
+work, but it is not a distributed or per-client login limiter. Before public
+exposure, configure throttling at the trusted reverse proxy, load balancer, or
+managed web-application firewall. It must apply across every application
+instance and derive client identity only from transport data trusted by that
+edge.
 
 ## Database roles and least privilege
 
@@ -432,9 +432,14 @@ Use separate credentials for these responsibilities:
   The runtime also needs read access to
   active admin users (including the verifier needed for login) and narrow
   insert/select/update access for admin sessions. Logout updates `revoked_at`;
-  it does not require table deletion. The server does not need permission to
-  update visitor inquiry content, create admin users, modify their roles, or
-  delete managed site content.
+  it does not require table deletion. Stage 25 additionally needs column-level
+  `SELECT` on `version`, `name`, and `checksum` in
+  `public.schema_migrations` for readiness, plus `SELECT` on
+  `public.inquiry_submission_tombstones.submission_key_hash` for Contact replay
+  protection. The server remains without `DELETE`; the separate maintenance
+  role and grants are documented in [retention.md](retention.md). The server
+  does not need permission to update visitor inquiry content, create admin
+  users, modify their roles, or delete managed site content.
 
 The CLI and server both read a variable named `DATABASE_URL`, but separate
 processes can and should supply different role-specific URLs. Define grants in
@@ -444,7 +449,7 @@ deployment.
 
 ## Manual verification without exposing secrets
 
-After the current migrations through version 9 are applied and a placeholder
+After the current migrations through version 10 are applied and a placeholder
 test administrator has been created locally, start the server in the same
 process environment that contains the runtime `DATABASE_URL`:
 
@@ -454,7 +459,7 @@ go run .
 
 Then verify in a private browser window:
 
-1. Open `http://localhost:8080/admin`. It should redirect to `/admin/login`.
+1. Open `http://127.0.0.1:8080/admin`. It should redirect to `/admin/login`.
 2. Submit a deliberately wrong password. The page should show one generic
    authentication failure, without confirming whether the address exists.
 3. Sign in with the local test account. The browser should reach `/admin`,
@@ -530,7 +535,10 @@ inexpensive manager. Stages 19–24 additionally cover explicit Owner/Editor
 Product, Interior-project, and Architecture-project reads/writes, strict
 protected URLs and URL-encoded/multipart forms, all-state mapping, image
 validation, version-conflict handling, generic dependency errors, and the
-separate managed Homepage/Contact workspace.
+separate managed Homepage/Contact workspace. Stage 25 additionally covers the
+password-work guard, direct-TLS and declared-edge cookie policy, fixed
+privacy-safe errors, readiness, structured request telemetry, and overload
+behavior.
 
 The PostgreSQL tests are destructive and opt-in. Supply only a dedicated empty
 database whose name ends in `_test`; never use a development, shared, or
@@ -551,7 +559,7 @@ Remove-Item Env:ZAFARMAND_TEST_DATABASE_CONFIRM -ErrorAction SilentlyContinue
 ```
 
 `Set-SecretProcessVariable` is the history-safe helper defined earlier in this
-guide. The live suite covers the complete v1-to-v9 migration cycle, rollback
+guide. The live suite covers the complete v1-to-v10 migration cycle, rollback
 and reapplication, real PostgreSQL constraints, duplicate normalized email,
 session byte mapping, active-user filtering, expiry, revocation, the Stage 16
 inquiry list/detail reader, the Stage 17 status writer, and the Stage 18
@@ -564,7 +572,9 @@ constraints, and empty rollback/reapply lifecycle. Stage 23 adds migration 8
 and repeats those checks against independently scoped Architecture tables,
 repositories, publication rules, revisions, and covers. Stage 24 adds migration
 9 seeds and constraints plus real singleton reads, feature eligibility, managed
-hero visibility, and optimistic site-content writes. Stage 17 still added
-no schema version. The suite never falls back to `DATABASE_URL`
+hero visibility, and optimistic site-content writes. Stage 25 adds migration
+10's tombstone/index lifecycle, replay suppression, retention operations, and
+exact-ledger readiness. Stage 17 still added no schema version. The suite never
+falls back to `DATABASE_URL`
 and skips only when its explicit opt-in variables are absent. Ensure cleanup
 succeeds before reusing or removing the disposable database.

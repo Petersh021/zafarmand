@@ -244,10 +244,11 @@ database pool.
 Application construction rejects a nil Product reader. The request handlers
 also fail safely if a manually assembled application bypasses normal
 construction. Repository construction itself performs no query, so operators
-must apply the current application catalog through version 9 before serving
+must apply the current application catalog through version 10 before serving
 traffic. Product storage itself is complete at version 6; versions 7 through 9
-add the separate Interior, Architecture, and site-content dependencies required
-by the same application. If the Product table or revision is absent, Product
+add the separate Interior, Architecture, and site-content dependencies, while
+version 10 adds independent inquiry-retention support required by the same
+application. If the Product table or revision is absent, Product
 requests fail generically rather than falling back to temporary records or
 disabling concurrency checks.
 
@@ -328,9 +329,10 @@ reviewed protected workflow and its deployment-specific backup policy.
    go run . migrate status
    ```
 
-   Versions 1 through 9 should be applied. Migrations 7 through 9 own the
+   Versions 1 through 10 should be applied. Migrations 7 through 9 own the
    separate Interior-project, Architecture-project, and global site-content
-   schemas and do not change these Product checks.
+   schemas; migration 10 adds inquiry-retention support. None changes these
+   Product checks.
 3. Let `psql` read the same URL from `PGDATABASE`, verify the database identity,
    and inspect schema rather than content:
 

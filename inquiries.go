@@ -276,9 +276,9 @@ func ensureInquiryCSRFToken(
 	if err == nil {
 		if _, valid := decodeInquiryCSRFToken(cookie.Value); valid {
 			// Cookie request headers do not carry their original Secure attribute.
-			// Reissuing the same value on a direct TLS request upgrades an HTTP
-			// development cookie without invalidating forms open in other tabs.
-			if r.TLS != nil {
+			// Reissuing the same value on direct TLS or an operator-declared HTTPS
+			// edge upgrades a development cookie without invalidating open forms.
+			if requestUsesSecureCookies(r) {
 				writeInquiryCSRFCookie(
 					w,
 					r,
@@ -303,8 +303,8 @@ func ensureInquiryCSRFToken(
 // writeInquiryCSRFCookie emits the protected half of the double-submit pair
 // with one consistent scope and browser policy.
 //
-// Direct TLS requests receive Secure cookies. Reverse-proxy header trust is a
-// deployment concern and remains intentionally outside this local HTTP stage.
+// Direct TLS and the explicit operational HTTPS marker receive Secure cookies.
+// Untrusted forwarding headers never influence this browser security decision.
 func writeInquiryCSRFCookie(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -317,7 +317,7 @@ func writeInquiryCSRFCookie(
 			Value:    token,
 			Path:     "/contact",
 			HttpOnly: true,
-			Secure:   r.TLS != nil,
+			Secure:   requestUsesSecureCookies(r),
 			SameSite: http.SameSiteLaxMode,
 		},
 	)

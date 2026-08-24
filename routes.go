@@ -11,14 +11,9 @@ import "net/http"
 func (app *application) routes() http.Handler {
 	mux := http.NewServeMux()
 
-	// FileServer reads public assets from the local static directory. The
-	// browser requests /static/css/main.css, but StripPrefix removes /static/
-	// before FileServer maps the remainder to ./static/css/main.css.
-	fileServer := http.FileServer(http.Dir("./static"))
-
 	mux.Handle(
-		"GET /static/",
-		http.StripPrefix("/static/", fileServer),
+		"GET "+staticURLPrefix,
+		newStaticAssetHandler(),
 	)
 
 	// /{$} is an exact-root pattern. The {$} prevents the homepage handler from

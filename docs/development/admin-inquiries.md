@@ -14,10 +14,12 @@ write before the browser returns to the canonical detail page.
 
 This guide supplements the [administrator access guide](admin-access.md) and
 the [database development guide](database.md). Stage 15 authentication must be
-working, and the current migrations 1 through 9 must already be applied before
-starting the Stage 24 server. Migrations 4–6 belong to Products, migration 7
+working, and the current migrations 1 through 10 must already be applied before
+starting the Stage 25 server. Migrations 4–6 belong to Products, migration 7
 belongs to Interior projects, migration 8 belongs to Architecture projects,
 and migration 9 belongs to global site content; none changes inquiry behavior.
+Migration 10 adds the inquiry replay-tombstone and archived-retention boundary
+documented in [retention.md](retention.md).
 Their separate boundaries are documented in
 [products.md](products.md), [interior-projects.md](interior-projects.md), and
 [architecture-projects.md](architecture-projects.md), with migration 9 in
@@ -286,20 +288,24 @@ reach a parameterized query.
 Stages 16 and 17 did not alter an inquiry table, constraint, or index. Stage 17
 reuses the existing `status`, `updated_at`, and
 `inquiries_status_supported` constraint; no empty inquiry migration should be
-created merely to mark an application-code stage. In the current Stage 24
-project, `go run . migrate status` should report versions 1 through 9 because
+created merely to mark an application-code stage. In the current Stage 25
+project, `go run . migrate status` should report versions 1 through 10 because
 migrations 4–6 independently add Product storage, revision, and content/cover
 storage, migration 7 adds separate Interior-project storage, and migration 8
 adds separate Architecture-project storage. Migration 9 adds independent
-Homepage and Contact presentation storage. None changes the inquiry schema.
+Homepage and Contact presentation storage. Migration 10 adds a related
+digest-only replay-tombstone table and a partial index over archived inquiries;
+it does not change the inquiry columns or status constraint.
 
 The least-privilege runtime PostgreSQL role does need one deliberate grant
 change: it must be able to `SELECT` the columns required from
 `public.inquiries`. Stage 14 needed an insert and a narrow replay read; Stage 16
 adds list and detail reads; and Stage 17 needs column-level `UPDATE` permission
-for only `status` and `updated_at`. The runtime role still must not own the
-schema, alter migrations, update visitor content, create administrator users,
-or grant privileges.
+for only `status` and `updated_at`. Stage 25 additionally needs `SELECT` on the
+tombstone table's `submission_key_hash` for Contact replay protection and
+read-only access to the migration ledger columns used by readiness. The runtime
+role still must not own the schema, alter migrations, update visitor content,
+create administrator users, delete inquiries, or grant privileges.
 
 Define and test grants in deployment automation or provider configuration, not
 in committed application source. The Go process continues to use one shared
@@ -311,13 +317,13 @@ Use a local or disposable development database and an intentionally fictional
 Contact submission. Never copy a real visitor's name, email, message, token, or
 database row into a terminal transcript, screenshot, chat, issue, or test.
 
-1. Confirm migrations 1 through 9 are applied with `go run . migrate status`.
+1. Confirm migrations 1 through 10 are applied with `go run . migrate status`.
 2. Start the application with the local runtime `DATABASE_URL` and sign in as a
    local test owner or editor.
 3. In another private browser context, submit a Contact form using unmistakably
    fictional data such as `Stage 17 Test` and `stage17@example.invalid`, plus a
    short message containing no real project information.
-4. Open `http://localhost:8080/admin/inquiries`. The newest row should show the
+4. Open `http://127.0.0.1:8080/admin/inquiries`. The newest row should show the
    fictional name, discipline, `New` status, and UTC receipt time. The list must
    not show the email address or full message.
 5. Open that row's detail link. It should use a canonical numeric URL, show the
@@ -354,8 +360,10 @@ database row into a terminal transcript, screenshot, chat, issue, or test.
 
 The browser check does not need 21 handcrafted records. Page boundaries and
 insertion-during-pagination behavior belong to deterministic automated tests.
-Because deletion is intentionally absent, use disposable data or retain only
-the clearly fictional local row until a later reviewed cleanup workflow exists.
+Deletion is intentionally absent from the administrator HTTP interface. Use
+disposable data, or archive the fictional row and later follow the separate
+offline purge contract in [retention.md](retention.md); never give the web
+server maintenance credentials merely to clean up a test row.
 
 ## Automated verification
 
@@ -379,10 +387,12 @@ key.
 The opt-in PostgreSQL suite described in [database.md](database.md) additionally
 checks the real list, detail, and conditional status statements, descending
 page boundaries, field mapping, missing records, timestamp behavior, and
-repository construction. It now tests the complete migration 1-to-9 cycle;
+repository construction. It now tests the complete migration 1-to-10 cycle;
 Stage 17 still has no schema migration, migrations 4–6 belong to Products,
 migration 7 belongs to Interior projects, and migration 8 belongs to
-Architecture projects. Migration 9 belongs to global site content.
+Architecture projects. Migration 9 belongs to global site content. Migration 10
+adds the retention index and digest-only replay tombstones, with separate
+PostgreSQL checks for archived-only purges and stale-key replay suppression.
 
 ## Explicitly deferred work
 
@@ -392,7 +402,7 @@ Stage 17 does not implement:
 - optimistic concurrency, edit-conflict warnings, or version tokens;
 - search or filtering;
 - export, bulk access, or bulk status changes;
-- deletion or retention enforcement;
+- administrator-HTTP deletion or retention enforcement;
 - email sending or mail-client integration;
 - assignment, notes, or replies;
 - a durable status/access audit history or actor attribution;
@@ -402,3 +412,7 @@ Stage 17 does not implement:
 Those capabilities change authorization, personal-data, logging, or destructive
 operation requirements. Each needs its own focused stage rather than being
 hidden inside this manual status workflow.
+
+Stage 25 adds an operator-only retention command, not an administrator route,
+and deliberately leaves the organizational retention period for the appropriate
+business, privacy, and legal owners to approve.

@@ -6,14 +6,17 @@ import (
 	"time"
 )
 
-// Database configuration constants centralize the only accepted variable name
+// Database configuration constants centralize the accepted environment names
 // and the bounded connection-verification duration.
 const (
-	// databaseURLEnvironmentName is the one environment variable from which the
-	// migration commands and the long-running server accept PostgreSQL connection
-	// information.
+	// databaseURLEnvironmentName supplies PostgreSQL connection information to
+	// migration, administrator-bootstrap, and long-running server modes.
 	databaseURLEnvironmentName = "DATABASE_URL"
-	// defaultDatabasePingTimeout bounds either operating mode's initial
+	// databaseRequireTLSEnvironmentName lets an operator reject every PostgreSQL
+	// connection plan that contains a plaintext fallback. Local development may
+	// leave it absent; remote production databases should set it to exact `true`.
+	databaseRequireTLSEnvironmentName = "ZAFARMAND_REQUIRE_DATABASE_TLS"
+	// defaultDatabasePingTimeout bounds every database-consuming mode's initial
 	// connectivity check so a stopped or unreachable server fails promptly.
 	defaultDatabasePingTimeout = 5 * time.Second
 )
@@ -25,6 +28,11 @@ var (
 	// ensuring configuration errors never echo database credentials.
 	errDatabaseURLRequired = errors.New(
 		"DATABASE_URL is required",
+	)
+	// errDatabaseRequireTLSInvalid rejects permissive boolean spellings so a
+	// deployment typo cannot silently weaken database transport policy.
+	errDatabaseRequireTLSInvalid = errors.New(
+		"ZAFARMAND_REQUIRE_DATABASE_TLS must be exactly true or false",
 	)
 )
 
@@ -46,14 +54,17 @@ type databaseConfig struct {
 	connectionString string
 	// pingTimeout limits only the initial connectivity check, not migrations.
 	pingTimeout time.Duration
+	// requireTLS rejects a parsed pgx connection plan if its primary target or
+	// any fallback could use plaintext PostgreSQL transport.
+	requireTLS bool
 }
 
 // loadDatabaseConfig reads and validates the process's database environment
 // configuration.
 //
-// Stage 14 uses the same explicit configuration for migrations and server
-// startup. A single loader prevents subtly different parsing or secret-handling
-// rules between those two database consumers.
+// Migration, administrator-bootstrap, and server modes use this same explicit
+// configuration. Offline retention has a separate credential loader but shares
+// the exact TLS declaration and pool-opening policy.
 func loadDatabaseConfig(
 	lookup environmentLookup,
 ) (databaseConfig, error) {
@@ -69,8 +80,21 @@ func loadDatabaseConfig(
 		return databaseConfig{}, errDatabaseURLRequired
 	}
 
+	requireTLS := false
+	if value, exists := lookup(databaseRequireTLSEnvironmentName); exists {
+		switch value {
+		case "true":
+			requireTLS = true
+		case "false":
+			requireTLS = false
+		default:
+			return databaseConfig{}, errDatabaseRequireTLSInvalid
+		}
+	}
+
 	return databaseConfig{
 		connectionString: connectionString,
 		pingTimeout:      defaultDatabasePingTimeout,
+		requireTLS:       requireTLS,
 	}, nil
 }

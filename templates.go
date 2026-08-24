@@ -84,6 +84,10 @@ type application struct {
 	// adminDummyPasswordHash is verified for unknown accounts so login requests
 	// do not skip the intentionally expensive password work based on existence.
 	adminDummyPasswordHash string
+	// adminLoginPasswordWork is a bounded semaphore for account lookup and the
+	// deliberately expensive verifier. A channel gives acquisition a nonblocking
+	// select and requires no client identifier or unbounded per-account map.
+	adminLoginPasswordWork chan struct{}
 	// adminEntropy supplies independently random login, session, and CSRF tokens.
 	// Production uses crypto/rand.Reader; the field is replaceable only in tests.
 	adminEntropy io.Reader
@@ -742,8 +746,12 @@ func newApplication(
 		adminInquiryStatuses:           adminInquiryStatuses,
 		adminPasswords:                 passwords,
 		adminDummyPasswordHash:         adminDummyPasswordHash,
-		adminEntropy:                   rand.Reader,
-		now:                            time.Now,
+		adminLoginPasswordWork: make(
+			chan struct{},
+			adminLoginPasswordWorkLimit,
+		),
+		adminEntropy: rand.Reader,
+		now:          time.Now,
 	}
 
 	return app, nil
@@ -983,11 +991,10 @@ func (app *application) renderTemplate(
 		data,
 	)
 	if err != nil {
-		log.Printf(
-			"could not execute template %q: %v",
-			pageName,
-			err,
-		)
+		// Template execution can inspect visitor or administrator-authored values.
+		// Keep its concrete diagnostic out of logs and record only the trusted
+		// template identity needed to locate the failing rendering path.
+		log.Printf("could not execute template %q", pageName)
 
 		http.Error(
 			w,
@@ -1010,9 +1017,8 @@ func (app *application) renderTemplate(
 	// At this point the status may already have reached the client, so a write
 	// failure can only be logged; a second HTTP error response would be invalid.
 	if _, err := buffer.WriteTo(w); err != nil {
-		log.Printf(
-			"could not write response: %v",
-			err,
-		)
+		// Transport errors can contain remote endpoint details. The operational
+		// request log supplies safe correlation without retaining that error text.
+		log.Print("could not write response")
 	}
 }

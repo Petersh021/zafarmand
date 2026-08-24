@@ -90,10 +90,10 @@ SHA-256 digest, required alt text, optional caption, timestamps, and its own
 positive cover revision. Ordinary Product queries join only the small metadata;
 binary bytes use separate exact-revision queries.
 
-Do not edit an applied migration. In the current Stage 24 catalog, migration 9
-and then migrations 8 and 7 must be reversed first in a confirmed disposable
-database; doing so permanently removes global site-content settings and the
-separate Architecture and Interior tables. The next
+Do not edit an applied migration. In the current Stage 25 catalog, migration 10
+and then migrations 9, 8, and 7 must be reversed first in a confirmed
+disposable database; doing so removes retention tombstones, global site-content
+settings, and the separate Architecture and Interior tables. The next
 `go run . migrate down --confirm` removes Product's cover table and three
 content columns from version 6. Later rollback commands remove version 5's
 Product revision and then migration 4's entire Product table and every Product
@@ -299,9 +299,10 @@ Use a local development database and fictional Product values only.
    go run . migrate status
    ```
 
-   Versions 1 through 9 should be applied. Migrations 7 through 9 are the
+   Versions 1 through 10 should be applied. Migrations 7 through 9 are the
    separate Interior-project, Architecture-project, and global site-content
-   schemas and do not alter Product behavior.
+   schemas; migration 10 adds inquiry-retention support. None alters Product
+   behavior.
 
 2. Switch `DATABASE_URL` to the runtime role, start `go run .`, sign in, and open
    `http://localhost:8080/admin/products`.
@@ -356,7 +357,7 @@ routes, strict URL-encoded and multipart forms, CSRF ordering, 304 revalidation,
 The opt-in disposable PostgreSQL suite additionally proves real identity and
 version defaults, unique slug handling, publication visibility, revision
 increments, stale-write rejection, real cover replacement, hidden-public-state
-behavior, and the full v1-to-v9 migration cycle. The separate Interior,
+behavior, and the full v1-to-v10 migration cycle. The separate Interior,
 Architecture, and site-content lifecycles are verified without weakening these
 Product assertions:
 

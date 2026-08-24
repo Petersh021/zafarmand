@@ -337,7 +337,8 @@ go run . migrate up
 go run . migrate status
 ```
 
-Versions 1 through 9 should be Applied. A second `migrate up` should be a
+Versions 1 through 10 should be Applied; migration 10's inquiry-retention
+support does not alter Site-content behavior. A second `migrate up` should be a
 truthful no-op. Replace `DATABASE_URL` with the reviewed least-privilege runtime
 URL, start the application, and use fictional values only:
 
@@ -425,7 +426,7 @@ Remove-Item Env:ZAFARMAND_TEST_DATABASE_CONFIRM -ErrorAction SilentlyContinue
 The guard verifies the literal confirmation, both database names, and every
 reserved relation before mutation. Once opted in, an unreachable PostgreSQL
 server is a failure rather than a skip. The live suite exercises the complete
-v1-to-v9 migration lifecycle, migration-9 constraints and seeds, strict
+v1-to-v10 migration lifecycle, migration-9 constraints and seeds, strict
 rollback/reapplication, public singleton and eligibility reads, enabled/disabled
 hero visibility, and real protected updates. The `Postgres` selection includes
 `TestPostgresSiteContentReaderIntegration` and

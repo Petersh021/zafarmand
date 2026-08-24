@@ -44,13 +44,13 @@ so a stage number never silently changes meaning.
 
 ## Remaining focused stages
 
-| Stage | Planned outcome |
-| --- | --- |
-| 25 | Security, privacy, retention, observability, backup, and operational hardening |
-| 26 | End-to-end acceptance, accessibility/performance review, and deployment |
+| Stage | Planned outcome | Status |
+| --- | --- | --- |
+| 25 | Security, privacy, retention, observability, backup, and operational hardening | In progress |
+| 26 | End-to-end acceptance, accessibility/performance review, and deployment | Planned |
 
-With Stage 24 complete, two focused stages remain: operational hardening in
-Stage 25 and final acceptance/deployment in Stage 26.
+Stage 25 is active. After its operational hardening is verified, Stage 26 is
+the final planned acceptance and deployment stage.
 
 Later stages must remain vertical. Stages 21-23 deliberately stop at one
 reviewed cover per Product, Interior project, or Architecture project instead
