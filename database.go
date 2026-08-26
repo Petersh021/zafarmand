@@ -15,7 +15,8 @@ import (
 // deadlines bound individual operations, while these limits prevent bursts or
 // expensive authentication work from opening an unbounded number of server
 // connections. The values are deliberately conservative for the current
-// single-process deployment and can be reviewed with the Stage 26 platform.
+// single-process deployment and can be changed only from measured target
+// capacity, latency, and saturation evidence.
 const (
 	postgresMaximumOpenConnections = 10
 	postgresMaximumIdleConnections = 5

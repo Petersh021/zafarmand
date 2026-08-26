@@ -547,8 +547,8 @@ func TestContactPageRoute(t *testing.T) {
 		t.Errorf("discipline radio count: got %d, want 3", count)
 	}
 
-	// Contact is a real studio-level drawer destination. It receives one exact
-	// aria-current state because no duplicate desktop Contact link exists.
+	// Contact remains a real studio-level drawer destination with its own exact
+	// current state; the native fallback is verified independently at shell level.
 	drawerNavigation := extractElementByMarker(
 		t,
 		body,

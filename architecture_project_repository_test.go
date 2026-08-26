@@ -572,6 +572,55 @@ func TestPostgresArchitectureProjectCatalogueReaderFindsPublishedCover(t *testin
 	}
 }
 
+// TestPostgresArchitectureProjectCatalogueReaderFindsPublishedCoverMetadata
+// verifies exact public predicates and a projection that omits encoded content.
+func TestPostgresArchitectureProjectCatalogueReaderFindsPublishedCoverMetadata(t *testing.T) {
+	asset := validArchitectureProjectCoverAsset(t)
+	metadata := asset.responseMetadata()
+	values := []any{
+		metadata.OwnerID,
+		metadata.Version,
+		metadata.ContentType,
+		metadata.ByteSize,
+		metadata.Width,
+		metadata.Height,
+		metadata.SHA256[:],
+		metadata.AltText,
+		metadata.Caption,
+		metadata.CreatedAt,
+		metadata.UpdatedAt,
+	}
+	var query string
+	var arguments []any
+	reader := &postgresArchitectureProjectCatalogueReader{
+		queryRow: func(_ context.Context, statement string, bound ...any) architectureProjectCatalogueRowScanner {
+			query = statement
+			arguments = append([]any(nil), bound...)
+			return &architectureProjectRowStub{values: values}
+		},
+	}
+
+	got, err := reader.FindPublishedCoverMetadata(
+		context.Background(),
+		"public-cover",
+		asset.Version,
+	)
+	if err != nil {
+		t.Fatalf("find published cover metadata: %v", err)
+	}
+	if got != metadata {
+		t.Errorf("metadata: got %#v, want %#v", got, metadata)
+	}
+	if query != findPublishedArchitectureProjectCoverMetadataSQL ||
+		strings.Contains(query, "cover.content,") ||
+		!reflect.DeepEqual(
+			arguments,
+			[]any{"public-cover", publishedArchitectureProjectStatus, asset.Version},
+		) {
+		t.Errorf("metadata query=%q args=%#v", query, arguments)
+	}
+}
+
 // TestPostgresArchitectureProjectCatalogueReaderRejectsCoverFailures verifies
 // malformed coordinates, hidden/missing rows, stale versions, and bad media.
 func TestPostgresArchitectureProjectCatalogueReaderRejectsCoverFailures(t *testing.T) {

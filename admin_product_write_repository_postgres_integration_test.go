@@ -185,6 +185,19 @@ func TestPostgresAdminProductWriterIntegration(t *testing.T) {
 		publicCover.AltText != coverInput.AltText {
 		t.Error("published cover bytes or reviewed metadata differ from writer input")
 	}
+	publicCoverMetadata, err := publicReader.FindPublishedCoverMetadata(
+		t.Context(),
+		draft.Slug,
+		createdCover.CoverVersion,
+	)
+	wantPublicCoverMetadata := publicCover.responseMetadata()
+	publicCoverMetadata.CreatedAt = publicCoverMetadata.CreatedAt.UTC()
+	publicCoverMetadata.UpdatedAt = publicCoverMetadata.UpdatedAt.UTC()
+	wantPublicCoverMetadata.CreatedAt = wantPublicCoverMetadata.CreatedAt.UTC()
+	wantPublicCoverMetadata.UpdatedAt = wantPublicCoverMetadata.UpdatedAt.UTC()
+	if err != nil || publicCoverMetadata != wantPublicCoverMetadata {
+		t.Errorf("published cover metadata: got %#v err=%v", publicCoverMetadata, err)
+	}
 
 	// Replacement increments both revisions. The old revision URL stops
 	// resolving, while the new exact revision returns the replacement metadata.
@@ -222,6 +235,13 @@ func TestPostgresAdminProductWriterIntegration(t *testing.T) {
 		createdCover.CoverVersion,
 	); !errors.Is(err, errProductCoverNotFound) {
 		t.Errorf("old public cover revision: got %v, want not found", err)
+	}
+	if _, err := publicReader.FindPublishedCoverMetadata(
+		t.Context(),
+		draft.Slug,
+		createdCover.CoverVersion,
+	); !errors.Is(err, errProductCoverNotFound) {
+		t.Errorf("old public cover metadata: got %v, want not found", err)
 	}
 	newCover, err := adminReader.FindCoverByProductID(
 		t.Context(),
@@ -278,6 +298,13 @@ func TestPostgresAdminProductWriterIntegration(t *testing.T) {
 		replacedCover.CoverVersion,
 	); !errors.Is(err, errProductCoverNotFound) {
 		t.Errorf("archived Product cover: got %v, want public not-found", err)
+	}
+	if _, err := publicReader.FindPublishedCoverMetadata(
+		t.Context(),
+		draft.Slug,
+		replacedCover.CoverVersion,
+	); !errors.Is(err, errProductCoverNotFound) {
+		t.Errorf("archived Product cover metadata: got %v, want public not-found", err)
 	}
 	protectedCover, err := adminReader.FindCoverByProductID(
 		t.Context(),

@@ -47,10 +47,12 @@ so a stage number never silently changes meaning.
 
 | Stage | Planned outcome | Status |
 | --- | --- | --- |
-| 26 | End-to-end acceptance, accessibility/performance review, and deployment | Planned |
+| 26 | End-to-end acceptance, accessibility/performance review, and deployment | In progress |
 
-Stage 25 is complete. Stage 26 is the final planned acceptance and deployment
-stage.
+Stage 25 is complete. Stage 26 is the final active acceptance and deployment
+stage. Repository release-readiness work is defined in
+[acceptance-deployment.md](acceptance-deployment.md); completion also requires
+an approved target and successful production smoke evidence.
 
 Later stages must remain vertical. Stages 21-23 deliberately stop at one
 reviewed cover per Product, Interior project, or Architecture project instead

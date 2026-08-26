@@ -88,6 +88,32 @@ type productCoverMetadata struct {
 	Caption string
 }
 
+// reviewedCoverAssetMetadata is the complete binary-free projection needed to
+// validate conditional media responses. Repositories load it before bytea so
+// matching validators and HEAD requests never copy an image into Go memory.
+type reviewedCoverAssetMetadata struct {
+	// OwnerID is the positive identity selected through the public owner join.
+	OwnerID int64
+	// Version is the exact current revision encoded in the request path.
+	Version int64
+	// ContentType is the decoder-derived JPEG or PNG response media type.
+	ContentType string
+	// ByteSize is the bounded encoded representation length.
+	ByteSize int
+	// Width and Height are the decoder-derived image dimensions.
+	Width  int
+	Height int
+	// SHA256 supplies the strong validator for the stored representation.
+	SHA256 [sha256.Size]byte
+	// AltText and Caption retain the reviewed record invariants even though they
+	// are not written into a binary HTTP response.
+	AltText string
+	Caption string
+	// CreatedAt and UpdatedAt prove replacement time cannot predate creation.
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 // productCoverAsset contains one complete validated image response record. It
 // crosses only repository-to-media-handler boundaries, never an HTML template.
 type productCoverAsset struct {
@@ -117,6 +143,24 @@ type productCoverAsset struct {
 	UpdatedAt time.Time
 }
 
+// responseMetadata returns the Product asset's binary-free conditional-response
+// projection so the two repository phases can be compared exactly.
+func (asset productCoverAsset) responseMetadata() reviewedCoverAssetMetadata {
+	return reviewedCoverAssetMetadata{
+		OwnerID:     asset.ProductID,
+		Version:     asset.Version,
+		ContentType: asset.ContentType,
+		ByteSize:    asset.ByteSize,
+		Width:       asset.Width,
+		Height:      asset.Height,
+		SHA256:      asset.SHA256,
+		AltText:     asset.AltText,
+		Caption:     asset.Caption,
+		CreatedAt:   asset.CreatedAt,
+		UpdatedAt:   asset.UpdatedAt,
+	}
+}
+
 // reviewedCoverInspection contains trusted facts derived from encoded bytes.
 // These facts, rather than browser-claimed headers, populate each
 // discipline-specific cover write input.
@@ -139,6 +183,13 @@ type inspectedProductCover = reviewedCoverInspection
 // public and protected cover reads.
 type productCoverRowScanner interface {
 	// Scan copies the fixed twelve-column cover projection into destinations.
+	Scan(...any) error
+}
+
+// reviewedCoverMetadataRowScanner is the one-method SQL seam for the shared
+// eleven-column binary-free media projection.
+type reviewedCoverMetadataRowScanner interface {
+	// Scan copies metadata without accepting a destination for encoded content.
 	Scan(...any) error
 }
 
@@ -385,18 +436,21 @@ func isValidReviewedCoverAsset(
 	createdAt time.Time,
 	updatedAt time.Time,
 ) bool {
-	if ownerID <= 0 || version <= 0 ||
-		byteSize != len(content) ||
-		createdAt.IsZero() || updatedAt.IsZero() ||
-		updatedAt.Before(createdAt) ||
-		!isValidRequiredReviewedCoverText(
-			altText,
-			reviewedCoverAltTextMaximumLength,
-		) ||
-		!isValidOptionalReviewedCoverText(
-			caption,
-			reviewedCoverCaptionMaximumLength,
-		) {
+	metadata := reviewedCoverAssetMetadata{
+		OwnerID:     ownerID,
+		Version:     version,
+		ContentType: contentType,
+		ByteSize:    byteSize,
+		Width:       width,
+		Height:      height,
+		SHA256:      digest,
+		AltText:     altText,
+		Caption:     caption,
+		CreatedAt:   createdAt,
+		UpdatedAt:   updatedAt,
+	}
+	if !isValidReviewedCoverAssetMetadata(metadata) ||
+		byteSize != len(content) {
 		return false
 	}
 
@@ -409,6 +463,71 @@ func isValidReviewedCoverAsset(
 		width == inspection.Width &&
 		height == inspection.Height &&
 		digest == inspection.SHA256
+}
+
+// isValidReviewedCoverAssetMetadata verifies every persisted response fact
+// that can be checked without loading encoded content. The content lookup later
+// rechecks the digest, size, type, and dimensions against the actual bytes.
+func isValidReviewedCoverAssetMetadata(
+	metadata reviewedCoverAssetMetadata,
+) bool {
+	validContentType := metadata.ContentType == reviewedCoverJPEGContentType ||
+		metadata.ContentType == reviewedCoverPNGContentType
+
+	return metadata.OwnerID > 0 &&
+		metadata.Version > 0 &&
+		validContentType &&
+		metadata.ByteSize > 0 &&
+		metadata.ByteSize <= reviewedCoverMaximumBytes &&
+		isValidReviewedCoverDimensions(metadata.Width, metadata.Height) &&
+		isValidRequiredReviewedCoverText(
+			metadata.AltText,
+			reviewedCoverAltTextMaximumLength,
+		) &&
+		isValidOptionalReviewedCoverText(
+			metadata.Caption,
+			reviewedCoverCaptionMaximumLength,
+		) &&
+		!metadata.CreatedAt.IsZero() &&
+		!metadata.UpdatedAt.IsZero() &&
+		!metadata.UpdatedAt.Before(metadata.CreatedAt)
+}
+
+// scanReviewedCoverAssetMetadata reads the shared public metadata projection,
+// converts its digest to fixed-size storage, and rejects malformed records.
+func scanReviewedCoverAssetMetadata(
+	scanner reviewedCoverMetadataRowScanner,
+) (reviewedCoverAssetMetadata, error) {
+	if scanner == nil {
+		return reviewedCoverAssetMetadata{}, errProductCoverReadFailed
+	}
+
+	var metadata reviewedCoverAssetMetadata
+	var digest []byte
+	if err := scanner.Scan(
+		&metadata.OwnerID,
+		&metadata.Version,
+		&metadata.ContentType,
+		&metadata.ByteSize,
+		&metadata.Width,
+		&metadata.Height,
+		&digest,
+		&metadata.AltText,
+		&metadata.Caption,
+		&metadata.CreatedAt,
+		&metadata.UpdatedAt,
+	); err != nil {
+		return reviewedCoverAssetMetadata{}, err
+	}
+	if len(digest) != sha256.Size {
+		return reviewedCoverAssetMetadata{}, errProductCoverReadFailed
+	}
+	copy(metadata.SHA256[:], digest)
+	if !isValidReviewedCoverAssetMetadata(metadata) {
+		return reviewedCoverAssetMetadata{}, errProductCoverReadFailed
+	}
+
+	return metadata, nil
 }
 
 // isValidProductCoverAsset applies the shared reviewed-cover record boundary

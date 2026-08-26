@@ -202,6 +202,23 @@ type homepageHeroAsset struct {
 	UpdatedAt time.Time
 }
 
+// responseMetadata returns the managed hero facts used to compare the
+// metadata-first public read with a later content-bearing read.
+func (asset homepageHeroAsset) responseMetadata() reviewedCoverAssetMetadata {
+	return reviewedCoverAssetMetadata{
+		OwnerID:     siteContentSingletonID,
+		Version:     asset.Version,
+		ContentType: asset.ContentType,
+		ByteSize:    asset.ByteSize,
+		Width:       asset.Width,
+		Height:      asset.Height,
+		SHA256:      asset.SHA256,
+		AltText:     asset.AltText,
+		CreatedAt:   asset.CreatedAt,
+		UpdatedAt:   asset.UpdatedAt,
+	}
+}
+
 // siteContentReader is the narrow public read authority needed by Homepage,
 // Contact, and exact managed-hero HTTP handlers.
 type siteContentReader interface {
@@ -210,6 +227,12 @@ type siteContentReader interface {
 	ReadHomepage(context.Context) (publicHomepageContent, error)
 	// ReadContact returns the mandatory public Contact singleton.
 	ReadContact(context.Context) (publicContactContent, error)
+	// FindHomepageHeroMetadata returns the binary-free exact current hero facts
+	// only while managed publication remains enabled.
+	FindHomepageHeroMetadata(
+		context.Context,
+		int64,
+	) (reviewedCoverAssetMetadata, error)
 	// FindHomepageHero returns one exact current revision only while managed hero
 	// publication remains enabled.
 	FindHomepageHero(context.Context, int64) (homepageHeroAsset, error)

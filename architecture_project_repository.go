@@ -125,6 +125,24 @@ type architectureProjectCoverAsset struct {
 	UpdatedAt time.Time
 }
 
+// responseMetadata returns the Architecture asset facts used to detect any
+// change between the metadata-first and content-bearing public reads.
+func (asset architectureProjectCoverAsset) responseMetadata() reviewedCoverAssetMetadata {
+	return reviewedCoverAssetMetadata{
+		OwnerID:     asset.ArchitectureProjectID,
+		Version:     asset.Version,
+		ContentType: asset.ContentType,
+		ByteSize:    asset.ByteSize,
+		Width:       asset.Width,
+		Height:      asset.Height,
+		SHA256:      asset.SHA256,
+		AltText:     asset.AltText,
+		Caption:     asset.Caption,
+		CreatedAt:   asset.CreatedAt,
+		UpdatedAt:   asset.UpdatedAt,
+	}
+}
+
 // catalogueArchitectureProject is the public projection needed by list and
 // detail handlers. Private order and lifecycle values never cross this seam.
 type catalogueArchitectureProject struct {
@@ -160,6 +178,13 @@ type architectureProjectCatalogueReader interface {
 		context.Context,
 		string,
 	) (catalogueArchitectureProject, error)
+	// FindPublishedCoverMetadata returns binary-free response facts only while
+	// the requested current cover belongs to a Published project.
+	FindPublishedCoverMetadata(
+		context.Context,
+		string,
+		int64,
+	) (reviewedCoverAssetMetadata, error)
 	// FindPublishedCover returns one exact current cover only while its project is
 	// Published.
 	FindPublishedCover(
@@ -258,6 +283,27 @@ const findPublishedArchitectureProjectCoverSQL = `SELECT
     cover.version,
     cover.content_type,
     cover.content,
+    cover.byte_size,
+    cover.width,
+    cover.height,
+    cover.sha256,
+    cover.alt_text,
+    cover.caption,
+    cover.created_at,
+    cover.updated_at
+FROM public.architecture_project_cover_images AS cover
+INNER JOIN public.architecture_projects AS projects
+    ON projects.id = cover.architecture_project_id
+WHERE projects.slug = $1
+  AND projects.publication_status = $2
+  AND cover.version = $3`
+
+// findPublishedArchitectureProjectCoverMetadataSQL applies the content query's
+// exact public predicates but never selects the encoded bytea representation.
+const findPublishedArchitectureProjectCoverMetadataSQL = `SELECT
+    cover.architecture_project_id,
+    cover.version,
+    cover.content_type,
     cover.byte_size,
     cover.width,
     cover.height,
@@ -455,6 +501,37 @@ func (reader *postgresArchitectureProjectCatalogueReader) FindPublishedBySlug(
 	}
 
 	return project, nil
+}
+
+// FindPublishedCoverMetadata reads one exact Architecture cover's response
+// facts without transferring its encoded content from PostgreSQL.
+func (reader *postgresArchitectureProjectCatalogueReader) FindPublishedCoverMetadata(
+	ctx context.Context,
+	slug string,
+	version int64,
+) (reviewedCoverAssetMetadata, error) {
+	if ctx == nil || !isCanonicalArchitectureProjectSlug(slug) || version <= 0 {
+		return reviewedCoverAssetMetadata{}, errArchitectureProjectCatalogueInvalidQuery
+	}
+	if reader == nil || reader.queryRow == nil {
+		return reviewedCoverAssetMetadata{}, errArchitectureProjectCoverReadFailed
+	}
+
+	metadata, err := scanReviewedCoverAssetMetadata(reader.queryRow(
+		ctx,
+		findPublishedArchitectureProjectCoverMetadataSQL,
+		slug,
+		publishedArchitectureProjectStatus,
+		version,
+	))
+	if errors.Is(err, sql.ErrNoRows) {
+		return reviewedCoverAssetMetadata{}, errArchitectureProjectCoverNotFound
+	}
+	if err != nil || metadata.Version != version {
+		return reviewedCoverAssetMetadata{}, errArchitectureProjectCoverReadFailed
+	}
+
+	return metadata, nil
 }
 
 // FindPublishedCover returns one exact current revision only while its owner

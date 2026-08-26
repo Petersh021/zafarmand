@@ -23,10 +23,14 @@ type recordingSiteContentReader struct {
 	contact publicContactContent
 	// hero is copied on assignment and return to isolate encoded bytes.
 	hero homepageHeroAsset
+	// heroMetadata is the independently configurable binary-free first phase.
+	heroMetadata reviewedCoverAssetMetadata
 	// Independent errors let one test fail exactly one public operation.
 	homepageErr error
 	contactErr  error
 	heroErr     error
+	// heroMetadataErr is the configured first-phase failure.
+	heroMetadataErr error
 	// Calls retain only operation coordinates and deadline presence, never
 	// managed content or media bytes.
 	calls []recordingSiteContentCall
@@ -34,7 +38,7 @@ type recordingSiteContentReader struct {
 
 // recordingSiteContentCall identifies one public dependency invocation.
 type recordingSiteContentCall struct {
-	// Operation is homepage, contact, or hero.
+	// Operation is homepage, contact, hero-metadata, or hero.
 	Operation string
 	// Version is non-zero only for an exact hero lookup.
 	Version int64
@@ -95,6 +99,31 @@ func (reader *recordingSiteContentReader) ReadContact(
 	return reader.contact, reader.contactErr
 }
 
+// FindHomepageHeroMetadata records the binary-free first phase and returns
+// configured current response facts without cloning the encoded hero bytes.
+func (reader *recordingSiteContentReader) FindHomepageHeroMetadata(
+	ctx context.Context,
+	version int64,
+) (reviewedCoverAssetMetadata, error) {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+
+	_, hasDeadline := ctx.Deadline()
+	reader.calls = append(reader.calls, recordingSiteContentCall{
+		Operation:   "hero-metadata",
+		Version:     version,
+		HasDeadline: hasDeadline,
+	})
+	if reader.heroMetadataErr != nil {
+		return reviewedCoverAssetMetadata{}, reader.heroMetadataErr
+	}
+	if reader.heroMetadata.Version != version {
+		return reviewedCoverAssetMetadata{}, errHomepageHeroNotFound
+	}
+
+	return reader.heroMetadata, nil
+}
+
 // FindHomepageHero implements the exact public media read without PostgreSQL.
 func (reader *recordingSiteContentReader) FindHomepageHero(
 	ctx context.Context,
@@ -145,6 +174,21 @@ func (reader *recordingSiteContentReader) setContact(
 
 // setHero replaces the configured exact hero asset and error with isolated bytes.
 func (reader *recordingSiteContentReader) setHero(
+	asset homepageHeroAsset,
+	err error,
+) {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+
+	reader.hero = cloneHomepageHeroAsset(asset)
+	reader.heroMetadata = asset.responseMetadata()
+	reader.heroMetadataErr = err
+	reader.heroErr = err
+}
+
+// setHeroContent configures only the second-phase hero result while retaining
+// the metadata established by setHero.
+func (reader *recordingSiteContentReader) setHeroContent(
 	asset homepageHeroAsset,
 	err error,
 ) {

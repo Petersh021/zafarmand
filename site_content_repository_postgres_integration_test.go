@@ -253,6 +253,15 @@ WHERE id = $1`,
 	if !reflect.DeepEqual(gotHero, heroAsset) {
 		t.Errorf("exact Homepage hero: got %#v, want %#v", gotHero, heroAsset)
 	}
+	gotHeroMetadata, err := reader.FindHomepageHeroMetadata(
+		t.Context(),
+		heroAsset.Version,
+	)
+	gotHeroMetadata.CreatedAt = gotHeroMetadata.CreatedAt.UTC()
+	gotHeroMetadata.UpdatedAt = gotHeroMetadata.UpdatedAt.UTC()
+	if err != nil || gotHeroMetadata != gotHero.responseMetadata() {
+		t.Errorf("exact Homepage hero metadata: got %#v err=%v", gotHeroMetadata, err)
+	}
 	if _, err := database.ExecContext(
 		t.Context(),
 		`UPDATE public.homepage_content
@@ -266,6 +275,12 @@ WHERE id = $1`,
 	}
 	if _, err := reader.FindHomepageHero(t.Context(), heroAsset.Version); !errors.Is(err, errHomepageHeroNotFound) {
 		t.Fatalf("disabled exact hero error: got %v, want not found", err)
+	}
+	if _, err := reader.FindHomepageHeroMetadata(
+		t.Context(),
+		heroAsset.Version,
+	); !errors.Is(err, errHomepageHeroNotFound) {
+		t.Fatalf("disabled exact hero metadata error: got %v, want not found", err)
 	}
 
 	wantContact := publicContactContent{

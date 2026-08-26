@@ -97,6 +97,13 @@ type productCatalogueReader interface {
 		context.Context,
 		string,
 	) (catalogueProduct, error)
+	// FindPublishedCoverMetadata returns the binary-free response facts for one
+	// exact cover revision while its Product remains published.
+	FindPublishedCoverMetadata(
+		context.Context,
+		string,
+		int64,
+	) (reviewedCoverAssetMetadata, error)
 	// FindPublishedCover returns one exact cover revision only while its owning
 	// Product remains published.
 	FindPublishedCover(
@@ -199,6 +206,27 @@ const findPublishedProductCoverSQL = `SELECT
     cover.version,
     cover.content_type,
     cover.content,
+    cover.byte_size,
+    cover.width,
+    cover.height,
+    cover.sha256,
+    cover.alt_text,
+    cover.caption,
+    cover.created_at,
+    cover.updated_at
+FROM public.product_cover_images AS cover
+INNER JOIN public.products AS products
+    ON products.id = cover.product_id
+WHERE products.slug = $1
+  AND products.publication_status = $2
+  AND cover.version = $3`
+
+// findPublishedProductCoverMetadataSQL applies the same public owner and exact
+// revision predicates as the content query without selecting the bytea column.
+const findPublishedProductCoverMetadataSQL = `SELECT
+    cover.product_id,
+    cover.version,
+    cover.content_type,
     cover.byte_size,
     cover.width,
     cover.height,
@@ -417,6 +445,37 @@ func (reader *postgresProductCatalogueReader) FindPublishedBySlug(
 	}
 
 	return product, nil
+}
+
+// FindPublishedCoverMetadata validates one exact public Product cover without
+// transferring its encoded content from PostgreSQL.
+func (reader *postgresProductCatalogueReader) FindPublishedCoverMetadata(
+	ctx context.Context,
+	slug string,
+	version int64,
+) (reviewedCoverAssetMetadata, error) {
+	if ctx == nil || !isCanonicalProductSlug(slug) || version <= 0 {
+		return reviewedCoverAssetMetadata{}, errProductCatalogueInvalidQuery
+	}
+	if reader == nil || reader.queryRow == nil {
+		return reviewedCoverAssetMetadata{}, errProductCoverReadFailed
+	}
+
+	metadata, err := scanReviewedCoverAssetMetadata(reader.queryRow(
+		ctx,
+		findPublishedProductCoverMetadataSQL,
+		slug,
+		publishedProductStatus,
+		version,
+	))
+	if errors.Is(err, sql.ErrNoRows) {
+		return reviewedCoverAssetMetadata{}, errProductCoverNotFound
+	}
+	if err != nil || metadata.Version != version {
+		return reviewedCoverAssetMetadata{}, errProductCoverReadFailed
+	}
+
+	return metadata, nil
 }
 
 // FindPublishedCover loads one complete image only when its Product is public

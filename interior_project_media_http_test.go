@@ -57,6 +57,11 @@ func TestInteriorProjectCoverRouteServesExactPublishedRevision(t *testing.T) {
 		calls[0].Version != asset.Version || !calls[0].HasDeadline {
 		t.Errorf("cover calls: got %#v, want one bounded exact lookup", calls)
 	}
+	metadataCalls := reader.coverMetadataCallSnapshot()
+	if len(metadataCalls) != 1 || metadataCalls[0].Slug != "stone-room" ||
+		metadataCalls[0].Version != asset.Version || !metadataCalls[0].HasDeadline {
+		t.Errorf("cover metadata calls: got %#v, want one bounded exact lookup", metadataCalls)
+	}
 }
 
 // TestInteriorProjectCoverRouteRevalidatesWithETags covers HTTP weak matching,
@@ -111,15 +116,96 @@ func TestInteriorProjectCoverRouteRevalidatesWithETags(t *testing.T) {
 		})
 	}
 
-	calls := reader.coverCallSnapshot()
-	if len(calls) != len(tests) {
-		t.Fatalf("cover calls: got %d, want %d", len(calls), len(tests))
+	metadataCalls := reader.coverMetadataCallSnapshot()
+	if len(metadataCalls) != len(tests) {
+		t.Fatalf("metadata calls: got %d, want %d", len(metadataCalls), len(tests))
 	}
-	for _, call := range calls {
+	for _, call := range metadataCalls {
 		if call.Slug != "etag-interior" || call.Version != asset.Version ||
 			!call.HasDeadline {
-			t.Errorf("conditional cover call: %#v", call)
+			t.Errorf("conditional metadata call: %#v", call)
 		}
+	}
+	if calls := reader.coverCallSnapshot(); len(calls) != 2 {
+		t.Fatalf("content calls: got %d, want only 2 nonmatching validators", len(calls))
+	}
+}
+
+// TestInteriorProjectCoverFailsClosedAfterMetadata proves the second public
+// read cannot leak a raced archive, dependency error, or changed representation.
+func TestInteriorProjectCoverFailsClosedAfterMetadata(t *testing.T) {
+	const privateDetail = "private-interior-dependency-detail-sentinel"
+	base := validTestInteriorProjectCoverAsset(t, 92, 3)
+	tests := []struct {
+		// name identifies one content-bearing lookup outcome.
+		name string
+		// configure changes only the second phase.
+		configure func(*recordingInteriorProjectCatalogueReader)
+		// wantStatus is the safe public result.
+		wantStatus int
+		// privateDetail is checked only for the dependency-error case.
+		privateDetail string
+	}{
+		{
+			name: "archived between reads",
+			configure: func(reader *recordingInteriorProjectCatalogueReader) {
+				reader.setCoverContent(interiorProjectCoverAsset{}, errInteriorProjectCoverNotFound)
+			},
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name: "private content error",
+			configure: func(reader *recordingInteriorProjectCatalogueReader) {
+				reader.setCoverContent(interiorProjectCoverAsset{}, errors.New(privateDetail))
+			},
+			wantStatus:    http.StatusServiceUnavailable,
+			privateDetail: privateDetail,
+		},
+		{
+			name: "changed metadata",
+			configure: func(reader *recordingInteriorProjectCatalogueReader) {
+				changed := cloneInteriorProjectCoverAsset(base)
+				changed.Caption = "Metadata changed between public reads."
+				reader.setCoverContent(changed, nil)
+			},
+			wantStatus: http.StatusServiceUnavailable,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := newRecordingInteriorProjectCatalogueReader()
+			reader.setCover(base, nil)
+			test.configure(reader)
+			app := newTestApplication(t)
+			app.interiorProjects = reader
+			recorder := httptest.NewRecorder()
+
+			app.routes().ServeHTTP(
+				recorder,
+				httptest.NewRequest(
+					http.MethodGet,
+					interiorProjectCoverPath("etag-interior", base.Version),
+					nil,
+				),
+			)
+
+			assertReviewedCoverSecondPhaseFailure(
+				t,
+				recorder.Code,
+				recorder.Header(),
+				recorder.Body.Bytes(),
+				test.wantStatus,
+				base.Content,
+				test.privateDetail,
+			)
+			metadataCalls := reader.coverMetadataCallSnapshot()
+			contentCalls := reader.coverCallSnapshot()
+			if len(metadataCalls) != 1 || len(contentCalls) != 1 ||
+				!metadataCalls[0].HasDeadline || !contentCalls[0].HasDeadline {
+				t.Errorf("two-phase calls: metadata=%#v content=%#v", metadataCalls, contentCalls)
+			}
+		})
 	}
 }
 
@@ -161,10 +247,13 @@ func TestInteriorProjectCoverRouteAcceptsHead(t *testing.T) {
 		response.Header.Get("ETag") == "" {
 		t.Errorf("HEAD response headers: %#v", response.Header)
 	}
-	calls := reader.coverCallSnapshot()
-	if len(calls) != 1 || calls[0].Slug != "head-interior" ||
-		calls[0].Version != asset.Version || !calls[0].HasDeadline {
-		t.Errorf("HEAD cover calls: %#v", calls)
+	metadataCalls := reader.coverMetadataCallSnapshot()
+	if len(metadataCalls) != 1 || metadataCalls[0].Slug != "head-interior" ||
+		metadataCalls[0].Version != asset.Version || !metadataCalls[0].HasDeadline {
+		t.Errorf("HEAD metadata calls: %#v", metadataCalls)
+	}
+	if calls := reader.coverCallSnapshot(); len(calls) != 0 {
+		t.Errorf("HEAD loaded content: %#v", calls)
 	}
 }
 
@@ -213,6 +302,9 @@ func TestInteriorProjectCoverHandlerRejectsNoncanonicalRequests(t *testing.T) {
 			}
 			if calls := reader.coverCallSnapshot(); len(calls) != 0 {
 				t.Errorf("invalid request reached reader: %#v", calls)
+			}
+			if calls := reader.coverMetadataCallSnapshot(); len(calls) != 0 {
+				t.Errorf("invalid request reached metadata reader: %#v", calls)
 			}
 		})
 	}
@@ -291,10 +383,13 @@ func TestInteriorProjectCoverHandlerFailsClosed(t *testing.T) {
 			if strings.Contains(recorder.Body.String(), unsafeDetail) {
 				t.Error("cover failure exposed repository diagnostics")
 			}
-			if calls := reader.coverCallSnapshot(); len(calls) != test.wantCalls {
-				t.Errorf("cover calls: got %d, want %d", len(calls), test.wantCalls)
+			if calls := reader.coverMetadataCallSnapshot(); len(calls) != test.wantCalls {
+				t.Errorf("metadata calls: got %d, want %d", len(calls), test.wantCalls)
 			} else if len(calls) == 1 && !calls[0].HasDeadline {
-				t.Error("cover dependency call has no deadline")
+				t.Error("metadata dependency call has no deadline")
+			}
+			if calls := reader.coverCallSnapshot(); len(calls) != 0 {
+				t.Errorf("failed metadata lookup loaded content: %#v", calls)
 			}
 		})
 	}
@@ -334,6 +429,9 @@ func TestInteriorProjectCoverRouteKeepsExactBoundary(t *testing.T) {
 			}
 			if calls := reader.coverCallSnapshot(); len(calls) != 0 {
 				t.Errorf("unmatched route reached reader: %#v", calls)
+			}
+			if calls := reader.coverMetadataCallSnapshot(); len(calls) != 0 {
+				t.Errorf("unmatched route reached metadata reader: %#v", calls)
 			}
 		})
 	}

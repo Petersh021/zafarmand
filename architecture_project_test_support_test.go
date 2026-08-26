@@ -12,17 +12,23 @@ import (
 type recordingArchitectureProjectCatalogueReader struct {
 	mu sync.Mutex
 
-	projects    []catalogueArchitectureProject
-	listErr     error
-	findErr     error
-	findResult  *catalogueArchitectureProject
-	coverAsset  architectureProjectCoverAsset
-	coverErr    error
-	coverResult *architectureProjectCoverAsset
+	projects   []catalogueArchitectureProject
+	listErr    error
+	findErr    error
+	findResult *catalogueArchitectureProject
+	coverAsset architectureProjectCoverAsset
+	// coverMetadata is the independently configurable binary-free first phase.
+	coverMetadata reviewedCoverAssetMetadata
+	// coverMetadataErr is the configured first-phase failure.
+	coverMetadataErr error
+	coverErr         error
+	coverResult      *architectureProjectCoverAsset
 
-	listCalls  []recordingArchitectureProjectListCall
-	findCalls  []recordingArchitectureProjectFindCall
-	coverCalls []recordingArchitectureProjectCoverFindCall
+	listCalls []recordingArchitectureProjectListCall
+	findCalls []recordingArchitectureProjectFindCall
+	// coverMetadataCalls records binary-free exact media lookups.
+	coverMetadataCalls []recordingArchitectureProjectCoverFindCall
+	coverCalls         []recordingArchitectureProjectCoverFindCall
 }
 
 // recordingArchitectureProjectListCall captures the bounded list context.
@@ -138,6 +144,39 @@ func (reader *recordingArchitectureProjectCatalogueReader) FindPublishedBySlug(
 	return catalogueArchitectureProject{}, errArchitectureProjectCatalogueNotFound
 }
 
+// FindPublishedCoverMetadata records and returns the configured binary-free
+// response facts without copying the Architecture image bytes.
+func (reader *recordingArchitectureProjectCatalogueReader) FindPublishedCoverMetadata(
+	ctx context.Context,
+	slug string,
+	version int64,
+) (reviewedCoverAssetMetadata, error) {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+
+	_, hasDeadline := ctx.Deadline()
+	reader.coverMetadataCalls = append(
+		reader.coverMetadataCalls,
+		recordingArchitectureProjectCoverFindCall{
+			Slug:        slug,
+			Version:     version,
+			HasDeadline: hasDeadline,
+		},
+	)
+	if reader.coverMetadataErr != nil {
+		return reviewedCoverAssetMetadata{}, reader.coverMetadataErr
+	}
+	if reader.coverResult != nil {
+		return reader.coverResult.responseMetadata(), nil
+	}
+	if reader.coverMetadata.OwnerID <= 0 ||
+		reader.coverMetadata.Version != version {
+		return reviewedCoverAssetMetadata{}, errArchitectureProjectCoverNotFound
+	}
+
+	return reader.coverMetadata, nil
+}
+
 // FindPublishedCover records exact coordinates and returns isolated bytes only
 // when the configured revision matches the request.
 func (reader *recordingArchitectureProjectCatalogueReader) FindPublishedCover(
@@ -217,6 +256,22 @@ func (reader *recordingArchitectureProjectCatalogueReader) setCover(
 	defer reader.mu.Unlock()
 
 	reader.coverAsset = cloneArchitectureProjectCoverAsset(asset)
+	reader.coverMetadata = asset.responseMetadata()
+	reader.coverMetadataErr = err
+	reader.coverErr = err
+}
+
+// setCoverContent configures only the second-phase Architecture result while
+// retaining the metadata established by setCover.
+func (reader *recordingArchitectureProjectCatalogueReader) setCoverContent(
+	asset architectureProjectCoverAsset,
+	err error,
+) {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+
+	reader.coverAsset = cloneArchitectureProjectCoverAsset(asset)
+	reader.coverResult = nil
 	reader.coverErr = err
 }
 
@@ -254,6 +309,16 @@ func (reader *recordingArchitectureProjectCatalogueReader) coverCallSnapshot() [
 	reader.mu.Lock()
 	defer reader.mu.Unlock()
 	return append([]recordingArchitectureProjectCoverFindCall(nil), reader.coverCalls...)
+}
+
+// coverMetadataCallSnapshot returns isolated first-phase media call records.
+func (reader *recordingArchitectureProjectCatalogueReader) coverMetadataCallSnapshot() []recordingArchitectureProjectCoverFindCall {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+	return append(
+		[]recordingArchitectureProjectCoverFindCall(nil),
+		reader.coverMetadataCalls...,
+	)
 }
 
 // cloneCatalogueArchitectureProjects isolates both the slice and cover pointers.

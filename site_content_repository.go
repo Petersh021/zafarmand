@@ -141,6 +141,28 @@ WHERE homepage.id = $1
   AND homepage.managed_hero_enabled = TRUE
   AND hero.version = $2`
 
+// findHomepageHeroMetadataSQL preserves the enabled-singleton and exact-
+// revision predicates while omitting hero.content. The empty caption aligns
+// the hero row with the shared reviewed-media metadata projection.
+const findHomepageHeroMetadataSQL = `SELECT
+    hero.homepage_content_id,
+    hero.version,
+    hero.content_type,
+    hero.byte_size,
+    hero.width,
+    hero.height,
+    hero.sha256,
+    hero.alt_text,
+    '' AS caption,
+    hero.created_at,
+    hero.updated_at
+FROM public.homepage_hero_images AS hero
+INNER JOIN public.homepage_content AS homepage
+    ON homepage.id = hero.homepage_content_id
+WHERE homepage.id = $1
+  AND homepage.managed_hero_enabled = TRUE
+  AND hero.version = $2`
+
 // siteContentRowScanner is the one-method database/sql behavior shared by all
 // singleton and exact-media reads.
 type siteContentRowScanner interface {
@@ -238,6 +260,36 @@ func (reader *postgresSiteContentReader) ReadContact(
 	}
 
 	return content, nil
+}
+
+// FindHomepageHeroMetadata validates the current enabled hero response facts
+// without transferring the encoded image from PostgreSQL.
+func (reader *postgresSiteContentReader) FindHomepageHeroMetadata(
+	ctx context.Context,
+	version int64,
+) (reviewedCoverAssetMetadata, error) {
+	if ctx == nil || version <= 0 {
+		return reviewedCoverAssetMetadata{}, errSiteContentInvalidQuery
+	}
+	if reader == nil || reader.queryRow == nil {
+		return reviewedCoverAssetMetadata{}, errSiteContentReadFailed
+	}
+
+	metadata, err := scanReviewedCoverAssetMetadata(reader.queryRow(
+		ctx,
+		findHomepageHeroMetadataSQL,
+		siteContentSingletonID,
+		version,
+	))
+	if errors.Is(err, sql.ErrNoRows) {
+		return reviewedCoverAssetMetadata{}, errHomepageHeroNotFound
+	}
+	if err != nil || metadata.OwnerID != siteContentSingletonID ||
+		metadata.Version != version {
+		return reviewedCoverAssetMetadata{}, errSiteContentReadFailed
+	}
+
+	return metadata, nil
 }
 
 // FindHomepageHero returns one isolated exact asset. The SQL publication join

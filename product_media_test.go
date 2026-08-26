@@ -9,11 +9,56 @@ import (
 	"image/color"
 	"image/jpeg"
 	"image/png"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 )
+
+// assertReviewedCoverSecondPhaseFailure verifies a content-phase failure never
+// exposes encoded bytes, dependency details, or headers reserved for success.
+func assertReviewedCoverSecondPhaseFailure(
+	t *testing.T,
+	status int,
+	header http.Header,
+	body []byte,
+	wantStatus int,
+	imageContent []byte,
+	privateDetail string,
+) {
+	t.Helper()
+
+	if status != wantStatus {
+		t.Errorf("status: got %d, want %d", status, wantStatus)
+	}
+	wantBody := "service temporarily unavailable\n"
+	if wantStatus == http.StatusNotFound {
+		// http.NotFound owns the fixed body for visibility changes discovered
+		// during the second phase.
+		wantBody = "404 page not found\n"
+	}
+	if string(body) != wantBody {
+		t.Errorf("failure body: got %q, want fixed %q", body, wantBody)
+	}
+	if header.Get("Cache-Control") != "no-store" {
+		t.Errorf("failure Cache-Control: got %q, want no-store", header.Get("Cache-Control"))
+	}
+	if header.Get("ETag") != "" ||
+		header.Get("Cross-Origin-Resource-Policy") != "" ||
+		header.Get("Content-Length") != "" {
+		t.Errorf("failure retained success headers: %#v", header)
+	}
+	if strings.HasPrefix(header.Get("Content-Type"), "image/") {
+		t.Errorf("failure retained image Content-Type: %q", header.Get("Content-Type"))
+	}
+	if len(imageContent) > 0 && bytes.Contains(body, imageContent) {
+		t.Error("failure response exposed encoded image content")
+	}
+	if privateDetail != "" && strings.Contains(string(body), privateDetail) {
+		t.Error("failure response exposed private repository detail")
+	}
+}
 
 // testProductCoverPNG returns a small deterministic image whose real decoder
 // facts can be used across repository and HTTP tests.
@@ -104,13 +149,29 @@ type productCoverRowStub struct {
 	scanError error
 }
 
-// Scan implements the shared productCoverRowScanner contract.
+// Scan implements the binary and binary-free public cover scanner contracts.
 func (row *productCoverRowStub) Scan(destinations ...any) error {
 	if row.scanError != nil {
 		return row.scanError
 	}
+	if len(destinations) == 11 {
+		metadata := row.asset.responseMetadata()
+		*destinations[0].(*int64) = metadata.OwnerID
+		*destinations[1].(*int64) = metadata.Version
+		*destinations[2].(*string) = metadata.ContentType
+		*destinations[3].(*int) = metadata.ByteSize
+		*destinations[4].(*int) = metadata.Width
+		*destinations[5].(*int) = metadata.Height
+		*destinations[6].(*[]byte) = append([]byte(nil), metadata.SHA256[:]...)
+		*destinations[7].(*string) = metadata.AltText
+		*destinations[8].(*string) = metadata.Caption
+		*destinations[9].(*time.Time) = metadata.CreatedAt
+		*destinations[10].(*time.Time) = metadata.UpdatedAt
+
+		return nil
+	}
 	if len(destinations) != 12 {
-		return errors.New("cover row expected twelve destinations")
+		return errors.New("cover row expected eleven or twelve destinations")
 	}
 
 	productID, productIDOK := destinations[0].(*int64)

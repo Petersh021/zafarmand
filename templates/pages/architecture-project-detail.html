@@ -78,8 +78,10 @@ Only the incomplete article is withheld when the optional record is absent.
 			</div>
 
 			{{/* A reviewed cover is meaningful content and keeps its required alt
-			text. Without one, the established CSS architectural study remains an
-			honest decorative fallback. */}}
+			text. It is also the likely above-the-fold largest image, so high fetch
+			priority starts the request promptly without making it lazy. Without a
+			cover, the established CSS architectural study remains an honest decorative
+			fallback. */}}
 			{{with .Cover}}
 			<figure class="architecture-project-detail__media architecture-project-detail__media--image">
 				<img
@@ -88,6 +90,7 @@ Only the incomplete article is withheld when the optional record is absent.
 					width="{{.Width}}"
 					height="{{.Height}}"
 					alt="{{.AltText}}"
+					fetchpriority="high"
 					decoding="async"
 				>
 			</figure>

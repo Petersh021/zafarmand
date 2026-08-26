@@ -44,6 +44,42 @@ func TestPostgresProductCatalogueReaderFindsPublishedCover(t *testing.T) {
 	}
 }
 
+// TestPostgresProductCatalogueReaderFindsPublishedCoverMetadata verifies the
+// first phase uses the binary-free SQL projection with exact public arguments.
+func TestPostgresProductCatalogueReaderFindsPublishedCoverMetadata(t *testing.T) {
+	asset := validTestProductCoverAsset(t, 9, 4)
+	query := &productCatalogueQueryRowStub{
+		row: &productCoverRowStub{asset: asset},
+	}
+	reader := &postgresProductCatalogueReader{queryRow: query.QueryRow}
+	ctx := context.WithValue(
+		context.Background(),
+		productCatalogueContextKey{},
+		"cover-metadata-context",
+	)
+
+	metadata, err := reader.FindPublishedCoverMetadata(
+		ctx,
+		"stage-21-chair",
+		asset.Version,
+	)
+	if err != nil {
+		t.Fatalf("find published cover metadata: %v", err)
+	}
+	if metadata != asset.responseMetadata() {
+		t.Errorf("metadata: got %#v, want %#v", metadata, asset.responseMetadata())
+	}
+	if query.calls != 1 || query.context != ctx ||
+		query.query != findPublishedProductCoverMetadataSQL ||
+		strings.Contains(query.query, "cover.content,") ||
+		!reflect.DeepEqual(
+			query.arguments,
+			[]any{"stage-21-chair", publishedProductStatus, asset.Version},
+		) {
+		t.Errorf("metadata query: calls=%d query=%q args=%#v", query.calls, query.query, query.arguments)
+	}
+}
+
 // TestPostgresProductCatalogueReaderCoverFailures keeps hidden/missing media a
 // 404 category and collapses every unsafe dependency detail to one sentinel.
 func TestPostgresProductCatalogueReaderCoverFailures(t *testing.T) {

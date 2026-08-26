@@ -1,4 +1,4 @@
-# Stage 25 operations and security runbook
+# Production operations and security runbook
 
 Stage 25 turns the existing application into a bounded, observable service
 without making request logs a second store of visitor or administrator data.
@@ -6,6 +6,8 @@ This guide is the deployment contract for the HTTP listener, HTTPS edge,
 PostgreSQL transport, health probes, structured logs, and overload behavior.
 Retention and backup procedures are documented separately in
 [`retention.md`](retention.md).
+Stage 26 release evidence and the target-specific sign-off inventory are in
+[`acceptance-deployment.md`](acceptance-deployment.md).
 
 ## Required release baseline
 
@@ -148,8 +150,10 @@ pool. The service manager should send `SIGTERM` and allow more than five seconds
 before a forced kill.
 
 These numbers are a deliberate single-process starting budget, not universal
-capacity claims. Stage 26 load and deployment review may lower or raise them
-only with measured PostgreSQL capacity and handler latency.
+capacity claims. The Stage 26 repository review keeps them unchanged because no
+production target or representative load profile has been supplied. A target
+owner may lower or raise them only from measured PostgreSQL capacity, handler
+latency, error rate, and resource saturation.
 
 ## Privacy-safe structured logs
 

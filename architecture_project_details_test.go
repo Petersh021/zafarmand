@@ -117,8 +117,8 @@ func TestArchitectureProjectDetailRouteRendersReviewedProject(t *testing.T) {
 	if strings.Contains(body, `aria-current="page"`) {
 		t.Error("nested detail incorrectly marks its parent as the exact page")
 	}
-	if count := strings.Count(body, `aria-current="location"`); count != 2 {
-		t.Errorf("parent-location count: got %d, want 2", count)
+	if count := strings.Count(body, `aria-current="location"`); count != 3 {
+		t.Errorf("parent-location count: got %d, want 3", count)
 	}
 
 	mainElement := extractMainElement(t, body)

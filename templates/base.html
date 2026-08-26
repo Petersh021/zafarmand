@@ -82,6 +82,16 @@ sent to the browser.
 	>
 
 	{{/*
+	The small fallback stylesheet exposes native details/summary navigation by
+	default. main.js hides that fallback and reveals the richer drawer button only
+	after every required enhancement hook has initialized successfully.
+	*/}}
+	<link
+		rel="stylesheet"
+		href="/static/css/no-script.css"
+	>
+
+	{{/*
 	block both defines and executes a named template. Its empty default makes
 	page-specific CSS optional. A page such as home.html can define "pageStyles"
 	to replace this default without requiring unfinished pages to do so.
@@ -152,6 +162,63 @@ an exact route and "location" when the active link represents a parent section.
 						<span></span>
 					</span>
 				</button>
+
+				{{/*
+				Native disclosure navigation remains operable when JavaScript is disabled,
+				blocked, or fails during initialization. The controller swaps it for the
+				enhanced modal drawer only after all required hooks are ready.
+				*/}}
+				<details class="no-script-navigation">
+					<summary
+						class="no-script-navigation__summary"
+						aria-label="Website navigation"
+					>
+						<span
+							class="menu-toggle__lines"
+							aria-hidden="true"
+						>
+							<span></span>
+							<span></span>
+							<span></span>
+						</span>
+					</summary>
+
+					<nav
+						class="no-script-navigation__panel"
+						aria-label="Website navigation fallback"
+					>
+						<a
+							href="/"
+							{{if eq $navigationPath "/"}}
+								aria-current="{{$navigationCurrent}}"
+							{{end}}
+						>Home</a>
+						<a
+							href="/interior-design"
+							{{if eq $navigationPath "/interior-design"}}
+								aria-current="{{$navigationCurrent}}"
+							{{end}}
+						>Interior Design</a>
+						<a
+							href="/architecture-design"
+							{{if eq $navigationPath "/architecture-design"}}
+								aria-current="{{$navigationCurrent}}"
+							{{end}}
+						>Architecture Design</a>
+						<a
+							href="/products"
+							{{if eq $navigationPath "/products"}}
+								aria-current="{{$navigationCurrent}}"
+							{{end}}
+						>Products</a>
+						<a
+							href="/contact"
+							{{if eq $navigationPath "/contact"}}
+								aria-current="{{$navigationCurrent}}"
+							{{end}}
+						>Contact</a>
+					</nav>
+				</details>
 			</div>
 
 			{{/*
@@ -227,34 +294,6 @@ an exact route and "location" when the active link represents a parent section.
 				</a>
 			</nav>
 
-			<div class="site-header__right">
-				{{/*
-				Search is intentionally non-functional in the current stage. A
-				disabled button communicates that status without creating a broken
-				link or clickable control. The SVG is decorative because the button
-				already has an accessible name.
-				*/}}
-				<button
-					class="icon-button search-button"
-					type="button"
-					aria-label="Search will be added later"
-					title="Search will be added later"
-					disabled
-				>
-					<svg
-						viewBox="0 0 24 24"
-						aria-hidden="true"
-					>
-						<circle
-							cx="10.8"
-							cy="10.8"
-							r="7.2"
-						></circle>
-
-						<path d="M16.2 16.2L21 21"></path>
-					</svg>
-				</button>
-			</div>
 		</header>
 
 		{{/*
@@ -384,10 +423,9 @@ an exact route and "location" when the active link represents a parent section.
 				</nav>
 
 				{{/*
-				This second navigation group is for studio-level destinations.
-				Home and Contact have real server-rendered routes. Future destinations
-				use non-link spans with aria-disabled instead of misleading href values,
-				so they cannot be activated before their routes and content exist.
+				This second navigation group exposes only the studio-level destinations
+				that have real server-rendered routes. Unfinished destinations remain out
+				of the public shell until they have content and canonical URLs.
 				*/}}
 				<nav
 					class="drawer-navigation"
@@ -404,34 +442,6 @@ an exact route and "location" when the active link represents a parent section.
 					>
 						Home
 					</a>
-
-					<span
-						class="drawer-navigation__link is-disabled"
-						aria-disabled="true"
-					>
-						Projects
-					</span>
-
-					<span
-						class="drawer-navigation__link is-disabled"
-						aria-disabled="true"
-					>
-						Services
-					</span>
-
-					<span
-						class="drawer-navigation__link is-disabled"
-						aria-disabled="true"
-					>
-						About Us
-					</span>
-
-					<span
-						class="drawer-navigation__link is-disabled"
-						aria-disabled="true"
-					>
-						Journal
-					</span>
 
 					{{/*
 					Contact follows the same route-aware treatment as Home. data-menu-link
@@ -451,33 +461,13 @@ an exact route and "location" when the active link represents a parent section.
 					</a>
 				</nav>
 			</div>
-
-			{{/*
-			Social names are structural placeholders rather than links because
-			final profile URLs have not been supplied. The surrounding label makes
-			the group understandable without pretending those destinations work.
-			*/}}
-			<footer class="site-drawer__footer">
-				<p class="drawer-footer__label">
-					Follow
-				</p>
-
-				<div
-					class="drawer-socials"
-					aria-label="Social profiles will be added later"
-				>
-					<span>Instagram</span>
-					<span>Pinterest</span>
-					<span>LinkedIn</span>
-				</div>
-			</footer>
 		</div>
 	</div>
 
 	{{/*
 	defer downloads the shared behavior script without blocking HTML parsing and
-	runs it after the document has been parsed. The HTML remains navigable before
-	the script enhances drawer behavior.
+	runs it after the document has been parsed. Native fallback navigation remains
+	usable until the script confirms that drawer enhancement is ready.
 	*/}}
 	<script src="/static/js/main.js" defer></script>
 </body>

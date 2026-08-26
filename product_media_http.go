@@ -53,42 +53,63 @@ func (app *application) productCoverHandler(
 		r.Context(),
 		productCatalogueReadTimeout,
 	)
-	asset, err := app.products.FindPublishedCover(
+	defer cancel()
+	metadata, err := app.products.FindPublishedCoverMetadata(
 		readContext,
 		slug,
 		version,
 	)
-	cancel()
 	if errors.Is(err, errProductCoverNotFound) {
 		http.NotFound(w, r)
 
 		return
 	}
-	if err != nil || !isValidProductCoverAsset(asset) ||
-		asset.Version != version {
+	if err != nil || !isValidReviewedCoverAssetMetadata(metadata) ||
+		metadata.Version != version {
 		log.Print("public product cover read failed")
 		http.Error(w, "service temporarily unavailable", http.StatusServiceUnavailable)
 
 		return
 	}
 
-	etag := `"` + hex.EncodeToString(asset.SHA256[:]) + `"`
-	header := w.Header()
+	etag := reviewedCoverResponseETag(metadata)
 	// The revision-specific ETag avoids retransmitting unchanged bytes, while
 	// mandatory revalidation lets an archive action make the route private on
 	// the browser's next request. A long immutable lifetime would defeat that
 	// publication boundary with a previously cached response.
-	header.Set("Cache-Control", "public, max-age=0, must-revalidate")
-	header.Set("Content-Type", asset.ContentType)
-	header.Set("Content-Length", strconv.Itoa(asset.ByteSize))
-	header.Set("ETag", etag)
-	header.Set("X-Content-Type-Options", "nosniff")
-	header.Set("Cross-Origin-Resource-Policy", "same-origin")
 	if productCoverETagMatches(r.Header.Get("If-None-Match"), etag) {
+		setReviewedCoverResponseHeaders(w.Header(), metadata, etag)
 		w.WriteHeader(http.StatusNotModified)
 
 		return
 	}
+	if r.Method == http.MethodHead {
+		setReviewedCoverResponseHeaders(w.Header(), metadata, etag)
+
+		return
+	}
+
+	asset, err := app.products.FindPublishedCover(
+		readContext,
+		slug,
+		version,
+	)
+	if errors.Is(err, errProductCoverNotFound) {
+		// Publication may change between the two reads. Rechecking the content
+		// query keeps an intervening archive action behind the public 404 boundary.
+		http.NotFound(w, r)
+
+		return
+	}
+	if err != nil || !isValidProductCoverAsset(asset) ||
+		asset.responseMetadata() != metadata {
+		log.Print("public product cover read failed")
+		http.Error(w, "service temporarily unavailable", http.StatusServiceUnavailable)
+
+		return
+	}
+
+	setReviewedCoverResponseHeaders(w.Header(), metadata, etag)
 
 	if _, err := w.Write(asset.Content); err != nil {
 		// The connection may already be gone, so only a fixed diagnostic is useful.
@@ -97,8 +118,29 @@ func (app *application) productCoverHandler(
 	}
 }
 
+// reviewedCoverResponseETag formats one validated digest as a quoted strong
+// HTTP entity tag without reading the corresponding encoded content.
+func reviewedCoverResponseETag(metadata reviewedCoverAssetMetadata) string {
+	return `"` + hex.EncodeToString(metadata.SHA256[:]) + `"`
+}
+
+// setReviewedCoverResponseHeaders applies the shared successful media policy
+// after a repository result has passed the binary-free validation boundary.
+func setReviewedCoverResponseHeaders(
+	header http.Header,
+	metadata reviewedCoverAssetMetadata,
+	etag string,
+) {
+	header.Set("Cache-Control", "public, max-age=0, must-revalidate")
+	header.Set("Content-Type", metadata.ContentType)
+	header.Set("Content-Length", strconv.Itoa(metadata.ByteSize))
+	header.Set("ETag", etag)
+	header.Set("X-Content-Type-Options", "nosniff")
+	header.Set("Cross-Origin-Resource-Policy", "same-origin")
+}
+
 // reviewedCoverETagMatches applies HTTP's weak comparison used by If-None-Match
-// on GET/HEAD. Product and Interior media routes share these protocol mechanics
+// on GET/HEAD. All four managed-media routes share these protocol mechanics
 // without sharing repository identities or publication queries.
 func reviewedCoverETagMatches(headerValue string, currentETag string) bool {
 	remaining := strings.TrimSpace(headerValue)

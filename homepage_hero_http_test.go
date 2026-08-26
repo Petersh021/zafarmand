@@ -67,16 +67,107 @@ func TestHomepageHeroHandlerServesRevalidatedCurrentAsset(t *testing.T) {
 			notModified.Body.String(),
 		)
 	}
+	head := httptest.NewRequest(
+		http.MethodHead,
+		homepageHeroPath(asset.Version),
+		nil,
+	)
+	head.SetPathValue("version", strconv.FormatInt(asset.Version, 10))
+	headRecorder := httptest.NewRecorder()
+	app.homepageHeroHandler(headRecorder, head)
+	if headRecorder.Code != http.StatusOK || headRecorder.Body.Len() != 0 ||
+		headRecorder.Header().Get("ETag") != wantETag {
+		t.Errorf("HEAD Homepage hero: status=%d body=%q headers=%v", headRecorder.Code, headRecorder.Body.String(), headRecorder.Header())
+	}
 
 	calls := reader.callSnapshot()
-	if len(calls) != 2 {
-		t.Fatalf("Homepage hero calls: got %d, want 2", len(calls))
+	if len(calls) != 4 {
+		t.Fatalf("Homepage hero calls: got %d, want 4", len(calls))
 	}
-	for _, call := range calls {
-		if call.Operation != "hero" || call.Version != asset.Version ||
+	wantOperations := []string{"hero-metadata", "hero", "hero-metadata", "hero-metadata"}
+	for index, call := range calls {
+		if call.Operation != wantOperations[index] || call.Version != asset.Version ||
 			!call.HasDeadline {
 			t.Errorf("Homepage hero call: %#v", call)
 		}
+	}
+}
+
+// TestHomepageHeroFailsClosedAfterMetadata verifies a disable, private error,
+// or changed hero discovered by the content phase never becomes image output.
+func TestHomepageHeroFailsClosedAfterMetadata(t *testing.T) {
+	const privateDetail = "private-hero-dependency-detail-sentinel"
+	base := validTestHomepageHeroAsset(t, 5)
+	tests := []struct {
+		// name identifies one content-bearing lookup outcome.
+		name string
+		// configure changes only the second phase.
+		configure func(*recordingSiteContentReader)
+		// wantStatus is the safe public result.
+		wantStatus int
+		// privateDetail is checked only for the dependency-error case.
+		privateDetail string
+	}{
+		{
+			name: "disabled between reads",
+			configure: func(reader *recordingSiteContentReader) {
+				reader.setHeroContent(homepageHeroAsset{}, errHomepageHeroNotFound)
+			},
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name: "private content error",
+			configure: func(reader *recordingSiteContentReader) {
+				reader.setHeroContent(homepageHeroAsset{}, errors.New(privateDetail))
+			},
+			wantStatus:    http.StatusServiceUnavailable,
+			privateDetail: privateDetail,
+		},
+		{
+			name: "changed metadata",
+			configure: func(reader *recordingSiteContentReader) {
+				changed := cloneHomepageHeroAsset(base)
+				changed.AltText = "Changed but still valid managed hero alternative"
+				reader.setHeroContent(changed, nil)
+			},
+			wantStatus: http.StatusServiceUnavailable,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			app := newTestApplication(t)
+			reader := newRecordingSiteContentReader()
+			reader.setHero(base, nil)
+			test.configure(reader)
+			app.siteContent = reader
+			recorder := httptest.NewRecorder()
+
+			app.routes().ServeHTTP(
+				recorder,
+				httptest.NewRequest(
+					http.MethodGet,
+					homepageHeroPath(base.Version),
+					nil,
+				),
+			)
+
+			assertReviewedCoverSecondPhaseFailure(
+				t,
+				recorder.Code,
+				recorder.Header(),
+				recorder.Body.Bytes(),
+				test.wantStatus,
+				base.Content,
+				test.privateDetail,
+			)
+			calls := reader.callSnapshot()
+			if len(calls) != 2 || calls[0].Operation != "hero-metadata" ||
+				calls[1].Operation != "hero" || !calls[0].HasDeadline ||
+				!calls[1].HasDeadline {
+				t.Errorf("two-phase calls: %#v", calls)
+			}
+		})
 	}
 }
 
@@ -135,6 +226,8 @@ func TestHomepageHeroHandlerMapsSafeRepositoryOutcomes(t *testing.T) {
 		arrange func(*recordingSiteContentReader)
 		// wantStatus is the public response category.
 		wantStatus int
+		// wantCalls distinguishes metadata-only failure from content validation.
+		wantCalls int
 	}{
 		{
 			name: "disabled missing or stale",
@@ -142,6 +235,7 @@ func TestHomepageHeroHandlerMapsSafeRepositoryOutcomes(t *testing.T) {
 				reader.setHero(homepageHeroAsset{}, errHomepageHeroNotFound)
 			},
 			wantStatus: http.StatusNotFound,
+			wantCalls:  1,
 		},
 		{
 			name: "database failure",
@@ -149,6 +243,7 @@ func TestHomepageHeroHandlerMapsSafeRepositoryOutcomes(t *testing.T) {
 				reader.setHero(homepageHeroAsset{}, errors.New(privateDetail))
 			},
 			wantStatus: http.StatusServiceUnavailable,
+			wantCalls:  1,
 		},
 		{
 			name: "malformed substituted asset",
@@ -158,6 +253,7 @@ func TestHomepageHeroHandlerMapsSafeRepositoryOutcomes(t *testing.T) {
 				reader.setHero(asset, nil)
 			},
 			wantStatus: http.StatusServiceUnavailable,
+			wantCalls:  2,
 		},
 	}
 
@@ -188,8 +284,14 @@ func TestHomepageHeroHandlerMapsSafeRepositoryOutcomes(t *testing.T) {
 				t.Error("Homepage hero response exposes repository diagnostics")
 			}
 			calls := reader.callSnapshot()
-			if len(calls) != 1 || !calls[0].HasDeadline {
+			if len(calls) != test.wantCalls {
 				t.Errorf("Homepage hero calls: %#v", calls)
+			} else {
+				for _, call := range calls {
+					if !call.HasDeadline {
+						t.Errorf("Homepage hero call lacks deadline: %#v", call)
+					}
+				}
 			}
 		})
 	}

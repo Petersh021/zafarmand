@@ -445,6 +445,5 @@ backup.
 - durable audit history and actor attribution;
 - administrator account management, password recovery, and multi-factor
   authentication;
-- deployment, backup, observability, and retention hardening from Stage 25; and
-- final accessibility, performance, end-to-end acceptance, and deployment work
-  from Stage 26.
+- target-specific accessibility, performance, end-to-end acceptance, and
+  deployment sign-off from Stage 26.

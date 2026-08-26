@@ -429,7 +429,7 @@ func TestPageRoutes(t *testing.T) {
 		currentPath string
 		// title is the page-specific portion of the document title.
 		title string
-		// activeLinks accounts for desktop and drawer versions of navigation.
+		// activeLinks accounts for native fallback, desktop, and drawer navigation.
 		activeLinks int
 		// activeToken distinguishes exact pages from nested section locations.
 		activeToken string
@@ -439,7 +439,7 @@ func TestPageRoutes(t *testing.T) {
 			path:        "/",
 			currentPath: "/",
 			title:       "Home",
-			activeLinks: 1,
+			activeLinks: 2,
 			activeToken: "page",
 		},
 		{
@@ -447,7 +447,7 @@ func TestPageRoutes(t *testing.T) {
 			path:        "/products",
 			currentPath: "/products",
 			title:       "Products",
-			activeLinks: 2,
+			activeLinks: 3,
 			activeToken: "page",
 		},
 		{
@@ -455,7 +455,7 @@ func TestPageRoutes(t *testing.T) {
 			path:        "/products/furniture-study-01",
 			currentPath: "/products/furniture-study-01",
 			title:       "Furniture Study 01",
-			activeLinks: 2,
+			activeLinks: 3,
 			activeToken: "location",
 		},
 		{
@@ -463,7 +463,7 @@ func TestPageRoutes(t *testing.T) {
 			path:        "/interior-design",
 			currentPath: "/interior-design",
 			title:       "Interior Design",
-			activeLinks: 2,
+			activeLinks: 3,
 			activeToken: "page",
 		},
 		{
@@ -471,7 +471,7 @@ func TestPageRoutes(t *testing.T) {
 			path:        "/interior-design/interior-study-01",
 			currentPath: "/interior-design/interior-study-01",
 			title:       "Interior Study 01",
-			activeLinks: 2,
+			activeLinks: 3,
 			activeToken: "location",
 		},
 		{
@@ -479,7 +479,7 @@ func TestPageRoutes(t *testing.T) {
 			path:        "/architecture-design",
 			currentPath: "/architecture-design",
 			title:       "Architecture Design",
-			activeLinks: 2,
+			activeLinks: 3,
 			activeToken: "page",
 		},
 		{
@@ -487,7 +487,7 @@ func TestPageRoutes(t *testing.T) {
 			path:        "/architecture-design/architecture-study-01",
 			currentPath: "/architecture-design/architecture-study-01",
 			title:       "Architecture Study 01",
-			activeLinks: 2,
+			activeLinks: 3,
 			activeToken: "location",
 		},
 		{
@@ -495,7 +495,7 @@ func TestPageRoutes(t *testing.T) {
 			path:        "/contact",
 			currentPath: "/contact",
 			title:       "Contact",
-			activeLinks: 1,
+			activeLinks: 2,
 			activeToken: "page",
 		},
 	}
@@ -556,8 +556,8 @@ func TestPageRoutes(t *testing.T) {
 				)
 			}
 
-			// Discipline pages and nested detail pages render their active parent
-			// in desktop and drawer navigation; Home uses one drawer link.
+			// Every route marks its native fallback link plus the applicable desktop
+			// and drawer destinations. Detail routes use parent-location semantics.
 			expectedCurrent := `aria-current="` +
 				test.activeToken +
 				`"`

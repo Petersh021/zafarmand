@@ -76,6 +76,30 @@ jobs:
           ZAFARMAND_TEST_CLUSTER_CONFIRM: stage25-disposable-postgresql-cluster
         run: go test -race -count=1 ./...
 
+      - name: Build static Linux deployment artifact
+        env:
+          CGO_ENABLED: '0'
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          mkdir -p dist
+          go build -buildvcs=false -trimpath -ldflags='-s -w' -o dist/zafarmand .
+          cp /etc/ssl/certs/ca-certificates.crt dist/ca-certificates.crt
+          test -x dist/zafarmand
+          test -s dist/ca-certificates.crt
+
+      - name: Build scratch deployment image
+        run: docker build --tag zafarmand:stage26-smoke .
+
+      - name: Smoke-test deployment image
+        env:
+          # Every value is inert and scoped to the disposable PostgreSQL service.
+          STAGE26_IMAGE: zafarmand:stage26-smoke
+          STAGE26_SMOKE_CONFIRM: stage26-disposable-postgresql-database
+          STAGE26_POSTGRES_ADMIN_URL: postgresql://zafarmand_ci:zafarmand_ci_service_only@127.0.0.1:5432/postgres?sslmode=disable
+          STAGE26_SMOKE_DATABASE_URL: postgresql://zafarmand_ci:zafarmand_ci_service_only@127.0.0.1:5432/zafarmand_stage26_smoke_test?sslmode=disable
+        run: bash scripts/stage26_container_smoke.sh
+
       - name: Check known Go vulnerabilities
         uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # v1.1.0
         with:

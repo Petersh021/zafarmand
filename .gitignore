@@ -5,6 +5,10 @@
 .env.*
 !.env.example
 
+# Release binaries and CA bundles are generated locally or in CI, then copied
+# into the scratch container image. Never commit those platform artifacts.
+/dist/
+
 # PostgreSQL archives contain private inquiries, credential verifiers, and
 # managed media. Keep complete dumps, checksums, and in-progress artifacts out
 # of source control even when an operator temporarily places them in this tree.

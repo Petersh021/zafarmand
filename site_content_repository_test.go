@@ -166,7 +166,8 @@ type siteContentHeroRowStub struct {
 	scanError error
 }
 
-// Scan implements the eleven-column exact hero row contract.
+// Scan implements both eleven-column hero projections, distinguished by the
+// fourth destination: byte size for metadata or content for a complete asset.
 func (stub *siteContentHeroRowStub) Scan(destinations ...any) error {
 	if stub.scanError != nil {
 		return stub.scanError
@@ -178,6 +179,18 @@ func (stub *siteContentHeroRowStub) Scan(destinations ...any) error {
 	*destinations[0].(*int64) = stub.homepageID
 	*destinations[1].(*int64) = stub.asset.Version
 	*destinations[2].(*string) = stub.asset.ContentType
+	if byteSize, metadataProjection := destinations[3].(*int); metadataProjection {
+		*byteSize = stub.asset.ByteSize
+		*destinations[4].(*int) = stub.asset.Width
+		*destinations[5].(*int) = stub.asset.Height
+		*destinations[6].(*[]byte) = append([]byte(nil), stub.asset.SHA256[:]...)
+		*destinations[7].(*string) = stub.asset.AltText
+		*destinations[8].(*string) = ""
+		*destinations[9].(*time.Time) = stub.asset.CreatedAt
+		*destinations[10].(*time.Time) = stub.asset.UpdatedAt
+
+		return nil
+	}
 	*destinations[3].(*[]byte) = append([]byte(nil), stub.asset.Content...)
 	*destinations[4].(*int) = stub.asset.ByteSize
 	*destinations[5].(*int) = stub.asset.Width
@@ -411,6 +424,49 @@ func TestPostgresSiteContentReaderFindHomepageHero(t *testing.T) {
 	}
 	if _, err := reader.FindHomepageHero(t.Context(), 0); !errors.Is(err, errSiteContentInvalidQuery) {
 		t.Fatalf("invalid hero version: got %v, want invalid query", err)
+	}
+}
+
+// TestPostgresSiteContentReaderFindHomepageHeroMetadata verifies the enabled
+// exact-revision query returns response facts without selecting hero.content.
+func TestPostgresSiteContentReaderFindHomepageHeroMetadata(t *testing.T) {
+	asset := validTestHomepageHeroAsset(t, 4)
+	var call siteContentQueryCall
+	reader := &postgresSiteContentReader{
+		queryRow: func(
+			ctx context.Context,
+			query string,
+			arguments ...any,
+		) siteContentRowScanner {
+			call = siteContentQueryCall{
+				context:   ctx,
+				query:     query,
+				arguments: append([]any(nil), arguments...),
+			}
+			return &siteContentHeroRowStub{
+				asset:      asset,
+				homepageID: siteContentSingletonID,
+			}
+		},
+	}
+
+	metadata, err := reader.FindHomepageHeroMetadata(
+		t.Context(),
+		asset.Version,
+	)
+	if err != nil {
+		t.Fatalf("find Homepage hero metadata: %v", err)
+	}
+	if metadata != asset.responseMetadata() {
+		t.Errorf("metadata: got %#v, want %#v", metadata, asset.responseMetadata())
+	}
+	if call.context != t.Context() || call.query != findHomepageHeroMetadataSQL ||
+		strings.Contains(call.query, "hero.content,") ||
+		!reflect.DeepEqual(
+			call.arguments,
+			[]any{siteContentSingletonID, asset.Version},
+		) {
+		t.Errorf("Homepage hero metadata query: %#v", call)
 	}
 }
 

@@ -21,12 +21,18 @@ type recordingProductCatalogueReader struct {
 	findErr error
 	// coverAsset is the configured complete public media result.
 	coverAsset productCoverAsset
+	// coverMetadata is the independently configurable binary-free first phase.
+	coverMetadata reviewedCoverAssetMetadata
+	// coverMetadataErr is the configured first-phase failure.
+	coverMetadataErr error
 	// coverErr is the configured FindPublishedCover failure.
 	coverErr error
 	// listCalls records the deadline state observed by each list operation.
 	listCalls []recordingProductListCall
 	// findCalls records each canonical detail lookup and its deadline state.
 	findCalls []recordingProductFindCall
+	// coverMetadataCalls records binary-free public media lookups.
+	coverMetadataCalls []recordingProductCoverFindCall
 	// coverCalls records exact public media lookups and deadline state.
 	coverCalls []recordingProductCoverFindCall
 }
@@ -152,6 +158,36 @@ func (reader *recordingProductCatalogueReader) FindPublishedBySlug(
 	return catalogueProduct{}, errProductCatalogueNotFound
 }
 
+// FindPublishedCoverMetadata returns configured response facts without copying
+// image bytes and records the handler's first-phase lookup.
+func (reader *recordingProductCatalogueReader) FindPublishedCoverMetadata(
+	ctx context.Context,
+	slug string,
+	version int64,
+) (reviewedCoverAssetMetadata, error) {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+
+	_, hasDeadline := ctx.Deadline()
+	reader.coverMetadataCalls = append(
+		reader.coverMetadataCalls,
+		recordingProductCoverFindCall{
+			Slug:        slug,
+			Version:     version,
+			HasDeadline: hasDeadline,
+		},
+	)
+	if reader.coverMetadataErr != nil {
+		return reviewedCoverAssetMetadata{}, reader.coverMetadataErr
+	}
+	if reader.coverMetadata.OwnerID <= 0 ||
+		reader.coverMetadata.Version != version {
+		return reviewedCoverAssetMetadata{}, errProductCoverNotFound
+	}
+
+	return reader.coverMetadata, nil
+}
+
 // FindPublishedCover implements the binary public-read boundary without a
 // database and returns an isolated byte slice.
 func (reader *recordingProductCatalogueReader) FindPublishedCover(
@@ -213,6 +249,21 @@ func (reader *recordingProductCatalogueReader) setCover(
 	defer reader.mu.Unlock()
 
 	reader.coverAsset = cloneProductCoverAsset(asset)
+	reader.coverMetadata = asset.responseMetadata()
+	reader.coverMetadataErr = err
+	reader.coverErr = err
+}
+
+// setCoverContent configures only the second-phase public media outcome while
+// retaining the metadata established by setCover.
+func (reader *recordingProductCatalogueReader) setCoverContent(
+	asset productCoverAsset,
+	err error,
+) {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+
+	reader.coverAsset = cloneProductCoverAsset(asset)
 	reader.coverErr = err
 }
 
@@ -222,6 +273,17 @@ func (reader *recordingProductCatalogueReader) coverCallSnapshot() []recordingPr
 	defer reader.mu.Unlock()
 
 	return append([]recordingProductCoverFindCall(nil), reader.coverCalls...)
+}
+
+// coverMetadataCallSnapshot returns isolated first-phase media lookup records.
+func (reader *recordingProductCatalogueReader) coverMetadataCallSnapshot() []recordingProductCoverFindCall {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+
+	return append(
+		[]recordingProductCoverFindCall(nil),
+		reader.coverMetadataCalls...,
+	)
 }
 
 // listCallSnapshot returns an isolated record of list invocations.

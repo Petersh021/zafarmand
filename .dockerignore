@@ -1,0 +1,12 @@
+# Send only the reviewed runtime payload and generated release artifacts to the
+# Docker daemon. Source, Git metadata, tests, documentation, and local files
+# cannot enter the scratch image or inflate the build context.
+**
+!Dockerfile
+!dist/
+!dist/zafarmand
+!dist/ca-certificates.crt
+!templates/
+!templates/**
+!static/
+!static/**

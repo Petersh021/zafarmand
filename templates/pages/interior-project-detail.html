@@ -129,8 +129,10 @@ uniquely-named destination; only the incomplete article is withheld.
 
 		{{/*
 		A reviewed cover is meaningful content with required alternative text and
-		an optional visible caption. Only the fallback repeats existing facts and
-		is hidden from assistive technology.
+		an optional visible caption. The project identity and summary precede this
+		later image, so lazy loading avoids competing with above-the-fold content.
+		Only the fallback repeats existing facts and is hidden from assistive
+		technology.
 		*/}}
 		{{with .Cover}}
 		<figure class="interior-project-detail__media interior-project-detail__media--image">
@@ -140,6 +142,7 @@ uniquely-named destination; only the incomplete article is withheld.
 				width="{{.Width}}"
 				height="{{.Height}}"
 				alt="{{.AltText}}"
+				loading="lazy"
 				decoding="async"
 			>
 

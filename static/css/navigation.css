@@ -32,10 +32,10 @@ body.is-menu-open {
 -------------------------------------------------- */
 
 /*
- * The fixed header remains available over full-bleed imagery without occupying
- * document flow. A three-column grid reserves equally flexible side regions
- * around an auto-sized discipline navigation, keeping the center group truly
- * centered even when the left and right controls differ visually.
+ * The fixed header remains available without occupying document flow. Its
+ * consistently dark translucent surface protects navigation contrast over both
+ * photographs and the light sections reached after scrolling. A three-column
+ * grid reserves equal side regions around the centered discipline navigation.
  */
 .site-header {
 	position: fixed;
@@ -52,20 +52,14 @@ body.is-menu-open {
 	min-height: var(--header-height);
 	padding: 0 var(--page-gutter);
 	border: 0;
-	background:
-		linear-gradient(
-			to bottom,
-			rgba(14, 13, 11, 0.72),
-			rgba(14, 13, 11, 0.18) 65%,
-			transparent
-		);
-	backdrop-filter: none;
-	-webkit-backdrop-filter: none;
+	background: rgba(14, 13, 11, 0.94);
+	box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+	backdrop-filter: blur(0.75rem);
+	-webkit-backdrop-filter: blur(0.75rem);
 }
 
-/* Flex alignment gives both side control groups a consistent vertical center. */
-.site-header__left,
-.site-header__right {
+/* Flex alignment gives the menu control a consistent vertical center. */
+.site-header__left {
 	display: flex;
 	align-items: center;
 }
@@ -75,9 +69,13 @@ body.is-menu-open {
 	justify-self: start;
 }
 
-/* Anchor the search control to the end of its flexible grid track. */
-.site-header__right {
-	justify-self: end;
+/*
+ * An empty generated item occupies the final track, balancing the menu without
+ * publishing a decorative or unfinished control in the document.
+ */
+.site-header::after {
+	display: block;
+	content: "";
 }
 
 /* --------------------------------------------------
@@ -107,15 +105,9 @@ body.is-menu-open {
 }
 
 /* A small scale change confirms hover or keyboard focus without shifting layout. */
-.icon-button:hover:not(:disabled),
-.icon-button:focus-visible:not(:disabled) {
+.icon-button:hover,
+.icon-button:focus-visible {
 	transform: scale(1.05);
-}
-
-/* Disabled future controls remain visible but do not suggest interactivity. */
-.icon-button:disabled {
-	cursor: default;
-	opacity: 0.85;
 }
 
 /* --------------------------------------------------
@@ -152,23 +144,6 @@ body.is-menu-open {
 .menu-toggle:hover .menu-toggle__lines span:nth-child(2),
 .menu-toggle:focus-visible .menu-toggle__lines span:nth-child(2) {
 	width: 100%;
-}
-
-/* --------------------------------------------------
-   Search icon
--------------------------------------------------- */
-
-/*
- * The SVG uses strokes rather than a filled shape. currentColor ensures the
- * magnifier has the same contrast and state behavior as its parent button.
- */
-.search-button svg {
-	width: 1.65rem;
-	height: 1.65rem;
-	fill: none;
-	stroke: currentColor;
-	stroke-linecap: round;
-	stroke-width: 1.2;
 }
 
 /* --------------------------------------------------
@@ -320,15 +295,15 @@ body.is-menu-open {
 
 /*
  * The panel sits above its sibling backdrop and divides its full-height layout
- * into header, scrollable navigation, and footer rows. min() prevents it from
- * exceeding 88% of narrow viewports. A translucent blurred surface retains a
- * hint of the page behind it without sacrificing text legibility.
+ * into header and scrollable navigation rows. min() prevents it from exceeding
+ * 88% of narrow viewports. A translucent blurred surface retains a hint of the
+ * page behind it without sacrificing text legibility.
  */
 .site-drawer__panel {
 	position: relative;
 	z-index: 1;
 	display: grid;
-	grid-template-rows: auto 1fr auto;
+	grid-template-rows: auto 1fr;
 	width: min(var(--drawer-width), 88vw);
 	height: 100%;
 	border-right: var(--border-thin);
@@ -456,44 +431,6 @@ a.drawer-navigation__link:focus-visible,
 	transform: translateX(0.35rem);
 }
 
-/* Future destinations remain visible as context but clearly unavailable. */
-.drawer-navigation__link.is-disabled {
-	cursor: default;
-	opacity: 0.58;
-}
-
-/* --------------------------------------------------
-   Drawer footer
--------------------------------------------------- */
-
-/* The footer is visually separated and receives extra safe spacing at the bottom. */
-.site-drawer__footer {
-	padding:
-		var(--space-5)
-		clamp(1.5rem, 3vw, 2.5rem)
-		clamp(2rem, 5vh, 3rem);
-	border-top: var(--border-thin);
-}
-
-/* Muted tracked capitals identify the lower social placeholder group. */
-.drawer-footer__label {
-	margin-bottom: var(--space-3);
-	color: var(--color-muted);
-	font-size: var(--font-size-xs);
-	letter-spacing: 0.2em;
-	text-transform: uppercase;
-}
-
-/* Stack the future social-profile labels in a compact, readable column. */
-.drawer-socials {
-	display: grid;
-	gap: 0.35rem;
-	color: var(--color-text-soft);
-	font-size: var(--font-size-xs);
-	letter-spacing: 0.18em;
-	text-transform: uppercase;
-}
-
 /* --------------------------------------------------
    Prevent the fixed header covering page content
 -------------------------------------------------- */
@@ -549,9 +486,9 @@ a.drawer-navigation__link:focus-visible,
 
 /*
  * At 48rem (normally 768px) the full discipline row no longer has reliable
- * room beside the controls. The header becomes three fixed-purpose columns:
- * menu, centered home wordmark, and search. Using max-width:48rem means the
- * desktop links remain visible at 960px, correcting the earlier 60rem cutoff.
+ * room beside the menu. The header becomes three fixed-purpose columns: menu,
+ * centered home wordmark, and an empty balancing track. Using max-width:48rem
+ * means the desktop links remain visible at 960px.
  */
 @media (max-width: 48rem) {
 	.site-header {
@@ -636,8 +573,8 @@ a.drawer-navigation__link:focus-visible,
  * On phones narrower than 36rem (576px), a full-width drawer avoids an
  * impractically thin visible strip of the page and maximizes room for long
  * discipline labels. Pixel-stable compact-header geometry below protects the
- * three columns when a visitor enlarges the root font size: menu and search
- * retain 44px targets while the centered wordmark adapts to remaining space.
+ * three columns when a visitor enlarges the root font size: the menu retains a
+ * 44px target while the centered wordmark adapts to remaining space.
  */
 @media (max-width: 36rem) {
 	/*
@@ -656,8 +593,8 @@ a.drawer-navigation__link:focus-visible,
 	}
 
 	/*
-	 * Scope pixel dimensions to public-header controls. Both visible icon
-	 * targets remain at the 44px floor under default and enlarged root text.
+	 * Scope pixel dimensions to the public-header menu control. Its visible
+	 * target remains at the 44px floor under default and enlarged root text.
 	 */
 	.site-header .icon-button {
 		width: 44px;
@@ -668,12 +605,6 @@ a.drawer-navigation__link:focus-visible,
 	.site-header .menu-toggle__lines {
 		width: 30px;
 		gap: 6px;
-	}
-
-	/* Keep the magnifier near its original 26px visual size inside the target. */
-	.site-header .search-button svg {
-		width: 26px;
-		height: 26px;
 	}
 
 	/*
@@ -723,11 +654,6 @@ a.drawer-navigation__link:focus-visible,
 		white-space: nowrap;
 	}
 
-	/* A scale transform would visually reduce the 44px compact search target. */
-	.site-header .search-button {
-		transform: none;
-	}
-
 	/* Generic interior pages clear the same real compact-header height. */
 	.page {
 		padding-top:
@@ -756,12 +682,26 @@ a.drawer-navigation__link:focus-visible,
 		transition: none;
 	}
 
-	.icon-button:hover:not(:disabled),
-	.icon-button:focus-visible:not(:disabled),
+	.icon-button:hover,
+	.icon-button:focus-visible,
 	.drawer-disciplines__link:hover,
 	.drawer-disciplines__link:focus-visible,
 	.drawer-navigation__link:hover,
 	.drawer-navigation__link:focus-visible {
 		transform: none;
+	}
+}
+
+/*
+ * Forced-colour engines may suppress ordinary background paint. These system
+ * colours and the narrow opt-out preserve the essential open/close glyphs
+ * without overriding the surrounding button's high-contrast adaptation.
+ */
+@media (forced-colors: active) {
+	.menu-toggle__lines span,
+	.drawer-close__icon::before,
+	.drawer-close__icon::after {
+		background: ButtonText;
+		forced-color-adjust: none;
 	}
 }

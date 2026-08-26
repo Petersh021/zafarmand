@@ -14,6 +14,10 @@ const (
 	// staticDirectory is the repository-relative root used by the executable.
 	// The file system below never permits a directory response from this root.
 	staticDirectory = "./static"
+	// staticCacheControl requires browsers and shared caches to revalidate the
+	// current unversioned asset path before reuse. FileServer's Last-Modified
+	// handling can then return 304 without risking a stale long-lived stylesheet.
+	staticCacheControl = "public, max-age=0, must-revalidate"
 )
 
 // filesOnlyHTTPFileSystem wraps one rooted HTTP file system and rejects every
@@ -57,5 +61,12 @@ func newStaticAssetHandler() http.Handler {
 		},
 	)
 
-	return http.StripPrefix(staticURLPrefix, fileServer)
+	strippedFileServer := http.StripPrefix(staticURLPrefix, fileServer)
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The policy is set before FileServer handles GET or HEAD so successful
+		// assets and conditional 304 responses share one explicit contract.
+		w.Header().Set("Cache-Control", staticCacheControl)
+		strippedFileServer.ServeHTTP(w, r)
+	})
 }

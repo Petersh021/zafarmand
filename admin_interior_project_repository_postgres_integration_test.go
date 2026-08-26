@@ -175,6 +175,19 @@ func TestPostgresAdminInteriorProjectPersistenceIntegration(t *testing.T) {
 	if err != nil || !bytes.Equal(publicCover.Content, coverInput.Content) {
 		t.Errorf("public cover: asset=%#v err=%v", publicCover, err)
 	}
+	publicCoverMetadata, err := publicReader.FindPublishedCoverMetadata(
+		t.Context(),
+		draft.Slug,
+		createdCover.CoverVersion,
+	)
+	wantPublicCoverMetadata := publicCover.responseMetadata()
+	publicCoverMetadata.CreatedAt = publicCoverMetadata.CreatedAt.UTC()
+	publicCoverMetadata.UpdatedAt = publicCoverMetadata.UpdatedAt.UTC()
+	wantPublicCoverMetadata.CreatedAt = wantPublicCoverMetadata.CreatedAt.UTC()
+	wantPublicCoverMetadata.UpdatedAt = wantPublicCoverMetadata.UpdatedAt.UTC()
+	if err != nil || publicCoverMetadata != wantPublicCoverMetadata {
+		t.Errorf("public cover metadata: got %#v err=%v", publicCoverMetadata, err)
+	}
 
 	replacementContent, replacementInspection, err := normalizeReviewedCover(
 		testAdminInteriorProjectCoverJPEG(t),
@@ -211,6 +224,13 @@ func TestPostgresAdminInteriorProjectPersistenceIntegration(t *testing.T) {
 	); !errors.Is(err, errInteriorProjectCoverNotFound) {
 		t.Errorf("old public cover revision: got %v, want not found", err)
 	}
+	if _, err := publicReader.FindPublishedCoverMetadata(
+		t.Context(),
+		draft.Slug,
+		createdCover.CoverVersion,
+	); !errors.Is(err, errInteriorProjectCoverNotFound) {
+		t.Errorf("old public cover metadata: got %v, want not found", err)
+	}
 	if _, err := writer.UpsertCover(
 		t.Context(),
 		created.ID,
@@ -243,6 +263,13 @@ func TestPostgresAdminInteriorProjectPersistenceIntegration(t *testing.T) {
 		replacedCover.CoverVersion,
 	); !errors.Is(err, errInteriorProjectCoverNotFound) {
 		t.Errorf("Archived public cover: got %v, want not found", err)
+	}
+	if _, err := publicReader.FindPublishedCoverMetadata(
+		t.Context(),
+		draft.Slug,
+		replacedCover.CoverVersion,
+	); !errors.Is(err, errInteriorProjectCoverNotFound) {
+		t.Errorf("Archived public cover metadata: got %v, want not found", err)
 	}
 	protectedCover, err = adminReader.FindCoverByProjectID(
 		t.Context(),

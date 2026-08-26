@@ -404,3 +404,20 @@ document.addEventListener("focusin", (event) => {
  * makes it the correct lifecycle point for clearing preserved drawer state.
  */
 window.addEventListener("pageshow", resetMenu);
+
+/*
+ * Reveal the enhanced control only after parsing, dependency discovery, and
+ * listener registration all complete. If this script is blocked, throws, or
+ * encounters incomplete markup, the native details navigation remains usable.
+ */
+if (
+	pageShell &&
+	drawer &&
+	drawerPanel &&
+	openButton &&
+	closeButtons.length > 0
+) {
+	document.documentElement.classList.add(
+		"has-enhanced-navigation",
+	);
+}

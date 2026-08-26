@@ -23,6 +23,10 @@ type recordingInteriorProjectCatalogueReader struct {
 	findResult *catalogueInteriorProject
 	// coverAsset is the configured exact public cover.
 	coverAsset interiorProjectCoverAsset
+	// coverMetadata is the independently configurable binary-free first phase.
+	coverMetadata reviewedCoverAssetMetadata
+	// coverMetadataErr is the configured first-phase failure.
+	coverMetadataErr error
 	// coverErr is the configured FindPublishedCover result error.
 	coverErr error
 	// coverResult, when non-nil, bypasses exact-version fixture lookup so an
@@ -32,6 +36,8 @@ type recordingInteriorProjectCatalogueReader struct {
 	listCalls []recordingInteriorProjectListCall
 	// findCalls records canonical detail coordinates and deadlines.
 	findCalls []recordingInteriorProjectFindCall
+	// coverMetadataCalls records binary-free exact media lookups.
+	coverMetadataCalls []recordingInteriorProjectCoverFindCall
 	// coverCalls records exact media coordinates and deadlines.
 	coverCalls []recordingInteriorProjectCoverFindCall
 }
@@ -159,6 +165,39 @@ func (reader *recordingInteriorProjectCatalogueReader) FindPublishedBySlug(
 	return catalogueInteriorProject{}, errInteriorProjectCatalogueNotFound
 }
 
+// FindPublishedCoverMetadata records and returns the configured binary-free
+// public media projection without cloning encoded bytes.
+func (reader *recordingInteriorProjectCatalogueReader) FindPublishedCoverMetadata(
+	ctx context.Context,
+	slug string,
+	version int64,
+) (reviewedCoverAssetMetadata, error) {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+
+	_, hasDeadline := ctx.Deadline()
+	reader.coverMetadataCalls = append(
+		reader.coverMetadataCalls,
+		recordingInteriorProjectCoverFindCall{
+			Slug:        slug,
+			Version:     version,
+			HasDeadline: hasDeadline,
+		},
+	)
+	if reader.coverMetadataErr != nil {
+		return reviewedCoverAssetMetadata{}, reader.coverMetadataErr
+	}
+	if reader.coverResult != nil {
+		return reader.coverResult.responseMetadata(), nil
+	}
+	if reader.coverMetadata.OwnerID <= 0 ||
+		reader.coverMetadata.Version != version {
+		return reviewedCoverAssetMetadata{}, errInteriorProjectCoverNotFound
+	}
+
+	return reader.coverMetadata, nil
+}
+
 // setFindResult configures one explicit detail result. Passing nil restores
 // exact fixture lookup behavior.
 func (reader *recordingInteriorProjectCatalogueReader) setFindResult(
@@ -240,6 +279,22 @@ func (reader *recordingInteriorProjectCatalogueReader) setCover(
 	defer reader.mu.Unlock()
 
 	reader.coverAsset = cloneInteriorProjectCoverAsset(asset)
+	reader.coverMetadata = asset.responseMetadata()
+	reader.coverMetadataErr = err
+	reader.coverErr = err
+}
+
+// setCoverContent configures only the second-phase Interior result while
+// retaining the metadata established by setCover.
+func (reader *recordingInteriorProjectCatalogueReader) setCoverContent(
+	asset interiorProjectCoverAsset,
+	err error,
+) {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+
+	reader.coverAsset = cloneInteriorProjectCoverAsset(asset)
+	reader.coverResult = nil
 	reader.coverErr = err
 }
 
@@ -282,6 +337,17 @@ func (reader *recordingInteriorProjectCatalogueReader) coverCallSnapshot() []rec
 	defer reader.mu.Unlock()
 
 	return append([]recordingInteriorProjectCoverFindCall(nil), reader.coverCalls...)
+}
+
+// coverMetadataCallSnapshot returns isolated first-phase media call records.
+func (reader *recordingInteriorProjectCatalogueReader) coverMetadataCallSnapshot() []recordingInteriorProjectCoverFindCall {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+
+	return append(
+		[]recordingInteriorProjectCoverFindCall(nil),
+		reader.coverMetadataCalls...,
+	)
 }
 
 // cloneCatalogueInteriorProjects copies both the slice and optional metadata so

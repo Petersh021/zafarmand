@@ -276,13 +276,29 @@ type interiorProjectCoverRowStub struct {
 	scanError error
 }
 
-// Scan implements both public and protected cover scanner seams.
+// Scan implements the binary and binary-free public cover scanner seams.
 func (stub *interiorProjectCoverRowStub) Scan(destinations ...any) error {
 	if stub.scanError != nil {
 		return stub.scanError
 	}
+	if len(destinations) == 11 {
+		metadata := stub.asset.responseMetadata()
+		*destinations[0].(*int64) = metadata.OwnerID
+		*destinations[1].(*int64) = metadata.Version
+		*destinations[2].(*string) = metadata.ContentType
+		*destinations[3].(*int) = metadata.ByteSize
+		*destinations[4].(*int) = metadata.Width
+		*destinations[5].(*int) = metadata.Height
+		*destinations[6].(*[]byte) = append([]byte(nil), metadata.SHA256[:]...)
+		*destinations[7].(*string) = metadata.AltText
+		*destinations[8].(*string) = metadata.Caption
+		*destinations[9].(*time.Time) = metadata.CreatedAt
+		*destinations[10].(*time.Time) = metadata.UpdatedAt
+
+		return nil
+	}
 	if len(destinations) != 12 {
-		return errors.New("interior cover scan expected twelve destinations")
+		return errors.New("interior cover scan expected eleven or twelve destinations")
 	}
 
 	ownerID, ownerOK := destinations[0].(*int64)
@@ -874,6 +890,42 @@ func TestPostgresInteriorProjectCatalogueReaderFindsPublishedCover(t *testing.T)
 	actual.Content[0] ^= 0xff
 	if reflect.DeepEqual(actual.Content, expected.Content) {
 		t.Error("cover result shares mutable scanner bytes")
+	}
+}
+
+// TestPostgresInteriorProjectCatalogueReaderFindsPublishedCoverMetadata proves
+// the first public media read uses exact predicates without selecting bytea.
+func TestPostgresInteriorProjectCatalogueReaderFindsPublishedCoverMetadata(t *testing.T) {
+	asset := validTestInteriorProjectCoverAsset(t, 9, 4)
+	query := &interiorProjectCatalogueQueryRowStub{
+		row: &interiorProjectCoverRowStub{asset: asset},
+	}
+	reader := &postgresInteriorProjectCatalogueReader{queryRow: query.QueryRow}
+	ctx := context.WithValue(
+		context.Background(),
+		interiorProjectCatalogueContextKey{},
+		"cover-metadata-context",
+	)
+
+	metadata, err := reader.FindPublishedCoverMetadata(
+		ctx,
+		"stone-residence",
+		asset.Version,
+	)
+	if err != nil {
+		t.Fatalf("find published Interior cover metadata: %v", err)
+	}
+	if metadata != asset.responseMetadata() {
+		t.Errorf("metadata: got %#v, want %#v", metadata, asset.responseMetadata())
+	}
+	if query.calls != 1 || query.context != ctx ||
+		query.query != findPublishedInteriorProjectCoverMetadataSQL ||
+		strings.Contains(query.query, "cover.content,") ||
+		!reflect.DeepEqual(
+			query.arguments,
+			[]any{"stone-residence", publishedInteriorProjectStatus, asset.Version},
+		) {
+		t.Errorf("metadata query=%q args=%#v", query.query, query.arguments)
 	}
 }
 

@@ -128,6 +128,24 @@ type interiorProjectCoverAsset struct {
 	UpdatedAt time.Time
 }
 
+// responseMetadata returns the Interior asset facts used to ensure the
+// metadata-first and content-bearing public reads selected the same revision.
+func (asset interiorProjectCoverAsset) responseMetadata() reviewedCoverAssetMetadata {
+	return reviewedCoverAssetMetadata{
+		OwnerID:     asset.InteriorProjectID,
+		Version:     asset.Version,
+		ContentType: asset.ContentType,
+		ByteSize:    asset.ByteSize,
+		Width:       asset.Width,
+		Height:      asset.Height,
+		SHA256:      asset.SHA256,
+		AltText:     asset.AltText,
+		Caption:     asset.Caption,
+		CreatedAt:   asset.CreatedAt,
+		UpdatedAt:   asset.UpdatedAt,
+	}
+}
+
 // catalogueInteriorProject is the derived projection needed by both public
 // Interior HTML handlers. Internal ordering and lifecycle fields do not cross
 // this boundary: SQL converts them to eligibility and a consecutive number.
@@ -167,6 +185,13 @@ type interiorProjectCatalogueReader interface {
 		context.Context,
 		string,
 	) (catalogueInteriorProject, error)
+	// FindPublishedCoverMetadata returns binary-free response facts only while
+	// the exact current cover belongs to a Published project.
+	FindPublishedCoverMetadata(
+		context.Context,
+		string,
+		int64,
+	) (reviewedCoverAssetMetadata, error)
 	// FindPublishedCover returns one exact current revision only while its owner
 	// remains published.
 	FindPublishedCover(
@@ -267,6 +292,27 @@ const findPublishedInteriorProjectCoverSQL = `SELECT
     cover.version,
     cover.content_type,
     cover.content,
+    cover.byte_size,
+    cover.width,
+    cover.height,
+    cover.sha256,
+    cover.alt_text,
+    cover.caption,
+    cover.created_at,
+    cover.updated_at
+FROM public.interior_project_cover_images AS cover
+INNER JOIN public.interior_projects AS projects
+    ON projects.id = cover.interior_project_id
+WHERE projects.slug = $1
+  AND projects.publication_status = $2
+  AND cover.version = $3`
+
+// findPublishedInteriorProjectCoverMetadataSQL preserves the exact public
+// predicates of the content query while deliberately omitting cover.content.
+const findPublishedInteriorProjectCoverMetadataSQL = `SELECT
+    cover.interior_project_id,
+    cover.version,
+    cover.content_type,
     cover.byte_size,
     cover.width,
     cover.height,
@@ -474,6 +520,37 @@ func (reader *postgresInteriorProjectCatalogueReader) FindPublishedBySlug(
 	}
 
 	return project, nil
+}
+
+// FindPublishedCoverMetadata reads one exact public Interior cover projection
+// without transferring the bounded but potentially large encoded image.
+func (reader *postgresInteriorProjectCatalogueReader) FindPublishedCoverMetadata(
+	ctx context.Context,
+	slug string,
+	version int64,
+) (reviewedCoverAssetMetadata, error) {
+	if ctx == nil || !isCanonicalInteriorProjectSlug(slug) || version <= 0 {
+		return reviewedCoverAssetMetadata{}, errInteriorProjectCatalogueInvalidQuery
+	}
+	if reader == nil || reader.queryRow == nil {
+		return reviewedCoverAssetMetadata{}, errInteriorProjectCoverReadFailed
+	}
+
+	metadata, err := scanReviewedCoverAssetMetadata(reader.queryRow(
+		ctx,
+		findPublishedInteriorProjectCoverMetadataSQL,
+		slug,
+		publishedInteriorProjectStatus,
+		version,
+	))
+	if errors.Is(err, sql.ErrNoRows) {
+		return reviewedCoverAssetMetadata{}, errInteriorProjectCoverNotFound
+	}
+	if err != nil || metadata.Version != version {
+		return reviewedCoverAssetMetadata{}, errInteriorProjectCoverReadFailed
+	}
+
+	return metadata, nil
 }
 
 // FindPublishedCover reads one complete image only while its owner is public

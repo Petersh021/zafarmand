@@ -6,6 +6,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/http/httptest"
 	"net/textproto"
 	"strings"
 	"testing"
@@ -526,15 +527,113 @@ func TestPublicProductCoverServesRevalidatedPublishedAsset(t *testing.T) {
 	if notModified.StatusCode != http.StatusNotModified || notModified.Body != "" {
 		t.Errorf("conditional response: status=%d body=%q", notModified.StatusCode, notModified.Body)
 	}
+	head := adminHTTPNewRequest(
+		http.MethodHead,
+		"/products/stage-21-chair/cover/2",
+		nil,
+		false,
+	)
+	headResponse := stage16ServeAdminRequest(t, app, head)
+	if headResponse.StatusCode != http.StatusOK || headResponse.Body != "" ||
+		headResponse.Header.Get("ETag") != response.Header.Get("ETag") {
+		t.Errorf("HEAD response: status=%d body=%q headers=%v", headResponse.StatusCode, headResponse.Body, headResponse.Header)
+	}
 
 	calls := reader.coverCallSnapshot()
-	if len(calls) != 2 {
-		t.Fatalf("public cover calls: got %d, want 2", len(calls))
+	if len(calls) != 1 {
+		t.Fatalf("public content calls: got %d, want 1", len(calls))
 	}
 	for _, call := range calls {
 		if call.Slug != "stage-21-chair" || call.Version != 2 || !call.HasDeadline {
 			t.Errorf("public cover call: %#v", call)
 		}
+	}
+	metadataCalls := reader.coverMetadataCallSnapshot()
+	if len(metadataCalls) != 3 {
+		t.Fatalf("public metadata calls: got %d, want 3", len(metadataCalls))
+	}
+	for _, call := range metadataCalls {
+		if call.Slug != "stage-21-chair" || call.Version != 2 || !call.HasDeadline {
+			t.Errorf("public metadata call: %#v", call)
+		}
+	}
+}
+
+// TestPublicProductCoverFailsClosedAfterMetadata verifies the content phase
+// rechecks visibility and never turns a raced or failed read into image output.
+func TestPublicProductCoverFailsClosedAfterMetadata(t *testing.T) {
+	const privateDetail = "private-product-dependency-detail-sentinel"
+	base := validTestProductCoverAsset(t, 5, 2)
+	tests := []struct {
+		// name identifies one second-phase outcome.
+		name string
+		// configure changes only the content-bearing repository result.
+		configure func(*recordingProductCatalogueReader)
+		// wantStatus is the privacy-preserving public response.
+		wantStatus int
+		// privateDetail is absent for failures without dependency diagnostics.
+		privateDetail string
+	}{
+		{
+			name: "archived between reads",
+			configure: func(reader *recordingProductCatalogueReader) {
+				reader.setCoverContent(productCoverAsset{}, errProductCoverNotFound)
+			},
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name: "private content error",
+			configure: func(reader *recordingProductCatalogueReader) {
+				reader.setCoverContent(productCoverAsset{}, errors.New(privateDetail))
+			},
+			wantStatus:    http.StatusServiceUnavailable,
+			privateDetail: privateDetail,
+		},
+		{
+			name: "changed metadata",
+			configure: func(reader *recordingProductCatalogueReader) {
+				changed := cloneProductCoverAsset(base)
+				changed.Caption = "Metadata changed between public reads."
+				reader.setCoverContent(changed, nil)
+			},
+			wantStatus: http.StatusServiceUnavailable,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			app := newTestApplication(t)
+			reader := newRecordingProductCatalogueReader()
+			reader.setCover(base, nil)
+			test.configure(reader)
+			app.products = reader
+			recorder := httptest.NewRecorder()
+
+			app.routes().ServeHTTP(
+				recorder,
+				httptest.NewRequest(
+					http.MethodGet,
+					productCoverPath("stage-21-chair", base.Version),
+					nil,
+				),
+			)
+
+			assertReviewedCoverSecondPhaseFailure(
+				t,
+				recorder.Code,
+				recorder.Header(),
+				recorder.Body.Bytes(),
+				test.wantStatus,
+				base.Content,
+				test.privateDetail,
+			)
+			metadataCalls := reader.coverMetadataCallSnapshot()
+			contentCalls := reader.coverCallSnapshot()
+			if len(metadataCalls) != 1 || len(contentCalls) != 1 ||
+				!metadataCalls[0].HasDeadline || !contentCalls[0].HasDeadline {
+				t.Errorf("two-phase calls: metadata=%#v content=%#v", metadataCalls, contentCalls)
+			}
+		})
 	}
 }
 
@@ -568,8 +667,10 @@ func TestProductCoverHTTPFailuresStayGeneric(t *testing.T) {
 			app,
 			adminHTTPNewRequest(http.MethodGet, "/products/stage-21-chair/cover/1?download=1", nil, false),
 		)
-		if response.StatusCode != http.StatusBadRequest || len(reader.coverCallSnapshot()) != 0 {
-			t.Errorf("query response: status=%d calls=%d", response.StatusCode, len(reader.coverCallSnapshot()))
+		if response.StatusCode != http.StatusBadRequest ||
+			len(reader.coverCallSnapshot()) != 0 ||
+			len(reader.coverMetadataCallSnapshot()) != 0 {
+			t.Errorf("query response: status=%d content-calls=%d metadata-calls=%d", response.StatusCode, len(reader.coverCallSnapshot()), len(reader.coverMetadataCallSnapshot()))
 		}
 		if response.Header.Get("Cache-Control") != "no-store" {
 			t.Errorf("invalid-cover cache policy: got %q, want no-store", response.Header.Get("Cache-Control"))

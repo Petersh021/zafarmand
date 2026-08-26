@@ -1,0 +1,112 @@
+/* --------------------------------------------------
+   Stage 26: Navigation fallback before enhancement
+
+   base.html always loads this small stylesheet. Native details navigation is
+   the safe default when JavaScript is disabled, blocked, or fails; main.js
+   adds the enhancement class only after the richer drawer is ready.
+-------------------------------------------------- */
+
+/* The controller button must not become a dead focus target before readiness. */
+.menu-toggle {
+	display: none;
+}
+
+/* A completely initialized controller atomically replaces the native fallback. */
+.has-enhanced-navigation .menu-toggle {
+	display: grid;
+}
+
+.has-enhanced-navigation .no-script-navigation {
+	display: none;
+}
+
+/* details supplies disclosure state, keyboard handling, and semantics natively. */
+.no-script-navigation {
+	position: relative;
+}
+
+/* Match the enhanced menu's 44px minimum target and remove browser markers. */
+.no-script-navigation__summary {
+	display: grid;
+	width: 2.75rem;
+	height: 2.75rem;
+	place-items: center;
+	color: var(--color-text);
+	cursor: pointer;
+	list-style: none;
+}
+
+/* WebKit exposes its disclosure marker through a separate pseudo-element. */
+.no-script-navigation__summary::-webkit-details-marker {
+	display: none;
+}
+
+/* A clear focus ring remains visible against the consistently dark header. */
+.no-script-navigation__summary:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 2px;
+}
+
+/*
+ * The native panel begins below the fixed header and stays independently
+ * scrollable on short or enlarged viewports. Its width mirrors the enhanced
+ * drawer without claiming modal behavior that native details does not provide.
+ */
+.no-script-navigation__panel {
+	position: fixed;
+	top: var(--header-height);
+	left: 0;
+	display: grid;
+	width: min(var(--drawer-width), 88vw);
+	max-height: calc(100vh - var(--header-height));
+	padding: clamp(1.5rem, 5vw, 3rem);
+	border: var(--border-thin);
+	border-left: 0;
+	background: rgba(20, 18, 15, 0.98);
+	box-shadow: 1rem 1rem 4rem rgba(0, 0, 0, 0.2);
+	overflow-y: auto;
+}
+
+/* Real destinations receive generous touch targets and an obvious focus state. */
+.no-script-navigation__panel a {
+	padding: 0.8rem 0;
+	color: var(--color-text-soft);
+	font-size: var(--font-size-sm);
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+}
+
+.no-script-navigation__panel a:hover,
+.no-script-navigation__panel a:focus-visible {
+	color: var(--color-text);
+	text-decoration: underline;
+	text-underline-offset: 0.3em;
+}
+
+/* Current-location semantics receive a visual equivalent in fallback mode. */
+.no-script-navigation__panel a[aria-current] {
+	color: var(--color-text);
+	text-decoration: underline;
+	text-decoration-thickness: 0.12em;
+	text-underline-offset: 0.3em;
+}
+
+/* Tablet headers use a fixed reduced height rather than the root token. */
+@media (min-width: 36.001rem) and (max-width: 70rem) {
+	.no-script-navigation__panel {
+		top: 4.75rem;
+		max-height: calc(100vh - 4.75rem);
+	}
+}
+
+/* Keep fallback geometry synchronized with the pixel-stable phone header. */
+@media (max-width: 36rem) {
+	.no-script-navigation__summary {
+		width: 44px;
+		height: 44px;
+	}
+
+	.no-script-navigation__panel {
+		width: 100%;
+	}
+}

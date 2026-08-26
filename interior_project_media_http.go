@@ -2,11 +2,9 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"log"
 	"net/http"
-	"strconv"
 )
 
 // interiorProjectCoverHandler serves one validated current cover revision only
@@ -61,20 +59,19 @@ func (app *application) interiorProjectCoverHandler(
 		r.Context(),
 		interiorProjectCatalogueReadTimeout,
 	)
-	asset, err := app.interiorProjects.FindPublishedCover(
+	defer cancel()
+	metadata, err := app.interiorProjects.FindPublishedCoverMetadata(
 		readContext,
 		slug,
 		version,
 	)
-	cancel()
 	if errors.Is(err, errInteriorProjectCoverNotFound) {
 		http.NotFound(w, r)
 
 		return
 	}
-	if err != nil ||
-		!isValidInteriorProjectCoverAsset(asset) ||
-		asset.Version != version {
+	if err != nil || !isValidReviewedCoverAssetMetadata(metadata) ||
+		metadata.Version != version {
 		log.Print("public interior project cover read failed")
 		http.Error(
 			w,
@@ -85,22 +82,47 @@ func (app *application) interiorProjectCoverHandler(
 		return
 	}
 
-	etag := `"` + hex.EncodeToString(asset.SHA256[:]) + `"`
-	header := w.Header()
+	etag := reviewedCoverResponseETag(metadata)
 	// Revalidation avoids retransmitting unchanged bytes while ensuring an
 	// Archive action hides an image on the browser's next request. A long
 	// immutable cache lifetime would violate that publication boundary.
-	header.Set("Cache-Control", "public, max-age=0, must-revalidate")
-	header.Set("Content-Type", asset.ContentType)
-	header.Set("Content-Length", strconv.Itoa(asset.ByteSize))
-	header.Set("ETag", etag)
-	header.Set("X-Content-Type-Options", "nosniff")
-	header.Set("Cross-Origin-Resource-Policy", "same-origin")
 	if reviewedCoverETagMatches(r.Header.Get("If-None-Match"), etag) {
+		setReviewedCoverResponseHeaders(w.Header(), metadata, etag)
 		w.WriteHeader(http.StatusNotModified)
 
 		return
 	}
+	if r.Method == http.MethodHead {
+		setReviewedCoverResponseHeaders(w.Header(), metadata, etag)
+
+		return
+	}
+
+	asset, err := app.interiorProjects.FindPublishedCover(
+		readContext,
+		slug,
+		version,
+	)
+	if errors.Is(err, errInteriorProjectCoverNotFound) {
+		// The second public query makes an archive between metadata and content
+		// reads indistinguishable from every other hidden media coordinate.
+		http.NotFound(w, r)
+
+		return
+	}
+	if err != nil || !isValidInteriorProjectCoverAsset(asset) ||
+		asset.responseMetadata() != metadata {
+		log.Print("public interior project cover read failed")
+		http.Error(
+			w,
+			"service temporarily unavailable",
+			http.StatusServiceUnavailable,
+		)
+
+		return
+	}
+
+	setReviewedCoverResponseHeaders(w.Header(), metadata, etag)
 
 	if _, err := w.Write(asset.Content); err != nil {
 		// A disconnected client cannot receive a recovery response. Keep the log
