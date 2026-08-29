@@ -18,6 +18,27 @@
 const body = document.body;
 
 /*
+ * The desktop homepage disclosure starts open like the approved composition.
+ * Its data hook supports hero-bound viewport sizing without overriding the
+ * visitor's native close or reopen choice.
+ */
+const homeReferenceMenu = document.querySelector(
+	"[data-home-reference-menu]",
+);
+
+/* The hero supplies the visual boundary for the desktop landing disclosure. */
+const homeHero = document.querySelector("[data-home-hero]");
+
+/* The Projects fragment link hands focus to its real destination before hiding. */
+const homeProjectsLink = document.querySelector("[data-home-projects-link]");
+
+/* The disciplines section is the focusable destination of the Projects link. */
+const homeDisciplines = document.querySelector("[data-home-disciplines]");
+
+/* A null frame means no geometry synchronization is waiting to run. */
+let homeReferenceMenuSyncFrame = null;
+
+/*
  * The page shell contains the header and main content, but not the drawer.
  * Applying `inert` to this shell temporarily removes background controls from
  * keyboard navigation and the accessibility interaction model.
@@ -341,6 +362,75 @@ function resetMenu() {
 	drawer.setAttribute("aria-hidden", "true");
 }
 
+/**
+ * Synchronize the landing rail with the hero's rendered viewport boundary.
+ *
+ * Fixed positioning is active only while the hero fills the visual viewport.
+ * As soon as later content enters, the rail is removed from layout and made
+ * inert so it cannot cover or receive focus over that content. This function
+ * never changes the native details open state, so a visitor's close/reopen
+ * choice survives scrolling and bfcache.
+ *
+ * @returns {void}
+ */
+function syncHomeReferenceMenuGeometry() {
+	homeReferenceMenuSyncFrame = null;
+
+	if (!homeReferenceMenu || !homeHero) {
+		return;
+	}
+
+	const heroBounds = homeHero.getBoundingClientRect();
+	const viewportHeight =
+		window.visualViewport?.height ?? window.innerHeight;
+	const heroFillsViewport =
+		heroBounds.top <= 1 &&
+		heroBounds.bottom >= viewportHeight - 1;
+
+	homeReferenceMenu.classList.toggle(
+		"is-home-hero-active",
+		heroFillsViewport,
+	);
+	homeReferenceMenu.classList.toggle(
+		"is-home-hero-inactive",
+		!heroFillsViewport,
+	);
+	homeReferenceMenu.toggleAttribute("inert", !heroFillsViewport);
+}
+
+/**
+ * Coalesce scroll and viewport events into one layout read per animation frame.
+ *
+ * @returns {void}
+ */
+function scheduleHomeReferenceMenuGeometrySync() {
+	if (
+		!homeReferenceMenu ||
+		!homeHero ||
+		homeReferenceMenuSyncFrame !== null
+	) {
+		return;
+	}
+
+	homeReferenceMenuSyncFrame = window.requestAnimationFrame(
+		syncHomeReferenceMenuGeometry,
+	);
+}
+
+/**
+ * Move focus to the Projects destination before native fragment navigation
+ * scrolls the landing disclosure out of its active hero state.
+ *
+ * @returns {void}
+ */
+function focusHomeDisciplines() {
+	if (!homeDisciplines) {
+		return;
+	}
+
+	homeDisciplines.focus({ preventScroll: true });
+}
+
 /* A missing menu button simply leaves the server-rendered page unenhanced. */
 if (openButton) {
 	openButton.addEventListener("click", openMenu);
@@ -400,10 +490,44 @@ document.addEventListener("focusin", (event) => {
 });
 
 /*
- * pageshow fires after ordinary loads and back-forward-cache restoration, which
- * makes it the correct lifecycle point for clearing preserved drawer state.
+ * pageshow fires after ordinary loads and back-forward-cache restoration. It
+ * clears stale modal state and remeasures the landing rail without overriding
+ * the disclosure state preserved by the browser.
  */
-window.addEventListener("pageshow", resetMenu);
+window.addEventListener("pageshow", () => {
+	resetMenu();
+	scheduleHomeReferenceMenuGeometrySync();
+});
+
+/*
+ * Passive scroll observation cannot delay scrolling. Resize and hash changes
+ * cover desktop window changes, fragment navigation, and restored URL state;
+ * visualViewport handles browser-chrome changes on capable touch devices.
+ */
+if (homeReferenceMenu && homeHero) {
+	window.addEventListener(
+		"scroll",
+		scheduleHomeReferenceMenuGeometrySync,
+		{ passive: true },
+	);
+	window.addEventListener(
+		"resize",
+		scheduleHomeReferenceMenuGeometrySync,
+	);
+	window.addEventListener(
+		"hashchange",
+		scheduleHomeReferenceMenuGeometrySync,
+	);
+	window.visualViewport?.addEventListener(
+		"resize",
+		scheduleHomeReferenceMenuGeometrySync,
+	);
+}
+
+/* Preserve native fragment navigation while preventing focus from being hidden. */
+if (homeProjectsLink && homeDisciplines) {
+	homeProjectsLink.addEventListener("click", focusHomeDisciplines);
+}
 
 /*
  * Reveal the enhanced control only after parsing, dependency discovery, and
@@ -421,3 +545,13 @@ if (
 		"has-enhanced-navigation",
 	);
 }
+
+/* Geometry enhancement is independent of the compact modal drawer controller. */
+if (homeReferenceMenu && homeHero) {
+	document.documentElement.classList.add(
+		"has-enhanced-home-reference-menu",
+	);
+}
+
+/* Establish the correct full-height or outside-hero state before interaction. */
+syncHomeReferenceMenuGeometry();

@@ -19,10 +19,9 @@ href="#main-content".
 <main id="main-content" class="home-page">
 	{{/*
 	Capture the complete pageData value before "with .HomeHero" changes the
-	current dot. The $page variable lets the hero read the discipline slice for
-	its supporting count and for deciding whether a real fragment destination
-	exists. No second Go data model is needed for information already present in
-	pageData.
+	current dot. The $page variable lets the hero verify that its fragment cue has
+	a real discipline destination. No second Go data model is needed for
+	information already present in pageData.
 	*/}}
 	{{$page := .}}
 
@@ -40,6 +39,7 @@ href="#main-content".
 	<section
 		class="home-hero"
 		aria-labelledby="home-hero-title"
+		data-home-hero
 	>
 		{{/*
 		All image fields come from homeHeroData and are escaped by html/template.
@@ -72,6 +72,18 @@ href="#main-content".
 		></div>
 
 		{{/*
+		The upper-right magnifier is a decorative reference motif until the product
+		owns a real search route. It is intentionally non-interactive and hidden from
+		assistive technology so its familiar shape never promises a false action.
+		*/}}
+		<span
+			class="home-hero__search-motif"
+			aria-hidden="true"
+		>
+			<span></span>
+		</span>
+
+		{{/*
 		The studio name is the page's primary heading. Both strings come through
 		the public-only managed-content reader rather than being buried in CSS.
 		*/}}
@@ -89,31 +101,11 @@ href="#main-content".
 		</div>
 
 		{{/*
-		The bottom rail completes the hero composition only when the page also has
-		discipline data. That condition guarantees the fragment link never points
-		at a section omitted by the later "with .HomeDisciplines" block.
-
-		The side facts repeat information already communicated by the h1,
-		descriptor, and discipline list. aria-hidden prevents that decorative
-		repetition from making the accessibility tree noisy. "len" derives the
-		visible count from the same Go slice that renders the actual entrances, so
-		the two cannot drift apart when content changes later.
+		The bottom rail completes the reference composition only when discipline
+		data guarantees that its native fragment destination exists.
 		*/}}
 		{{if $page.HomeDisciplines}}
 		<div class="home-hero__rail">
-			<p
-				class="home-hero__fact home-hero__fact--studio"
-				aria-hidden="true"
-			>
-				<span class="home-hero__fact-value">
-					{{.StudioName}}
-				</span>
-
-				<span class="home-hero__fact-label">
-					{{.Descriptor}}
-				</span>
-			</p>
-
 			{{/*
 			This is a native fragment link rather than a JavaScript scroll
 			control. It therefore works with keyboards, copied URLs, browser
@@ -125,7 +117,7 @@ href="#main-content".
 				href="#disciplines"
 			>
 				<span class="home-hero__scroll-label">
-					Explore disciplines
+					Scroll to explore
 				</span>
 
 				<span
@@ -134,18 +126,6 @@ href="#main-content".
 				></span>
 			</a>
 
-			<p
-				class="home-hero__fact home-hero__fact--disciplines"
-				aria-hidden="true"
-			>
-				<span class="home-hero__fact-value">
-					{{len $page.HomeDisciplines}}
-				</span>
-
-				<span class="home-hero__fact-label">
-					Disciplines
-				</span>
-			</p>
 		</div>
 		{{/* End the rail condition tied to the real discipline destination. */}}
 		{{end}}
@@ -160,13 +140,17 @@ href="#main-content".
 
 	This section is a sibling of the hero because the hero clips its own visual
 	layers with overflow:hidden. Its stable id is the real destination of the
-	hero's native Stage 4C fragment link.
+	hero's native Stage 4C fragment link. A programmatic-only tab stop lets the
+	enhancement move focus out of the landing disclosure before that disclosure
+	leaves the viewport; it does not add an extra stop to ordinary Tab navigation.
 	*/}}
 	{{with .HomeDisciplines}}
 	<section
 		class="home-disciplines"
 		id="disciplines"
 		aria-labelledby="home-disciplines-title"
+		data-home-disciplines
+		tabindex="-1"
 	>
 		<div class="home-disciplines__inner">
 			<header class="home-disciplines__header">

@@ -429,7 +429,8 @@ func TestPageRoutes(t *testing.T) {
 		currentPath string
 		// title is the page-specific portion of the document title.
 		title string
-		// activeLinks accounts for native fallback, desktop, and drawer navigation.
+		// activeLinks accounts for every rendered navigation variant, including
+		// the homepage-only reference rail.
 		activeLinks int
 		// activeToken distinguishes exact pages from nested section locations.
 		activeToken string
@@ -556,8 +557,9 @@ func TestPageRoutes(t *testing.T) {
 				)
 			}
 
-			// Every route marks its native fallback link plus the applicable desktop
-			// and drawer destinations. Detail routes use parent-location semantics.
+			// Every route marks its native fallback link plus the applicable desktop,
+			// drawer, and landing-rail destinations. Detail routes use
+			// parent-location semantics.
 			expectedCurrent := `aria-current="` +
 				test.activeToken +
 				`"`
@@ -656,7 +658,7 @@ func TestHomeHero(t *testing.T) {
 		`<h1`,
 		`Zafarmand`,
 		`Design Studio`,
-		`Explore disciplines`,
+		`Scroll to explore`,
 	}
 
 	for _, content := range expectedContent {
@@ -699,12 +701,11 @@ func TestHomeHero(t *testing.T) {
 	}
 }
 
-// TestHomeHeroRailUsesAvailablePageData proves the supporting rail reads the
-// current hero fields and derives its count from the current discipline slice.
-//
-// Sentinel text distinguishes the rail from production handler values, while a
-// two-item slice catches an accidentally hard-coded production count of three.
-func TestHomeHeroRailUsesAvailablePageData(t *testing.T) {
+// TestHomeHeroRailKeepsReferenceCueFocused proves the supporting rail contains
+// only the real discipline destination from the approved landing composition.
+// The managed identity remains in the hero heading rather than being repeated
+// as decorative facts beside the scroll cue.
+func TestHomeHeroRailKeepsReferenceCueFocused(t *testing.T) {
 	app := newTestApplication(t)
 	recorder := httptest.NewRecorder()
 
@@ -748,17 +749,15 @@ func TestHomeHeroRailUsesAvailablePageData(t *testing.T) {
 		t.Fatal("hero section is not closed after the rail")
 	}
 
-	// Collapsing formatting whitespace makes the visible count assertion
+	// Collapsing formatting whitespace makes the visible-label assertion
 	// independent of template indentation while preserving element boundaries.
 	rail := strings.Join(
 		strings.Fields(body[railStart:railStart+heroEnd]),
 		" ",
 	)
 	expectedRailContent := []string{
-		"Rail Studio Sentinel",
-		"Rail Descriptor Sentinel",
-		"> 2 </span>",
-		"Explore disciplines",
+		`href="#disciplines"`,
+		"Scroll to explore",
 	}
 
 	for _, content := range expectedRailContent {
@@ -766,6 +765,19 @@ func TestHomeHeroRailUsesAvailablePageData(t *testing.T) {
 			t.Errorf(
 				"hero rail does not contain %q",
 				content,
+			)
+		}
+	}
+
+	for _, duplicatedFact := range []string{
+		"Rail Studio Sentinel",
+		"Rail Descriptor Sentinel",
+		"> 2 </span>",
+	} {
+		if strings.Contains(rail, duplicatedFact) {
+			t.Errorf(
+				"hero rail repeats decorative fact %q",
+				duplicatedFact,
 			)
 		}
 	}
@@ -805,12 +817,13 @@ func TestHomeHeroOmitsScrollCueWithoutDisciplines(t *testing.T) {
 	}
 }
 
-// TestHomeScrollCueTargetsDisciplines verifies that the Stage 4C call to action
-// is one native fragment link with one unambiguous destination in the document.
+// TestHomeScrollCueTargetsDisciplines verifies that the Stage 4C rail contains
+// one native fragment call to action with one unambiguous document destination.
 //
-// Exact counts catch duplicate ids, duplicate hero controls, and fragment links
-// accidentally copied into shared navigation. A native anchor requires no
-// JavaScript to support keyboard activation or browser history.
+// The desktop reference menu may deliberately share that useful destination;
+// scoping the link assertion to the hero rail catches duplicate hero controls
+// without rejecting the separate Projects entrance. A native anchor requires
+// no JavaScript to support keyboard activation or browser history.
 func TestHomeScrollCueTargetsDisciplines(t *testing.T) {
 	app := newTestApplication(t)
 	recorder := httptest.NewRecorder()
@@ -821,8 +834,14 @@ func TestHomeScrollCueTargetsDisciplines(t *testing.T) {
 	body := recorder.Body.String()
 	scrollCue := `href="#disciplines"`
 	disciplineTarget := `id="disciplines"`
+	heroRail := extractElementByMarker(
+		t,
+		body,
+		`class="home-hero__rail"`,
+		"div",
+	)
 
-	if count := strings.Count(body, scrollCue); count != 1 {
+	if count := strings.Count(heroRail, scrollCue); count != 1 {
 		t.Errorf(
 			"scroll cue count: got %d, want 1",
 			count,
@@ -839,13 +858,13 @@ func TestHomeScrollCueTargetsDisciplines(t *testing.T) {
 	// Locate the start of the element carrying href and require a real anchor.
 	// An href attribute on an arbitrary element would not provide native link
 	// semantics despite satisfying the fragment-count assertion above.
-	scrollCuePosition := strings.Index(body, scrollCue)
+	scrollCuePosition := strings.Index(heroRail, scrollCue)
 	if scrollCuePosition == -1 {
 		t.Fatal("response does not contain the scroll cue")
 	}
 
 	scrollCueStart := strings.LastIndex(
-		body[:scrollCuePosition],
+		heroRail[:scrollCuePosition],
 		"<",
 	)
 	if scrollCueStart == -1 {
@@ -853,7 +872,7 @@ func TestHomeScrollCueTargetsDisciplines(t *testing.T) {
 	}
 
 	scrollCueOpening := strings.TrimSpace(
-		body[scrollCueStart:scrollCuePosition],
+		heroRail[scrollCueStart:scrollCuePosition],
 	)
 	if !strings.HasPrefix(scrollCueOpening, "<a") {
 		t.Errorf(

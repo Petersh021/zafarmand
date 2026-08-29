@@ -132,6 +132,79 @@ an exact route and "location" when the active link represents a parent section.
 			Skip to content
 		</a>
 
+		{{if eq .CurrentPath "/"}}
+			{{/*
+			The desktop landing reference places an open translucent navigation
+			rail before the discipline links. Keeping this native disclosure ahead
+			of the shared header makes keyboard focus follow that visual order and
+			lets the full-height rail scroll away with the landing hero. Homepage
+			CSS removes it on compact screens, where the shared accessible drawer
+			remains the only navigation control.
+
+			Projects leads to the on-page discipline entrances because no aggregate
+			project route exists, and Contact uses its canonical page. The remaining
+			reference labels are intentionally plain text until matching Services,
+			About, and Journal routes own reviewed content; they must not masquerade
+			as links to unrelated destinations.
+			*/}}
+			<details
+				class="home-reference-menu"
+				open
+				data-home-reference-menu
+			>
+				<summary
+					class="home-reference-menu__summary"
+					aria-label="Toggle landing page navigation"
+				>
+					<span
+						class="home-reference-menu__hamburger"
+						aria-hidden="true"
+					>
+						<span></span>
+						<span></span>
+						<span></span>
+					</span>
+
+					<span
+						class="home-reference-menu__close"
+						aria-hidden="true"
+					></span>
+				</summary>
+
+				<div class="home-reference-menu__panel">
+					<nav
+						class="home-reference-menu__primary"
+						aria-label="Landing page navigation"
+					>
+						{{if .HomeDisciplines}}
+							<a
+								href="#disciplines"
+								data-home-projects-link
+							>Projects</a>
+						{{end}}
+						<span class="home-reference-menu__label">Services</span>
+						<span class="home-reference-menu__label">About Us</span>
+						<span class="home-reference-menu__label">Journal</span>
+						<a href="/contact">Contact</a>
+					</nav>
+
+					{{/*
+					The reference places three quiet social labels at the foot of the
+					desktop rail. They remain plain text until reviewed profile URLs
+					exist, avoiding invented or dead external destinations.
+					*/}}
+					<ul
+						class="home-reference-menu__socials"
+						aria-label="Social platforms"
+					>
+						<li>Instagram</li>
+						<li>Pinterest</li>
+						<li>LinkedIn</li>
+					</ul>
+				</div>
+			</details>
+		{{end}}
+
 		{{/*
 		The header is shared by all server-rendered pages. data-* attributes are
 		JavaScript hooks; classes remain styling hooks. Keeping those concerns
