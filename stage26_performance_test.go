@@ -29,6 +29,10 @@ const (
 	stage26ArchitectureHeroBudget = 256 * stage26KiB
 	// stage26ArchitecturePreviewBudget caps each below-fold concept image.
 	stage26ArchitecturePreviewBudget = 192 * stage26KiB
+	// stage26ProductsHeroBudget bounds the route-owned Products LCP.
+	stage26ProductsHeroBudget = 256 * stage26KiB
+	// stage26ProductsPreviewBudget caps each collection or Product concept still.
+	stage26ProductsPreviewBudget = 192 * stage26KiB
 	// stage26PublicDocumentBudget guards representative server-rendered HTML.
 	stage26PublicDocumentBudget = 96 * stage26KiB
 )
@@ -46,8 +50,8 @@ func TestStage26CheckedInAssetBudgets(t *testing.T) {
 		"static/js/main.js",
 	}
 	// Route bundles mirror the stylesheet links emitted by the real templates.
-	// Catalogue pages compose discipline.css with their discipline-specific
-	// rules, while detail and standalone pages load only their own sheet.
+	// Each photographic discipline landing owns one route sheet, while detail
+	// and standalone pages continue to load only their focused presentation.
 	publicRouteBundles := []struct {
 		name   string
 		assets []string
@@ -56,7 +60,6 @@ func TestStage26CheckedInAssetBudgets(t *testing.T) {
 		{
 			name: "products",
 			assets: []string{
-				"static/css/discipline.css",
 				"static/css/products.css",
 				"static/css/reference-menu.css",
 			},
@@ -218,6 +221,49 @@ func TestStage26CheckedInAssetBudgets(t *testing.T) {
 			)
 		}
 	}
+
+	// Products follows the same loading contract: one eager LCP and nine
+	// individually bounded, lazy below-fold collection/Product concept images.
+	productsHeroBytes := stage26FileBytes(
+		t,
+		[]string{"static/images/products/products-hero.jpg"},
+	)
+	if productsHeroBytes > stage26ProductsHeroBudget {
+		t.Errorf(
+			"Products hero bytes: got %d, budget %d",
+			productsHeroBytes,
+			stage26ProductsHeroBudget,
+		)
+	}
+
+	productsPreviews := []string{
+		"static/images/products/collection-furniture.jpg",
+		"static/images/products/collection-lighting.jpg",
+		"static/images/products/collection-accessories.jpg",
+		"static/images/products/collection-materials.jpg",
+		"static/images/products/pivot-lounge-chair.jpg",
+		"static/images/products/noir-pendant-lamp.jpg",
+		"static/images/products/travertine-coffee-table.jpg",
+		"static/images/products/bronze-bowl.jpg",
+		"static/images/products/terra-vase.jpg",
+	}
+	for _, path := range productsPreviews {
+		information, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("stat Products preview %q: %v", path, err)
+		}
+		if !information.Mode().IsRegular() {
+			t.Fatalf("Products preview %q is not a regular file", path)
+		}
+		if information.Size() > stage26ProductsPreviewBudget {
+			t.Errorf(
+				"Products preview %q bytes: got %d, budget %d",
+				path,
+				information.Size(),
+				stage26ProductsPreviewBudget,
+			)
+		}
+	}
 }
 
 // TestStage26PublicDocumentBudget renders every public page through the real
@@ -258,6 +304,30 @@ func TestStage26PublicDocumentBudget(t *testing.T) {
 			}
 		})
 	}
+
+	// The normal application fixture contains published Products. Render a
+	// second route with an empty reader so the larger 4+5 reference branch is
+	// also held to the same document ceiling.
+	t.Run("/products reference composition", func(t *testing.T) {
+		reader := newRecordingProductCatalogueReader()
+		reader.setProducts(nil)
+		handler := newTestApplicationWithProductCatalogueReader(t, reader).routes()
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(
+			recorder,
+			httptest.NewRequest(http.MethodGet, "/products", nil),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status: got %d, want 200", recorder.Code)
+		}
+		if bodyBytes := int64(recorder.Body.Len()); bodyBytes > stage26PublicDocumentBudget {
+			t.Errorf(
+				"reference document bytes: got %d, budget %d",
+				bodyBytes,
+				stage26PublicDocumentBudget,
+			)
+		}
+	})
 }
 
 // stage26FileBytes returns the combined regular-file size for one reviewed

@@ -206,9 +206,9 @@ func homeFeaturedPageData(
 // CurrentPath matches the route exactly so shared navigation templates can
 // mark Products as the current page for sighted users and assistive technology.
 // DisciplinePage contains truthful route-level presentation data, while
-// ProductListing maps only records returned through the public PostgreSQL read
-// boundary. An empty database therefore produces the existing honest empty
-// state instead of falling back to fictional production content.
+// ProductListing maps records returned through the public PostgreSQL read
+// boundary. An empty database receives a separate, non-interactive reference
+// composition; those local concepts never acquire Product detail routes.
 func (app *application) productsHandler(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -252,16 +252,14 @@ func (app *application) productsHandler(
 		NextPath: "/interior-design",
 	}
 
-	// The listing view keeps section copy beside the mapped, already ordered
-	// records. The catalogue and detail handler share one repository contract, so
-	// public eligibility and field validation cannot drift between routes.
+	// Published records remain the complete interactive Product branch. The
+	// checked-in reference slices are presentation-only values used when that
+	// branch is empty, while the collection row has no invented destinations.
 	productListing := &productListingData{
-		Eyebrow: "Zafarmand objects",
-		Heading: "Product catalogue",
-		Introduction: "An evolving index of furniture, lighting, " +
-			"objects, and material studies.",
-		EmptyMessage: "Product entries are being prepared for publication.",
-		Items:        productPreviews(products),
+		Heading:              "Featured Products",
+		Items:                productPreviews(products),
+		ReferenceCollections: productReferenceCollections(),
+		ReferenceItems:       productReferencePreviews(),
 	}
 
 	app.render(

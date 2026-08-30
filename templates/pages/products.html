@@ -1,17 +1,16 @@
 {{/*
-The Products page remains a separate cache entry and composes the shared
-discipline shell with the PostgreSQL-backed public catalogue.
-Interior and Architecture use their own separately parsed overrides, so none
-of those discipline-specific work sections can leak into Products.
+The Products route owns this photographic reference composition. Its menu is
+still rendered exclusively by base.html, so this template changes neither the
+shared rail nor any menu item.
 */}}
 
-{{/*
-The shared stylesheet is emitted first because products.css builds on its dark
-hero and warm work-section foundation. Both links remain page-specific, so the
-homepage and other discipline routes do not download Products presentation.
-*/}}
 {{define "pageStyles"}}
-	{{template "disciplinePageStyles" .}}
+	{{/* Only the above-the-fold Products photograph is preloaded. */}}
+	<link
+		rel="preload"
+		as="image"
+		href="/static/images/products/products-hero.jpg"
+	>
 
 	<link
 		rel="stylesheet"
@@ -19,142 +18,233 @@ homepage and other discipline routes do not download Products presentation.
 	>
 {{end}}
 
-{{/*
-The content wrapper still delegates the one main landmark and discipline hero
-to the proven shared partial. products.html specializes only the named work
-block below, avoiding duplicated hero/navigation markup.
-*/}}
 {{define "content"}}
-	{{template "disciplinePageContent" .}}
-{{end}}
-
-{{/*
-disciplineWorkContent overrides the default block only in the Products template
-set. newTemplateCache parses each page separately, so this definition cannot
-leak into Interior Design, Architecture Design, or the homepage.
-
-The block receives root pageData because discipline-page.html calls it with $.
-ProductListing is therefore available even though the shared outer template is
-currently inside "with .DisciplinePage". The handler prepares this presentation
-model from repository-validated published rows; the template never queries
-PostgreSQL or decides whether a stored record is public.
-*/}}
-{{define "disciplineWorkContent"}}
-	{{with .ProductListing}}
-	<header class="discipline-work__header products-catalogue__header">
-		<p class="discipline-work__eyebrow">
-			{{.Eyebrow}}
-		</p>
-
-		<h2
-			class="discipline-work__title"
-			id="selected-work-title"
+<main
+	class="products-page"
+	id="main-content"
+>
+	{{/*
+	The meaningful route-owned image fills the first viewport. The scrim and
+	search motif are decorative; the title and scroll cue remain ordinary HTML.
+	*/}}
+	<section
+		class="products-hero"
+		aria-labelledby="products-title"
+		data-products-hero
+	>
+		<img
+			class="products-hero__image"
+			src="/static/images/products/products-hero.jpg"
+			width="1672"
+			height="941"
+			alt="Sculptural travertine table, shallow stone bowl, walnut lounge chair, and earthen vessels in a warm minimalist interior"
+			fetchpriority="high"
+			decoding="async"
 		>
-			{{.Heading}}
-		</h2>
 
-		<p class="discipline-work__status">
-			{{.Introduction}}
-		</p>
-	</header>
+		<div
+			class="products-hero__scrim"
+			aria-hidden="true"
+		></div>
+
+		{{/* Search stays decorative until a reviewed search route exists. */}}
+		<span
+			class="products-hero__search-motif"
+			aria-hidden="true"
+		>
+			<span></span>
+		</span>
+
+		<header class="products-hero__identity">
+			<h1
+				class="products-hero__title"
+				id="products-title"
+			>
+				Products
+			</h1>
+
+			<p class="products-hero__descriptor">
+				Curated. Timeless. Essential.
+			</p>
+		</header>
+
+		<a
+			class="products-hero__scroll"
+			href="#selected-work"
+			data-products-scroll
+		>
+			<span>Scroll to explore</span>
+			<span
+				class="products-hero__scroll-chevron"
+				aria-hidden="true"
+			></span>
+		</a>
+	</section>
 
 	{{/*
-	A nonempty []productPreviewData slice becomes one semantic ordered list.
-	Its order and consecutive catalogue numbers come from the validated public
-	repository result and remain meaningful without JavaScript. Each article
-	contains one native canonical anchor supplied by Go, so opening a detail in
-	the same tab, a new tab, or browser history follows normal web behavior
-	without href="#" placeholders or JavaScript navigation.
+	Collections reproduce the supplied launch composition without inventing
+	collection destinations. Published Product records remain the only linked
+	items and replace the reference Product row as one complete branch.
 	*/}}
-	{{if .Items}}
-	<ol
-		class="products-catalogue"
-		aria-label="Product catalogue previews"
-		role="list"
+	<section
+		class="products-work"
+		id="selected-work"
+		aria-labelledby="selected-work-title"
+		tabindex="-1"
 	>
-		{{range .Items}}
-		<li class="products-catalogue__item">
-			<article class="product-preview">
-				<a
-					class="product-preview__link"
-					href="{{.Path}}"
-				>
-					{{/* A reviewed cover is meaningful content; the fallback remains decorative. */}}
-					{{if .Cover}}
-					<div class="product-preview__media product-preview__media--image">
-						<img
-							class="product-preview__image"
-							src="{{.Cover.Path}}"
-							alt="{{.Cover.AltText}}"
-							width="{{.Cover.Width}}"
-							height="{{.Cover.Height}}"
-							loading="lazy"
-							decoding="async"
-						>
-						<span class="product-preview__number" aria-hidden="true">{{.Number}}</span>
-					</div>
-					{{else}}
-					<div
-						class="product-preview__media"
-						aria-hidden="true"
-					>
-						<span class="product-preview__number">
-							{{.Number}}
-						</span>
-					</div>
-					{{end}}
+		{{with .ProductListing}}
+		<section
+			class="products-collections"
+			aria-labelledby="featured-collections-title"
+		>
+			<h2
+				class="products-work__title"
+				id="featured-collections-title"
+			>
+				Featured Collections
+			</h2>
 
-					<div class="product-preview__body">
-						<p class="product-preview__label">
-							{{.Category}} / Catalogue entry {{.Number}}
-						</p>
+			<ul
+				class="products-collection-grid"
+				aria-label="Product collection concepts"
+				role="list"
+			>
+				{{range .ReferenceCollections}}
+				<li class="products-collection-grid__item">
+					<article class="products-collection-card">
+						<div class="products-collection-card__media">
+							<img
+								class="products-collection-card__image"
+								src="{{.ImagePath}}"
+								width="{{.Width}}"
+								height="{{.Height}}"
+								alt="{{.AltText}}"
+								loading="lazy"
+								decoding="async"
+							>
+						</div>
 
-						<h3 class="product-preview__title">
+						<h3 class="products-collection-card__title">
 							{{.Name}}
 						</h3>
 
-						<p class="product-preview__status">
-							{{.Status}}
+						{{/* No collection route exists, so this remains honest text. */}}
+						<p class="products-collection-card__action">
+							View collection
+							<span aria-hidden="true">&rarr;</span>
 						</p>
-					</div>
-				</a>
-			</article>
-		</li>
-		{{end}}
-	</ol>
-	{{else}}
-	{{/*
-	The empty branch makes the current zero-published-row database result truthful
-	and usable instead of silently removing the section referenced by its
-	aria-labelledby relationship. Migration 4 deliberately inserts no sample
-	products, so this is the expected first-run presentation.
-	*/}}
-	<p class="products-catalogue__empty">
-		{{.EmptyMessage}}
-	</p>
-	{{end}}
-	{{else}}
-	{{/*
-	A missing Products view model is a defensive rendering fallback. After a
-	successful repository read, the normal handler always supplies ProductListing.
-	Preserving a visible h2 keeps the shared section label valid if later handler
-	code accidentally omits that presentation value.
-	*/}}
-	<header class="discipline-work__header products-catalogue__header">
-		<p class="discipline-work__eyebrow">
-			Zafarmand objects
-		</p>
+					</article>
+				</li>
+				{{end}}
+			</ul>
+		</section>
 
+		<section
+			class="products-featured"
+			aria-labelledby="selected-work-title"
+		>
+			<h2
+				class="products-work__title"
+				id="selected-work-title"
+			>
+				{{.Heading}}
+			</h2>
+
+			{{if .Items}}
+			<ol
+				class="products-grid products-grid--published"
+				aria-label="Published Product previews"
+				role="list"
+			>
+				{{range .Items}}
+				<li class="products-grid__item">
+					<article class="product-preview">
+						<a
+							class="product-preview__link"
+							href="{{.Path}}"
+						>
+							<div class="product-preview__media{{if .Cover}} product-preview__media--image{{end}}">
+								{{with .Cover}}
+								<img
+									class="product-preview__image"
+									src="{{.Path}}"
+									width="{{.Width}}"
+									height="{{.Height}}"
+									alt="{{.AltText}}"
+									loading="lazy"
+									decoding="async"
+								>
+								{{else}}
+								<span
+									class="product-preview__fallback-number"
+									aria-hidden="true"
+								>{{.Number}}</span>
+								{{end}}
+							</div>
+
+							<div class="product-preview__body">
+								<h3 class="product-preview__title">
+									{{.Name}}
+								</h3>
+
+								<p class="product-preview__category">
+									{{.Category}}
+								</p>
+							</div>
+						</a>
+					</article>
+				</li>
+				{{end}}
+			</ol>
+			{{else}}
+			<ul
+				class="products-grid products-grid--reference"
+				aria-label="Product concept previews"
+				role="list"
+			>
+				{{range .ReferenceItems}}
+				<li class="products-grid__item">
+					<article class="product-preview product-preview--reference">
+						<div class="product-preview__media product-preview__media--image">
+							<img
+								class="product-preview__image"
+								src="{{.ImagePath}}"
+								width="{{.Width}}"
+								height="{{.Height}}"
+								alt="{{.AltText}}"
+								loading="lazy"
+								decoding="async"
+							>
+						</div>
+
+						<div class="product-preview__body">
+							<h3 class="product-preview__title">
+								{{.Name}}
+							</h3>
+
+							<p class="product-preview__category">
+								{{.Category}}
+							</p>
+						</div>
+					</article>
+				</li>
+				{{end}}
+			</ul>
+			{{end}}
+
+			{{/* /products is already the complete catalogue, so this is plain text. */}}
+			<p class="products-work__all-label">
+				View all products
+			</p>
+		</section>
+		{{else}}
 		<h2
-			class="discipline-work__title"
+			class="products-work__title"
 			id="selected-work-title"
 		>
-			Product catalogue
+			Featured Products
 		</h2>
-
-		<p class="discipline-work__status">
-			Product entries are being prepared for publication.
-		</p>
-	</header>
-	{{end}}
+		{{end}}
+	</section>
+</main>
 {{end}}

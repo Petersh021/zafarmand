@@ -3,787 +3,520 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 )
 
-// extractProductPreviewArticles returns each complete product-preview article
-// from source in document order.
-//
-// The Products template does not nest article elements, so a direct opening and
-// closing-tag scan is sufficient and keeps these tests independent from a
-// third-party HTML parser. Returning an empty slice is intentional: empty-data
-// tests can assert that no catalogue articles were emitted.
-func extractProductPreviewArticles(
+var productsNonEmptyAltPattern = regexp.MustCompile(`alt="[^"]+"`)
+
+// extractArticlesByClassPrefix returns complete, non-nested articles whose
+// class attribute starts with the stable component class.
+func extractArticlesByClassPrefix(
 	t *testing.T,
 	source string,
+	classPrefix string,
 ) []string {
 	t.Helper()
 
-	const openingMarker = `<article class="product-preview">`
+	openingMarker := `<article class="` + classPrefix
 	const closingMarker = "</article>"
-
 	var articles []string
 	remaining := source
-
 	for {
-		articleStart := strings.Index(
-			remaining,
-			openingMarker,
-		)
+		articleStart := strings.Index(remaining, openingMarker)
 		if articleStart == -1 {
 			break
 		}
-
+		openingEnd := strings.Index(remaining[articleStart:], ">")
+		if openingEnd == -1 {
+			t.Fatalf("%s article has no complete opening tag", classPrefix)
+		}
 		articleEnd := strings.Index(
-			remaining[articleStart:],
+			remaining[articleStart+openingEnd:],
 			closingMarker,
 		)
 		if articleEnd == -1 {
-			t.Fatal(
-				"product-preview article does not have a closing tag",
-			)
+			t.Fatalf("%s article has no closing tag", classPrefix)
 		}
-
-		articleEnd += articleStart + len(closingMarker)
-		articles = append(
-			articles,
-			remaining[articleStart:articleEnd],
-		)
+		articleEnd += articleStart + openingEnd + len(closingMarker)
+		articles = append(articles, remaining[articleStart:articleEnd])
 		remaining = remaining[articleEnd:]
 	}
 
 	return articles
 }
 
-// TestProductsRouteRendersCatalogue verifies the complete public Stage 18
-// response produced by productsHandler.
-//
-// The assertions prove that route data becomes one labelled semantic list in
-// the same order as the repository result. Each article's one
-// native anchor to reach the matching real detail page.
-func TestProductsRouteRendersCatalogue(t *testing.T) {
-	app := newTestApplication(t)
-	handler := app.routes()
+func extractProductPreviewArticles(t *testing.T, source string) []string {
+	t.Helper()
+	return extractArticlesByClassPrefix(t, source, "product-preview")
+}
+
+func extractProductCollectionArticles(t *testing.T, source string) []string {
+	t.Helper()
+	return extractArticlesByClassPrefix(t, source, "products-collection-card")
+}
+
+// TestProductsRouteRendersReferenceHero verifies Products owns the supplied
+// photographic composition while the unchanged shared menu stays outside main.
+func TestProductsRouteRendersReferenceHero(t *testing.T) {
+	reader := newRecordingProductCatalogueReader()
+	reader.setProducts(nil)
+	app := newTestApplicationWithProductCatalogueReader(t, reader)
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(
-		http.MethodGet,
-		"/products",
-		nil,
+	app.routes().ServeHTTP(
+		recorder,
+		httptest.NewRequest(http.MethodGet, "/products", nil),
 	)
-
-	handler.ServeHTTP(recorder, request)
-
 	if recorder.Code != http.StatusOK {
-		t.Fatalf(
-			"status code: got %d, want %d",
-			recorder.Code,
-			http.StatusOK,
-		)
+		t.Fatalf("status: got %d, want 200", recorder.Code)
 	}
 
 	body := recorder.Body.String()
-
-	// Products builds on discipline.css, so both stylesheets must appear once
-	// and the specializing file must load after the shared foundation.
-	disciplineStyles := `href="/static/css/discipline.css"`
-	productStyles := `href="/static/css/products.css"`
-	if count := strings.Count(body, disciplineStyles); count != 1 {
-		t.Errorf(
-			"discipline stylesheet count: got %d, want 1",
-			count,
-		)
-	}
-	if count := strings.Count(body, productStyles); count != 1 {
-		t.Errorf(
-			"products stylesheet count: got %d, want 1",
-			count,
-		)
-	}
-
-	disciplinePosition := strings.Index(body, disciplineStyles)
-	productPosition := strings.Index(body, productStyles)
-	if disciplinePosition == -1 ||
-		productPosition == -1 ||
-		productPosition < disciplinePosition {
-		t.Error(
-			"products stylesheet must load after discipline stylesheet",
-		)
-	}
-
 	mainElement := extractMainElement(t, body)
-	workElement := extractElementByMarker(
+	if !strings.Contains(extractOpeningTag(t, mainElement), `class="products-page"`) {
+		t.Error("Products main lacks its route-specific page class")
+	}
+	hero := extractElementByMarker(t, mainElement, `data-products-hero`, "section")
+	if !strings.Contains(
+		extractOpeningTag(t, hero),
+		`aria-labelledby="products-title"`,
+	) {
+		t.Error("Products hero is not labelled by its h1")
+	}
+	if count := strings.Count(hero, "<h1"); count != 1 {
+		t.Errorf("Products hero h1 count: got %d, want 1", count)
+	}
+	heading := extractElementByMarker(t, hero, `id="products-title"`, "h1")
+	if !strings.Contains(normalizeHTMLWhitespace(heading), "Products") {
+		t.Error("Products hero h1 does not contain the route title")
+	}
+	for _, expected := range []string{
+		"Curated. Timeless. Essential.",
+		`src="/static/images/products/products-hero.jpg"`,
+		`width="1672"`,
+		`height="941"`,
+		`fetchpriority="high"`,
+		`decoding="async"`,
+	} {
+		if !strings.Contains(normalizeHTMLWhitespace(hero), expected) {
+			t.Errorf("Products hero does not contain %q", expected)
+		}
+	}
+	if strings.Contains(hero, `loading="lazy"`) {
+		t.Error("above-fold Products hero is lazy-loaded")
+	}
+	if !productsNonEmptyAltPattern.MatchString(hero) {
+		t.Error("Products hero image lacks nonempty alternative text")
+	}
+
+	scrollLink := extractElementByMarker(t, hero, `data-products-scroll`, "a")
+	if !strings.Contains(extractOpeningTag(t, scrollLink), `href="#selected-work"`) ||
+		!strings.Contains(normalizeHTMLWhitespace(scrollLink), "Scroll to explore") {
+		t.Error("Products scroll cue does not name its real fragment destination")
+	}
+	work := extractElementByMarker(t, mainElement, `id="selected-work"`, "section")
+	if !strings.Contains(extractOpeningTag(t, work), `tabindex="-1"`) {
+		t.Error("Products selected-work target is not focusable")
+	}
+	if strings.Contains(mainElement, `class="discipline-hero"`) ||
+		strings.Contains(body, `href="/static/css/discipline.css"`) {
+		t.Error("Products retained the removed shared discipline presentation")
+	}
+	if count := strings.Count(body, `href="/static/css/products.css"`); count != 1 {
+		t.Errorf("Products stylesheet count: got %d, want 1", count)
+	}
+	if count := strings.Count(body, `/static/images/products/products-hero.jpg`); count != 2 {
+		t.Errorf("Products hero URL count: got %d, want preload plus image", count)
+	}
+	assertProductReadDeadline(t, reader.listCallSnapshot())
+}
+
+// TestProductsRouteRendersReferenceShowcase verifies an empty published
+// catalogue receives four collections and five non-interactive Product cards.
+func TestProductsRouteRendersReferenceShowcase(t *testing.T) {
+	reader := newRecordingProductCatalogueReader()
+	reader.setProducts(nil)
+	app := newTestApplicationWithProductCatalogueReader(t, reader)
+	recorder := httptest.NewRecorder()
+	app.routes().ServeHTTP(
+		recorder,
+		httptest.NewRequest(http.MethodGet, "/products", nil),
+	)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", recorder.Code)
+	}
+	mainElement := extractMainElement(t, recorder.Body.String())
+	extractElementByMarker(t, mainElement, `id="selected-work"`, "section")
+
+	collections := extractElementByMarker(
 		t,
 		mainElement,
-		`class="discipline-work"`,
-		"section",
+		`aria-label="Product collection concepts"`,
+		"ul",
 	)
-	workOpening := extractOpeningTag(t, workElement)
-
-	// The inherited selected-work section must continue to own the id and h2
-	// association used by native fragment links and assistive technology.
-	if !strings.Contains(
-		workOpening,
-		`id="selected-work"`,
-	) || !strings.Contains(
-		workOpening,
-		`aria-labelledby="selected-work-title"`,
-	) {
-		t.Error(
-			"Products work section does not own its id and heading label",
+	if !strings.Contains(extractOpeningTag(t, collections), `role="list"`) {
+		t.Error("Product collections lack explicit list semantics")
+	}
+	collectionItems := []struct {
+		name      string
+		imagePath string
+	}{
+		{"Furniture", "/static/images/products/collection-furniture.jpg"},
+		{"Lighting", "/static/images/products/collection-lighting.jpg"},
+		{"Accessories", "/static/images/products/collection-accessories.jpg"},
+		{"Materials", "/static/images/products/collection-materials.jpg"},
+	}
+	collectionArticles := extractProductCollectionArticles(t, collections)
+	if len(collectionArticles) != len(collectionItems) {
+		t.Fatalf(
+			"collection article count: got %d, want %d",
+			len(collectionArticles),
+			len(collectionItems),
 		)
 	}
+	for index, item := range collectionItems {
+		article := collectionArticles[index]
+		assertProductReferenceImage(
+			t,
+			article,
+			index+1,
+			item.name,
+			item.imagePath,
+		)
+		if !strings.Contains(normalizeHTMLWhitespace(article), "View collection") {
+			t.Errorf("collection article %d lacks its honest callout", index+1)
+		}
+		assertNonInteractiveProductConcept(t, article, "collection", index+1)
+		if index > 0 && strings.Index(collections, collectionItems[index-1].name) >=
+			strings.Index(collections, item.name) {
+			t.Errorf("collection %q is out of order", item.name)
+		}
+	}
 
-	workHeading := extractElementByMarker(
+	referenceProducts := extractElementByMarker(
 		t,
-		workElement,
-		`id="selected-work-title"`,
-		"h2",
+		mainElement,
+		`aria-label="Product concept previews"`,
+		"ul",
 	)
-	if !strings.Contains(
-		normalizeHTMLWhitespace(workHeading),
-		"Product catalogue",
-	) {
-		t.Error(
-			"Products work heading does not contain Product catalogue",
+	referenceOpening := extractOpeningTag(t, referenceProducts)
+	if !strings.Contains(referenceOpening, "products-grid--reference") ||
+		!strings.Contains(referenceOpening, `role="list"`) {
+		t.Errorf("reference Product list semantics are incomplete: %s", referenceOpening)
+	}
+	productItems := []struct {
+		name      string
+		imagePath string
+	}{
+		{"Pivot Lounge Chair", "/static/images/products/pivot-lounge-chair.jpg"},
+		{"Noir Pendant Lamp", "/static/images/products/noir-pendant-lamp.jpg"},
+		{"Travertine Coffee Table", "/static/images/products/travertine-coffee-table.jpg"},
+		{"Bronze Bowl", "/static/images/products/bronze-bowl.jpg"},
+		{"Terra Vase", "/static/images/products/terra-vase.jpg"},
+	}
+	productArticles := extractProductPreviewArticles(t, referenceProducts)
+	if len(productArticles) != len(productItems) {
+		t.Fatalf(
+			"reference Product article count: got %d, want %d",
+			len(productArticles),
+			len(productItems),
 		)
 	}
+	for index, item := range productItems {
+		article := productArticles[index]
+		assertProductReferenceImage(
+			t,
+			article,
+			index+1,
+			item.name,
+			item.imagePath,
+		)
+		assertNonInteractiveProductConcept(t, article, "reference Product", index+1)
+		if index > 0 && strings.Index(referenceProducts, productItems[index-1].name) >=
+			strings.Index(referenceProducts, item.name) {
+			t.Errorf("reference Product %q is out of order", item.name)
+		}
+	}
 
+	allLabel := extractElementByMarker(t, mainElement, "View all products", "p")
+	if strings.Contains(allLabel, "<a") || strings.Contains(allLabel, "href=") {
+		t.Error("View all products label promises a nonexistent destination")
+	}
+	if strings.Contains(mainElement, "Product entries are being prepared for publication.") {
+		t.Error("reference composition regressed to the old text-only empty state")
+	}
+	assertProductReadDeadline(t, reader.listCallSnapshot())
+}
+
+func assertProductReferenceImage(
+	t *testing.T,
+	article string,
+	position int,
+	name string,
+	imagePath string,
+) {
+	t.Helper()
+	for _, expected := range []string{
+		name,
+		`src="` + imagePath + `"`,
+		`width="1448"`,
+		`height="1086"`,
+		`loading="lazy"`,
+		`decoding="async"`,
+	} {
+		if !strings.Contains(normalizeHTMLWhitespace(article), expected) {
+			t.Errorf("reference article %d does not contain %q", position, expected)
+		}
+	}
+	if !productsNonEmptyAltPattern.MatchString(article) {
+		t.Errorf("reference article %d image lacks nonempty alternative text", position)
+	}
+}
+
+func assertNonInteractiveProductConcept(
+	t *testing.T,
+	article string,
+	kind string,
+	position int,
+) {
+	t.Helper()
+	for _, falseInteraction := range []string{
+		"<a ",
+		"<a\n",
+		"<a>",
+		"<button",
+		"href=",
+		`aria-disabled="true"`,
+		`role="link"`,
+	} {
+		if strings.Contains(article, falseInteraction) {
+			t.Errorf(
+				"%s article %d contains false interaction %q",
+				kind,
+				position,
+				falseInteraction,
+			)
+		}
+	}
+}
+
+// TestProductsRoutePrioritizesPublishedCatalogue proves any published result
+// replaces all five reference Products without hiding the four collections.
+func TestProductsRoutePrioritizesPublishedCatalogue(t *testing.T) {
+	reader := newRecordingProductCatalogueReader()
+	products := []catalogueProduct{
+		{
+			ID: 31, CatalogueNumber: 1, Slug: "covered-chair",
+			Name: "Covered Chair", Category: "Furniture",
+			Cover: &productCoverMetadata{
+				Version: 7, Width: 1800, Height: 1200,
+				AltText: "A fictional chair on a stone plinth",
+				Caption: "Not rendered in the preview.",
+			},
+		},
+		{
+			ID: 32, CatalogueNumber: 2, Slug: "uncovered-lamp",
+			Name: "Uncovered Lamp", Category: "Lighting",
+		},
+	}
+	reader.setProducts(products)
+	app := newTestApplicationWithProductCatalogueReader(t, reader)
+	recorder := httptest.NewRecorder()
+	app.routes().ServeHTTP(
+		recorder,
+		httptest.NewRequest(http.MethodGet, "/products", nil),
+	)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", recorder.Code)
+	}
+	mainElement := extractMainElement(t, recorder.Body.String())
+	extractElementByMarker(t, mainElement, `id="selected-work"`, "section")
+	collections := extractElementByMarker(
+		t,
+		mainElement,
+		`aria-label="Product collection concepts"`,
+		"ul",
+	)
+	if count := len(extractProductCollectionArticles(t, collections)); count != 4 {
+		t.Errorf("published route collection count: got %d, want 4", count)
+	}
 	catalogue := extractElementByMarker(
 		t,
-		workElement,
-		`class="products-catalogue"`,
+		mainElement,
+		`aria-label="Published Product previews"`,
 		"ol",
 	)
-	catalogueOpening := extractOpeningTag(t, catalogue)
-	if !strings.Contains(
-		catalogueOpening,
-		`aria-label="Product catalogue previews"`,
-	) {
-		t.Error(
-			"Products catalogue does not have its accessible label",
-		)
+	opening := extractOpeningTag(t, catalogue)
+	if !strings.Contains(opening, `role="list"`) ||
+		strings.Contains(opening, "products-grid--reference") {
+		t.Errorf("published Product list semantics are incorrect: %s", opening)
 	}
-	if !strings.Contains(
-		catalogueOpening,
-		`role="list"`,
-	) {
-		t.Error(
-			"Products catalogue does not preserve explicit list semantics",
-		)
-	}
-
-	expectedItems := []struct {
-		// number is the visible catalogue-entry sequence supplied by Go.
-		number string
-		// name is the article's h3 and matching detail-page h1.
-		name string
-		// category is the broad product family shown in card metadata.
-		category string
-		// status is the trusted label implied by the published-only query.
-		status string
-		// path is the real server-rendered detail URL paired with the card.
-		path string
-	}{
-		{
-			number:   "01",
-			name:     "Furniture Study 01",
-			category: "Furniture",
-			status:   "Published",
-			path:     "/products/furniture-study-01",
-		},
-		{
-			number:   "02",
-			name:     "Lighting Study 01",
-			category: "Lighting",
-			status:   "Published",
-			path:     "/products/lighting-study-01",
-		},
-		{
-			number:   "03",
-			name:     "Object Study 01",
-			category: "Objects",
-			status:   "Published",
-			path:     "/products/object-study-01",
-		},
-		{
-			number:   "04",
-			name:     "Material Study 01",
-			category: "Materials",
-			status:   "Published",
-			path:     "/products/material-study-01",
-		},
-	}
-
 	articles := extractProductPreviewArticles(t, catalogue)
-	if len(articles) != len(expectedItems) {
-		t.Fatalf(
-			"product article count: got %d, want %d",
-			len(articles),
-			len(expectedItems),
-		)
+	if len(articles) != len(products) {
+		t.Fatalf("published article count: got %d, want %d", len(articles), len(products))
 	}
-
-	for index, expected := range expectedItems {
-		article := articles[index]
-		normalizedArticle := normalizeHTMLWhitespace(article)
-
-		// Matching by slice index proves template range preserves the handler's
-		// editorial ordering and that fields stay associated inside one article.
-		expectedStrings := []string{
-			"Catalogue entry " + expected.number,
-			expected.name,
-			expected.category,
-			expected.status,
-		}
-		for _, expectedString := range expectedStrings {
-			if !strings.Contains(
-				normalizedArticle,
-				expectedString,
-			) {
-				t.Errorf(
-					"article %d does not contain %q",
-					index,
-					expectedString,
-				)
-			}
-		}
-
-		nameHeading := extractElementByMarker(
-			t,
-			article,
-			expected.name,
-			"h3",
-		)
-		if count := strings.Count(
-			nameHeading,
-			"<h3",
-		); count != 1 {
-			t.Errorf(
-				"article %d name heading count: got %d, want 1",
-				index,
-				count,
-			)
-		}
-
-		// The complete article contains one anchor whose href and visible values
-		// all originate from the same productPreviewData record.
-		expectedHref := `href="` + expected.path + `"`
-		detailAnchor := extractElementByMarker(
-			t,
-			article,
-			expectedHref,
-			"a",
-		)
-		if count := strings.Count(
-			detailAnchor,
-			"href=",
-		); count != 1 {
-			t.Errorf(
-				"article %d detail href count: got %d, want 1",
-				index,
-				count,
-			)
-		}
-		if !strings.Contains(detailAnchor, expected.name) {
-			t.Errorf(
-				"article %d detail anchor does not contain product name %q",
-				index,
-				expected.name,
-			)
-		}
-
-		// Following the same native href through the real mux proves that the
-		// listing never advertises an unregistered or mismatched destination.
-		detailRecorder := httptest.NewRecorder()
-		detailRequest := httptest.NewRequest(
-			http.MethodGet,
-			expected.path,
-			nil,
-		)
-		handler.ServeHTTP(detailRecorder, detailRequest)
-
-		if detailRecorder.Code != http.StatusOK {
-			t.Errorf(
-				"detail path %q status: got %d, want %d",
-				expected.path,
-				detailRecorder.Code,
-				http.StatusOK,
-			)
-			continue
-		}
-
-		detailMain := extractMainElement(
-			t,
-			detailRecorder.Body.String(),
-		)
-		detailHeading := extractElementByMarker(
-			t,
-			detailMain,
-			`id="product-detail-title"`,
-			"h1",
-		)
-		if !strings.Contains(
-			normalizeHTMLWhitespace(detailHeading),
-			expected.name,
-		) {
-			t.Errorf(
-				"detail path %q h1 does not contain %q",
-				expected.path,
-				expected.name,
-			)
+	for _, expected := range []string{
+		`href="/products/covered-chair"`, "Covered Chair", "Furniture",
+		`src="/products/covered-chair/cover/7"`, `width="1800"`,
+		`height="1200"`, `alt="A fictional chair on a stone plinth"`,
+		`loading="lazy"`, `decoding="async"`,
+	} {
+		if !strings.Contains(normalizeHTMLWhitespace(articles[0]), expected) {
+			t.Errorf("covered Product article does not contain %q", expected)
 		}
 	}
-
-	// Published records use real detail URLs and must not regress to placeholders.
-	if strings.Contains(mainElement, `href="#"`) {
-		t.Error(
-			"Products main must not contain a placeholder href",
-		)
+	if strings.Contains(articles[0], "Not rendered in the preview") {
+		t.Error("published preview renders detail-only cover caption")
 	}
-
-	// Design composites stay in docs/reference and must never become public
-	// image URLs merely because they informed the layout.
-	if strings.Contains(
-		mainElement,
-		"docs/reference",
-	) {
-		t.Error(
-			"Products page must not render a reference composite",
-		)
+	for _, expected := range []string{
+		`href="/products/uncovered-lamp"`, "Uncovered Lamp", "Lighting",
+	} {
+		if !strings.Contains(normalizeHTMLWhitespace(articles[1]), expected) {
+			t.Errorf("coverless Product article does not contain %q", expected)
+		}
 	}
+	if strings.Contains(articles[1], "<img") {
+		t.Error("coverless published Product unexpectedly produced an image")
+	}
+	if strings.Index(catalogue, "Covered Chair") >= strings.Index(catalogue, "Uncovered Lamp") {
+		t.Error("template changed repository catalogue order")
+	}
+	for _, referencePath := range []string{
+		"pivot-lounge-chair.jpg", "noir-pendant-lamp.jpg",
+		"travertine-coffee-table.jpg", "bronze-bowl.jpg", "terra-vase.jpg",
+	} {
+		if strings.Contains(catalogue, referencePath) {
+			t.Errorf("published catalogue contains reference asset %q", referencePath)
+		}
+	}
+	if strings.Contains(catalogue, `href="#"`) || strings.Contains(catalogue, "docs/reference") {
+		t.Error("published catalogue contains placeholder navigation or a source composite")
+	}
+	assertProductReadDeadline(t, reader.listCallSnapshot())
 }
 
-// TestProductsTemplateUsesDataAndEscapesHTML renders products.html with values
-// that cannot be confused with production handler copy.
-//
-// The interleaved sentinel strings prove each preview reads the correct Go
-// fields, while unsafe markup proves html/template escapes untrusted text
-// instead of allowing it to become executable page structure.
-func TestProductsTemplateUsesDataAndEscapesHTML(t *testing.T) {
-	app := newTestApplication(t)
+// TestProductsRouteEscapesPublishedData proves stored plain text cannot become
+// executable markup in the redesigned database-backed cards.
+func TestProductsRouteEscapesPublishedData(t *testing.T) {
+	reader := newRecordingProductCatalogueReader()
+	reader.setProducts([]catalogueProduct{
+		{
+			ID: 41, CatalogueNumber: 1, Slug: "unsafe-product",
+			Name:     "<b>Unsafe product</b>",
+			Category: "<em>Unsafe category</em>",
+		},
+	})
+	app := newTestApplicationWithProductCatalogueReader(t, reader)
 	recorder := httptest.NewRecorder()
-
-	productListing := &productListingData{
-		Eyebrow:      "Sentinel eyebrow",
-		Heading:      "Sentinel catalogue",
-		Introduction: "Sentinel introduction",
-		EmptyMessage: "Sentinel empty message",
-		Items: []productPreviewData{
-			{
-				Number:   "A1",
-				Name:     "<b>Unsafe product</b>",
-				Category: "<em>Unsafe category</em>",
-				Status:   "First sentinel status",
-				Path:     "/products/sentinel-one",
-			},
-			{
-				Number:   "B2",
-				Name:     "Second sentinel product",
-				Category: "Second sentinel category",
-				Status:   "<script>Unsafe status</script>",
-				Path:     "/products/sentinel-two",
-			},
-		},
-	}
-
-	app.render(
+	app.routes().ServeHTTP(
 		recorder,
-		http.StatusOK,
-		"products.html",
-		pageData{
-			Title:       "Sentinel Products",
-			CurrentPath: "/products",
-			DisciplinePage: &disciplinePageData{
-				Number:   "S-03",
-				Name:     "Sentinel Products",
-				NextName: "Sentinel Next",
-				NextPath: "/sentinel-next",
-			},
-			ProductListing: productListing,
-		},
+		httptest.NewRequest(http.MethodGet, "/products", nil),
 	)
-
 	if recorder.Code != http.StatusOK {
-		t.Fatalf(
-			"status code: got %d, want %d",
-			recorder.Code,
-			http.StatusOK,
-		)
+		t.Fatalf("status: got %d, want 200", recorder.Code)
 	}
-
-	mainElement := extractMainElement(
-		t,
-		recorder.Body.String(),
-	)
-	normalizedMain := normalizeHTMLWhitespace(mainElement)
-
-	for _, expected := range []string{
-		"Sentinel eyebrow",
-		"Sentinel catalogue",
-		"Sentinel introduction",
-	} {
-		if !strings.Contains(normalizedMain, expected) {
-			t.Errorf(
-				"sentinel Products main does not contain %q",
-				expected,
-			)
-		}
-	}
-
-	articles := extractProductPreviewArticles(t, mainElement)
-	if len(articles) != len(productListing.Items) {
-		t.Fatalf(
-			"sentinel article count: got %d, want %d",
-			len(articles),
-			len(productListing.Items),
-		)
-	}
-
-	firstArticle := normalizeHTMLWhitespace(articles[0])
-	for _, expected := range []string{
-		"Catalogue entry A1",
-		"&lt;b&gt;Unsafe product&lt;/b&gt;",
-		"&lt;em&gt;Unsafe category&lt;/em&gt;",
-		"First sentinel status",
-		`href="/products/sentinel-one"`,
-	} {
-		if !strings.Contains(firstArticle, expected) {
-			t.Errorf(
-				"first sentinel article does not contain %q",
-				expected,
-			)
-		}
-	}
-
-	secondArticle := normalizeHTMLWhitespace(articles[1])
-	for _, expected := range []string{
-		"Catalogue entry B2",
-		"Second sentinel product",
-		"Second sentinel category",
-		"&lt;script&gt;Unsafe status&lt;/script&gt;",
-		`href="/products/sentinel-two"`,
-	} {
-		if !strings.Contains(secondArticle, expected) {
-			t.Errorf(
-				"second sentinel article does not contain %q",
-				expected,
-			)
-		}
-	}
-
-	for _, unsafeMarkup := range []string{
-		"<b>Unsafe product</b>",
-		"<em>Unsafe category</em>",
-		"<script>Unsafe status</script>",
-	} {
-		if strings.Contains(mainElement, unsafeMarkup) {
-			t.Errorf(
-				"sentinel Products main contains raw markup %q",
-				unsafeMarkup,
-			)
-		}
-	}
-
-	// Production values inside the scoped main would reveal hard-coded card
-	// content instead of the custom ProductListing supplied by this test.
-	for _, productionValue := range []string{
-		"Furniture",
-		"Lighting",
-		"Objects",
-		"Materials",
-		"Study 01",
-	} {
-		if strings.Contains(
-			normalizedMain,
-			productionValue,
-		) {
-			t.Errorf(
-				"sentinel Products main contains production value %q",
-				productionValue,
-			)
-		}
-	}
-}
-
-// TestProductsTemplateHandlesEmptyListing verifies that both nil and empty
-// item slices take the same explicit empty-data path.
-//
-// This behavior will remain useful when a later database query legitimately
-// returns zero published products: the page keeps its labelled section and
-// communicates the state without emitting an empty list.
-func TestProductsTemplateHandlesEmptyListing(t *testing.T) {
-	app := newTestApplication(t)
-
-	tests := []struct {
-		// name distinguishes a nil slice from an allocated zero-length slice.
-		name string
-		// items is the exact slice representation supplied to the template.
-		items []productPreviewData
-	}{
-		{
-			name:  "nil items",
-			items: nil,
-		},
-		{
-			name:  "empty items",
-			items: []productPreviewData{},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			recorder := httptest.NewRecorder()
-			emptyMessage := "<strong>No sentinel entries are published.</strong>"
-			escapedEmptyMessage := "&lt;strong&gt;No sentinel entries " +
-				"are published.&lt;/strong&gt;"
-
-			app.render(
-				recorder,
-				http.StatusOK,
-				"products.html",
-				pageData{
-					Title:       "Empty Products",
-					CurrentPath: "/products",
-					DisciplinePage: &disciplinePageData{
-						Number:   "03",
-						Name:     "Empty Products",
-						NextName: "Next Discipline",
-						NextPath: "/next-discipline",
-					},
-					ProductListing: &productListingData{
-						Eyebrow:      "Empty eyebrow",
-						Heading:      "Empty catalogue",
-						Introduction: "Empty introduction",
-						EmptyMessage: emptyMessage,
-						Items:        test.items,
-					},
-				},
-			)
-
-			if recorder.Code != http.StatusOK {
-				t.Fatalf(
-					"status code: got %d, want %d",
-					recorder.Code,
-					http.StatusOK,
-				)
-			}
-
-			mainElement := extractMainElement(
-				t,
-				recorder.Body.String(),
-			)
-			workElement := extractElementByMarker(
-				t,
-				mainElement,
-				`class="discipline-work"`,
-				"section",
-			)
-
-			workHeading := extractElementByMarker(
-				t,
-				workElement,
-				`id="selected-work-title"`,
-				"h2",
-			)
-			if !strings.Contains(
-				normalizeHTMLWhitespace(workHeading),
-				"Empty catalogue",
-			) {
-				t.Error(
-					"empty Products heading does not use view data",
-				)
-			}
-
-			if !strings.Contains(
-				normalizeHTMLWhitespace(workElement),
-				escapedEmptyMessage,
-			) {
-				t.Error(
-					"empty Products section does not escape and state its status",
-				)
-			}
-			if strings.Contains(workElement, emptyMessage) {
-				t.Error(
-					"empty Products section contains raw status markup",
-				)
-			}
-
-			if strings.Contains(
-				workElement,
-				`class="products-catalogue"`,
-			) {
-				t.Error(
-					"empty Products section must not emit an empty list",
-				)
-			}
-			if len(
-				extractProductPreviewArticles(t, workElement),
-			) != 0 {
-				t.Error(
-					"empty Products section must not emit preview articles",
-				)
-			}
-		})
-	}
-}
-
-// TestProductsTemplatePreservesSectionWithoutListingData protects the shared
-// aria-labelledby contract if a future Products handler omits ProductListing.
-//
-// The normal production handler always supplies the pointer. This fallback test
-// covers defensive rendering only and does not replace application-level error
-// handling or database validation in later stages.
-func TestProductsTemplatePreservesSectionWithoutListingData(t *testing.T) {
-	app := newTestApplication(t)
-	recorder := httptest.NewRecorder()
-
-	app.render(
-		recorder,
-		http.StatusOK,
-		"products.html",
-		pageData{
-			Title:       "Products fallback",
-			CurrentPath: "/products",
-			DisciplinePage: &disciplinePageData{
-				Number:   "03",
-				Name:     "Products fallback",
-				NextName: "Next Discipline",
-				NextPath: "/next-discipline",
-			},
-		},
-	)
-
-	workElement := extractElementByMarker(
+	catalogue := extractElementByMarker(
 		t,
 		extractMainElement(t, recorder.Body.String()),
-		`class="discipline-work"`,
-		"section",
+		`aria-label="Published Product previews"`,
+		"ol",
 	)
-	workHeading := extractElementByMarker(
-		t,
-		workElement,
-		`id="selected-work-title"`,
-		"h2",
-	)
-
-	if !strings.Contains(
-		normalizeHTMLWhitespace(workHeading),
-		"Product catalogue",
-	) {
-		t.Error(
-			"missing ProductListing fallback does not preserve its h2",
-		)
+	for _, escaped := range []string{
+		"&lt;b&gt;Unsafe product&lt;/b&gt;",
+		"&lt;em&gt;Unsafe category&lt;/em&gt;",
+		`href="/products/unsafe-product"`,
+	} {
+		if !strings.Contains(normalizeHTMLWhitespace(catalogue), escaped) {
+			t.Errorf("published catalogue does not contain %q", escaped)
+		}
 	}
-	if len(extractProductPreviewArticles(t, workElement)) != 0 {
-		t.Error(
-			"missing ProductListing fallback must not emit preview articles",
-		)
+	for _, unsafeMarkup := range []string{
+		"<b>Unsafe product</b>", "<em>Unsafe category</em>",
+	} {
+		if strings.Contains(catalogue, unsafeMarkup) {
+			t.Errorf("published catalogue contains raw markup %q", unsafeMarkup)
+		}
+	}
+	if strings.Contains(catalogue, "Pivot Lounge Chair") ||
+		strings.Contains(catalogue, "pivot-lounge-chair.jpg") {
+		t.Error("published catalogue mixed in reference Product content")
 	}
 }
 
-// TestProductPresentationDoesNotLeak verifies page-template cache isolation.
-//
-// products.html defines an override with the same name as the shared default
-// block. Because newTemplateCache creates one template set per page, neither
-// that markup nor products.css may appear on any unrelated public route.
+// TestProductPresentationDoesNotLeak verifies the route-owned hero, showcase,
+// and Product imagery stay isolated from unrelated public pages.
 func TestProductPresentationDoesNotLeak(t *testing.T) {
-	app := newTestApplication(t)
-	handler := app.routes()
-
-	paths := []string{
-		"/",
-		"/interior-design",
-		"/architecture-design",
-	}
-
-	for _, path := range paths {
+	handler := newTestApplication(t).routes()
+	for _, path := range []string{
+		"/", "/interior-design", "/architecture-design", "/contact",
+	} {
 		t.Run(path, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
-			request := httptest.NewRequest(
-				http.MethodGet,
-				path,
-				nil,
+			handler.ServeHTTP(
+				recorder,
+				httptest.NewRequest(http.MethodGet, path, nil),
 			)
-
-			handler.ServeHTTP(recorder, request)
-
 			if recorder.Code != http.StatusOK {
-				t.Fatalf(
-					"status code: got %d, want %d",
-					recorder.Code,
-					http.StatusOK,
-				)
+				t.Fatalf("status: got %d, want 200", recorder.Code)
 			}
-
-			body := recorder.Body.String()
-			if strings.Contains(
-				body,
-				`href="/static/css/products.css"`,
-			) {
-				t.Error(
-					"non-Products route loads products stylesheet",
-				)
-			}
-			if strings.Contains(
-				body,
-				`class="products-catalogue"`,
-			) {
-				t.Error(
-					"non-Products route renders products catalogue",
-				)
-			}
-			if strings.Contains(
-				body,
-				`class="product-preview"`,
-			) {
-				t.Error(
-					"non-Products route renders a product preview",
-				)
+			for _, marker := range []string{
+				`href="/static/css/products.css"`, `class="products-hero`,
+				`class="products-collection-grid`, `class="products-grid`,
+				`/static/images/products/products-hero.jpg`,
+			} {
+				if strings.Contains(recorder.Body.String(), marker) {
+					t.Errorf("non-Products route contains Products presentation %q", marker)
+				}
 			}
 		})
 	}
 }
 
-// TestProductsStylesheetRoute verifies that the existing static file server
-// exposes the new page-specific stylesheet with the expected media type.
-//
-// Checking one stable root selector also catches a mistakenly empty or
-// unrelated file while allowing declarations to evolve during visual tuning.
+// TestProductsStylesheetRoute verifies Products CSS owns no shared menu rules.
 func TestProductsStylesheetRoute(t *testing.T) {
-	app := newTestApplication(t)
+	handler := newTestApplication(t).routes()
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(
-		http.MethodGet,
-		"/static/css/products.css",
-		nil,
+	handler.ServeHTTP(
+		recorder,
+		httptest.NewRequest(http.MethodGet, "/static/css/products.css", nil),
 	)
-
-	app.routes().ServeHTTP(recorder, request)
-
 	if recorder.Code != http.StatusOK {
-		t.Fatalf(
-			"status code: got %d, want %d",
-			recorder.Code,
-			http.StatusOK,
-		)
+		t.Fatalf("status: got %d, want 200", recorder.Code)
 	}
-
-	contentType := recorder.Header().Get("Content-Type")
-	if !strings.HasPrefix(contentType, "text/css") {
-		t.Errorf(
-			"Content-Type: got %q, want prefix %q",
-			contentType,
-			"text/css",
-		)
+	if contentType := recorder.Header().Get("Content-Type"); !strings.HasPrefix(contentType, "text/css") {
+		t.Errorf("Content-Type: got %q, want prefix text/css", contentType)
 	}
-
-	if !strings.Contains(
-		recorder.Body.String(),
-		".products-catalogue",
-	) {
-		t.Error(
-			"products stylesheet does not contain its catalogue selector",
-		)
+	stylesheet := recorder.Body.String()
+	for _, selector := range []string{
+		".products-page", ".products-hero", ".products-collection-grid",
+		".products-grid", ".product-preview",
+	} {
+		if !strings.Contains(stylesheet, selector) {
+			t.Errorf("Products stylesheet does not contain %q", selector)
+		}
+	}
+	for _, forbidden := range []string{
+		".site-reference-menu", ".home-reference-menu", ".interior-reference-menu",
+	} {
+		if strings.Contains(stylesheet, forbidden) {
+			t.Errorf("Products stylesheet changes shared menu selector %q", forbidden)
+		}
+	}
+	heroRule := stage26CSSRule(t, stylesheet, ".products-hero")
+	for _, required := range []string{
+		"min-height: 100vh;", "min-height: 100svh;", "overflow: hidden;",
+	} {
+		if !strings.Contains(heroRule, required) {
+			t.Errorf("Products hero rule does not contain %q", required)
+		}
+	}
+	imageRule := stage26CSSRule(t, stylesheet, ".products-hero__image")
+	for _, required := range []string{
+		"width: 100%;", "height: 100%;", "object-fit: cover;",
+	} {
+		if !strings.Contains(imageRule, required) {
+			t.Errorf("Products hero image rule does not contain %q", required)
+		}
 	}
 }

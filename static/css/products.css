@@ -1,310 +1,582 @@
 /* --------------------------------------------------
-   Stages 18–21: PostgreSQL-backed Products catalogue entrances and covers
+   Products reference composition
 
-   This stylesheet specializes only the warm selected-work region on
-   /products. The shared discipline hero remains owned by discipline.css.
-   Every new selector is namespaced with "products-" or "product-preview" so
-   the catalogue cannot alter the other public routes. Native links expose only
-   published records while the detail page stays in product-detail.css.
+   This route-owned sheet replaces the old abstract discipline shell with the
+   supplied photographic hero and collection/product rows. The shared desktop
+   rail remains entirely owned by reference-menu.css.
 -------------------------------------------------- */
 
-/*
- * The Products header keeps the asymmetric editorial shell inherited from
- * discipline.css. A slightly wider heading track gives "Product catalogue"
- * enough room before the layout stacks at the existing compact breakpoint.
- */
-.products-catalogue__header {
-	grid-template-columns:
-		minmax(0, 1.55fr)
-		minmax(16rem, 0.45fr);
+body[data-current-path="/products"] {
+	--products-ink: #2b2722;
+	--products-paper: #e8e3dc;
+	--products-paper-rule: rgba(43, 39, 34, 0.24);
+	--products-hero-text: #f3efe7;
 }
 
-/*
- * The ordered list owns the visual catalogue grid. Removing browser list
- * markers is paired with role="list" in HTML for Safari/VoiceOver compatibility.
- * Two equal columns form a stable laptop/tablet rhythm while minmax(0, 1fr)
- * prevents long content from forcing horizontal overflow.
- */
-.products-catalogue {
+.products-page {
+	min-width: 0;
+	background: var(--products-paper);
+	color: var(--products-hero-text);
+	overflow: clip;
+}
+
+/* --------------------------------------------------
+   Full-viewport hero
+-------------------------------------------------- */
+
+.products-hero {
+	position: relative;
+	isolation: isolate;
 	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
+	min-height: 100vh;
+	min-height: 100svh;
+	place-items: center;
+	overflow: hidden;
+	background: #191511;
+}
+
+.products-hero__image {
+	position: absolute;
+	z-index: -3;
+	inset: 0;
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	object-position: center 55%;
+}
+
+/* A restrained veil protects type while retaining the stone and timber detail. */
+.products-hero__scrim {
+	position: absolute;
+	z-index: -2;
+	inset: 0;
+	background:
+		linear-gradient(
+			90deg,
+			rgba(14, 10, 7, 0.35),
+			rgba(14, 10, 7, 0.08) 54%,
+			rgba(14, 10, 7, 0.25)
+		),
+		linear-gradient(
+			180deg,
+			rgba(14, 10, 7, 0.18),
+			rgba(14, 10, 7, 0.02) 55%,
+			rgba(14, 10, 7, 0.27)
+		);
+	pointer-events: none;
+}
+
+.products-hero__identity {
+	position: absolute;
+	z-index: 2;
+	top: 42%;
+	left: 50%;
+	display: grid;
+	width: min(88vw, 78rem);
+	gap: clamp(1rem, 2.2vh, 1.65rem);
+	place-items: center;
+	text-align: center;
+	text-shadow: 0 0.2rem 1.4rem rgba(0, 0, 0, 0.65);
+	transform: translate(-50%, -50%);
+}
+
+.products-hero__title {
+	margin: 0;
+	padding-left: 0.18em;
+	color: var(--products-hero-text);
+	font-family: var(--font-display);
+	font-size: clamp(3.35rem, min(5vw, 11vh), 6.25rem);
+	font-weight: 400;
+	letter-spacing: 0.18em;
+	line-height: 0.96;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+.products-hero__descriptor {
+	min-width: 0;
+	max-width: 100%;
+	margin: 0;
+	padding-left: 0.38em;
+	color: rgba(243, 239, 231, 0.92);
+	font-size: clamp(0.86rem, 1.35vw, 1.25rem);
+	font-weight: 600;
+	letter-spacing: 0.38em;
+	line-height: 1.5;
+	text-transform: uppercase;
+	text-wrap: balance;
+}
+
+.products-hero__scroll {
+	position: absolute;
+	z-index: 3;
+	bottom: max(2.2rem, env(safe-area-inset-bottom));
+	left: 50%;
+	display: grid;
+	gap: 0.75rem;
+	place-items: center;
+	color: var(--products-hero-text);
+	font-size: max(clamp(0.68rem, 0.6rem + 0.25vw, 0.9rem), 0.64vw);
+	font-weight: 400;
+	letter-spacing: 0.24em;
+	line-height: 1.2;
+	text-transform: uppercase;
+	text-shadow: 0 0.15rem 0.8rem rgba(0, 0, 0, 0.72);
+	transform: translateX(-50%);
+}
+
+.products-hero__scroll-chevron {
+	display: block;
+	width: max(clamp(1.15rem, 1.05rem + 0.15vw, 1.3rem), 0.82vw);
+	height: max(clamp(1.15rem, 1.05rem + 0.15vw, 1.3rem), 0.82vw);
+	border-right: 1px solid currentColor;
+	border-bottom: 1px solid currentColor;
+	transform: rotate(45deg);
+	transition: transform var(--duration-medium) var(--ease-standard);
+}
+
+.products-hero__scroll:hover .products-hero__scroll-chevron,
+.products-hero__scroll:focus-visible .products-hero__scroll-chevron {
+	transform: translateY(0.2rem) rotate(45deg);
+}
+
+.products-hero__scroll:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 0.55rem;
+}
+
+/* This is decorative until the application owns a reviewed search route. */
+.products-hero__search-motif {
+	position: absolute;
+	top: 2.15rem;
+	right: 2.5rem;
+	z-index: 5;
+	display: grid;
+	width: 2.75rem;
+	height: 2.75rem;
+	place-items: center;
+	pointer-events: none;
+}
+
+.products-hero__search-motif span {
+	position: relative;
+	display: block;
+	width: 1.18rem;
+	height: 1.18rem;
+	border: 1px solid currentColor;
+	border-radius: 50%;
+}
+
+.products-hero__search-motif span::after {
+	position: absolute;
+	right: -0.38rem;
+	bottom: -0.22rem;
+	width: 0.52rem;
+	height: 1px;
+	background: currentColor;
+	content: "";
+	transform: rotate(48deg);
+	transform-origin: left center;
+}
+
+/* --------------------------------------------------
+   Featured collections and Products
+-------------------------------------------------- */
+
+.products-work {
+	display: grid;
+	min-width: 0;
+	scroll-margin-top: var(--header-height);
+	gap: clamp(3.75rem, 6vw, 6rem);
+	padding:
+		clamp(2.8rem, 4vw, 3.75rem)
+		clamp(1.25rem, 4.6vw, 5.5rem)
+		clamp(3.75rem, 6vw, 6rem);
+	background: var(--products-paper);
+	color: var(--products-ink);
+}
+
+.products-collections,
+.products-featured {
+	display: grid;
+	min-width: 0;
+}
+
+.products-work__title {
+	margin: 0 0 clamp(2rem, 3.3vw, 3.25rem);
+	font-family: var(--font-interface);
+	font-size: clamp(0.82rem, 1.32vw, 1.1rem);
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	line-height: 1.3;
+	text-align: center;
+	text-transform: uppercase;
+}
+
+.products-collection-grid,
+.products-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
 	gap:
-		clamp(3rem, 6vw, 6rem)
-		clamp(1rem, 2.25vw, 2.5rem);
+		clamp(2rem, 3.5vw, 3rem)
+		clamp(1rem, 1.7vw, 1.65rem);
 	margin: 0;
 	padding: 0;
 	list-style: none;
 }
 
-/*
- * A list item must be allowed to shrink inside its grid track. Without
- * min-width:0, future long approved names could widen the entire document.
- */
-.products-catalogue__item {
-	min-width: 0;
-}
-
-/*
- * Each article is the semantic boundary for one preview. Its single child link
- * owns the complete interactive area, so mouse, touch, and keyboard visitors
- * activate the same real server-rendered destination.
- */
+.products-collection-grid__item,
+.products-grid__item,
+.products-collection-card,
 .product-preview {
 	min-width: 0;
 }
 
-/*
- * The anchor preserves the media-then-copy reading order and stretches through
- * the complete article. Inheriting color and removing default underlining lets
- * the component supply its own strong focus treatment without hiding meaning.
- */
+.products-collection-card,
+.product-preview,
 .product-preview__link {
 	display: grid;
-	min-width: 0;
 	min-height: 100%;
-	gap: clamp(1.25rem, 2vw, 1.75rem);
+	align-content: start;
+}
+
+.product-preview__link {
 	color: inherit;
 	text-decoration: none;
 }
 
-/*
- * Keyboard focus outlines the complete card without changing its dimensions.
- * Hover and focus also strengthen existing rules immediately; no transform or
- * transition is used, so motion preference is respected automatically.
- */
 .product-preview__link:focus-visible {
-	outline: 2px solid var(--discipline-light-ink);
-	outline-offset: 0.3rem;
+	outline: 2px solid var(--products-ink);
+	outline-offset: 0.35rem;
 }
 
-.product-preview__link:hover .product-preview__media,
-.product-preview__link:focus-visible .product-preview__media,
-.product-preview__link:hover .product-preview__body,
-.product-preview__link:focus-visible .product-preview__body {
-	border-color: var(--discipline-light-ink);
-}
-
-/*
- * The near-portrait field reserves stable cover space with aspect-ratio.
- * When a Product has no reviewed cover, layered neutral gradients create depth
- * without pretending to be a photograph or production content.
- */
+.products-collection-card__media,
 .product-preview__media {
 	position: relative;
 	isolation: isolate;
-	display: grid;
-	aspect-ratio: 4 / 5;
+	aspect-ratio: 4 / 3;
+	min-width: 0;
 	overflow: hidden;
-	place-items: end start;
-	border: 1px solid var(--discipline-light-rule);
+	border: 1px solid var(--products-paper-rule);
 	background:
 		radial-gradient(
-			circle at 72% 30%,
-			rgba(255, 255, 255, 0.66),
-			transparent 26%
+			circle at 68% 28%,
+			rgba(255, 255, 255, 0.56),
+			transparent 28%
 		),
-		linear-gradient(
-			145deg,
-			#d8d1c5,
-			#bdb4a5 58%,
-			#a69c8c
-		);
+		linear-gradient(145deg, #d8d0c4, #b8ad9d 58%, #958879);
 }
 
-/* A reviewed cover replaces only the decorative planes, not card geometry. */
-.product-preview__media--image {
-	background: #cbc3b6;
-}
-
-.product-preview__media--image::before {
-	display: none;
-}
-
+.products-collection-card__image,
 .product-preview__image {
 	position: absolute;
-	inset: 0;
 	z-index: 0;
+	inset: 0;
 	display: block;
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
 }
 
-.product-preview__media--image .product-preview__number {
-	position: relative;
-	z-index: 1;
-	align-self: end;
-	justify-self: end;
-	margin: 0.75rem;
-	padding: 0.35rem 0.55rem;
-	background: rgba(244, 239, 229, 0.88);
-	color: var(--discipline-light-ink);
-	font-size: clamp(1.5rem, 3vw, 3rem);
+.product-preview__image {
+	transition:
+		transform 700ms var(--ease-standard),
+		filter 700ms var(--ease-standard);
 }
 
-/*
- * A soft architectural plane gives the empty media field intentional spatial
- * structure. It remains part of the aria-hidden parent and communicates no
- * additional content.
- */
-.product-preview__media::before {
+.product-preview__fallback-number {
 	position: absolute;
-	z-index: -1;
-	inset: 18% 12% 12% 34%;
-	border: 1px solid rgba(26, 24, 20, 0.18);
-	background:
-		linear-gradient(
-			135deg,
-			rgba(255, 255, 255, 0.34),
-			rgba(26, 24, 20, 0.08)
-		);
-	box-shadow: 0 1.5rem 3rem rgba(26, 24, 20, 0.12);
-	content: "";
-	transform: skewY(-5deg);
-}
-
-/*
- * Alternating positions keep repeated structural fields from looking like one
- * copied bitmap. nth-child changes presentation only; DOM and reading order
- * continue to come directly from the repository-ordered result.
- */
-.products-catalogue__item:nth-child(even) .product-preview__media::before {
-	inset: 12% 30% 18% 14%;
-	transform: skewY(6deg);
-}
-
-.products-catalogue__item:nth-child(3n) .product-preview__media::before {
-	inset: 28% 16% 10% 22%;
-	transform: skewX(-7deg);
-}
-
-/*
- * The large number is a low-contrast editorial marker. Its aria-hidden media
- * parent keeps the same number in the visible text label from being announced
- * twice.
- */
-.product-preview__number {
-	padding: clamp(0.75rem, 1.5vw, 1.25rem);
-	color: rgba(26, 24, 20, 0.42);
+	right: clamp(1rem, 2vw, 2rem);
+	bottom: clamp(0.8rem, 1.6vw, 1.5rem);
+	color: rgba(43, 39, 34, 0.33);
 	font-family: var(--font-display);
-	font-size: clamp(2rem, 4vw, 4.5rem);
-	line-height: 1;
+	font-size: clamp(3rem, 7vw, 7rem);
+	line-height: 0.8;
 }
 
-/*
- * Text remains outside the media frame for reliable contrast and zoom reflow.
- * The top rule echoes the reference's fine separators without implying a link.
- */
-.product-preview__body {
-	display: grid;
-	min-width: 0;
-	gap: 0.65rem;
-	padding-top: 1rem;
-	border-top: 1px solid var(--discipline-light-rule);
+.product-preview__link:hover .product-preview__image,
+.product-preview__link:focus-visible .product-preview__image {
+	filter: brightness(1.04);
+	transform: scale(1.015);
 }
 
-.product-preview__label,
-.product-preview__status {
-	margin: 0;
-	color: var(--discipline-light-soft);
+.products-collection-card__title,
+.product-preview__title {
+	margin:
+		clamp(0.8rem, 1.25vw, 1.15rem)
+		0
+		0;
 	font-family: var(--font-interface);
-	font-size: clamp(0.75rem, 0.72rem + 0.1vw, 0.82rem);
-	letter-spacing: 0.16em;
+	font-size: max(clamp(0.72rem, 0.67rem + 0.2vw, 0.9rem), 0.57vw);
+	font-weight: 600;
+	letter-spacing: 0.07em;
+	line-height: 1.35;
+	text-transform: uppercase;
+	overflow-wrap: anywhere;
+}
+
+.products-collection-card__title {
+	text-align: center;
+}
+
+.products-collection-card__action,
+.product-preview__category {
+	margin:
+		clamp(0.65rem, 1vw, 0.9rem)
+		0
+		0;
+	color: rgba(43, 39, 34, 0.78);
+	font-family: var(--font-interface);
+	font-size: max(clamp(0.68rem, 0.63rem + 0.16vw, 0.8rem), 0.53vw);
+	letter-spacing: 0.08em;
 	line-height: 1.45;
 	text-transform: uppercase;
 }
 
-/*
- * The repository-backed product name is the article heading. Fluid sizing and
- * overflow-wrap protect localized or future administrator-managed content.
- */
-.product-preview__title {
+.products-collection-card__action {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.65rem;
+}
+
+.products-collection-card__action span {
+	font-size: 1.25em;
+}
+
+.product-preview__body {
 	min-width: 0;
-	margin: 0;
-	color: var(--discipline-light-ink);
+}
+
+.product-preview__category {
 	font-family: var(--font-display);
-	font-size: clamp(1.5rem, 1.25rem + 0.8vw, 2.3rem);
-	font-weight: 400;
-	line-height: 1.05;
-	overflow-wrap: anywhere;
+	font-style: italic;
+	letter-spacing: 0.04em;
+	text-transform: none;
 }
 
-/*
- * Empty data uses the same ruled field as a real catalogue boundary, while the
- * sentence remains visible text rather than a decorative pseudo-element.
- */
-.products-catalogue__empty {
-	min-height: clamp(12rem, 24vw, 22rem);
-	margin: 0;
-	padding-block: clamp(2rem, 4vw, 4rem);
-	border-top: 1px solid var(--discipline-light-rule);
-	border-bottom: 1px solid var(--discipline-light-rule);
-	color: var(--discipline-light-soft);
-	font-family: var(--font-interface);
-	font-size: clamp(0.9rem, 0.86rem + 0.18vw, 1.05rem);
-	line-height: 1.7;
+/* The current route already is the complete catalogue, so this stays a label. */
+.products-work__all-label {
+	display: grid;
+	width: min(20rem, 100%);
+	min-height: 2.9rem;
+	place-items: center;
+	margin:
+		clamp(2.25rem, 3.5vw, 3.25rem)
+		auto
+		0;
+	padding: 0.7rem 1.5rem;
+	border: 1px solid rgba(43, 39, 34, 0.46);
+	font-size: clamp(0.68rem, 0.6rem + 0.18vw, 0.78rem);
+	font-weight: 500;
+	letter-spacing: 0.12em;
+	line-height: 1.2;
+	text-align: center;
+	text-transform: uppercase;
 }
 
-/*
- * Desktop screens from 80rem can support all four catalogue columns on one
- * row. Introducing the fourth column at 1280px avoids an orphaned fourth card
- * at a required validation width while retaining generous gutters.
- */
-@media (min-width: 80rem) {
-	.products-catalogue {
-		grid-template-columns: repeat(4, minmax(0, 1fr));
-	}
-}
+/* --------------------------------------------------
+   Header and responsive adaptations
+-------------------------------------------------- */
 
-/*
- * At the shared compact-header breakpoint only the asymmetric section header
- * stacks. The catalogue deliberately remains two columns at 768px, avoiding a
- * large layout and page-length jump between 768px and 769px.
- */
-@media (max-width: 48rem) {
-	.products-catalogue__header {
-		grid-template-columns: minmax(0, 1fr);
+@media (min-width: 36rem) {
+	.products-collection-grid,
+	.products-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 }
 
-/*
- * Narrow phones below 40rem receive one generous catalogue column. This
- * product-content breakpoint is independent from the navigation breakpoint:
- * each component changes only when its own content genuinely needs more room.
- */
-@media (max-width: 40rem) {
-	.products-catalogue {
-		grid-template-columns: minmax(0, 1fr);
-	}
-
-	.products-catalogue {
-		gap: 3.5rem;
-	}
-
-	.product-preview__media {
-		aspect-ratio: 5 / 4;
-	}
-}
-
-/*
- * Increased-contrast users receive opaque media surfaces and stronger rules.
- * The catalogue contains no animation, transitions, or smooth scrolling, so
- * it already respects reduced-motion preference without a separate override.
- */
-@media (prefers-contrast: more) {
-	.product-preview__media,
-	.product-preview__body,
-	.products-catalogue__empty {
-		border-color: var(--discipline-light-ink);
-	}
-
-	.product-preview__media {
-		background: var(--discipline-light);
-	}
-
-	.product-preview__media::before {
-		border-color: var(--discipline-light-ink);
+@media (min-width: 56rem) {
+	/* The unchanged shared header overlays the Products hero on desktop. */
+	body[data-current-path="/products"] .site-header {
+		position: absolute;
+		z-index: 100;
+		min-height: 8.75rem;
+		align-items: start;
+		padding-top: 3.45rem;
 		background: transparent;
 		box-shadow: none;
+		backdrop-filter: none;
+		-webkit-backdrop-filter: none;
+		pointer-events: none;
+	}
+
+	body[data-current-path="/products"] .discipline-nav__link {
+		pointer-events: auto;
+	}
+
+	body[data-current-path="/products"] .discipline-nav {
+		transform: translateX(clamp(0rem, calc(30rem - 50vw), 2rem));
+	}
+
+	body[data-current-path="/products"] .discipline-nav__link::after {
+		bottom: 0.3rem;
+	}
+
+	.products-collection-grid {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+
+	.products-grid {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+}
+
+@media (min-width: 80rem) {
+	.products-grid {
+		grid-template-columns: repeat(5, minmax(0, 1fr));
+	}
+}
+
+@media
+	(min-width: 56rem)
+	and (max-height: 45rem)
+	and (min-aspect-ratio: 16/9) {
+	body[data-current-path="/products"] .site-header {
+		padding-top: 2.25rem;
+	}
+
+	.products-hero__search-motif {
+		top: 1.25rem;
+	}
+
+	.products-hero__identity {
+		gap: 1rem;
+	}
+
+	.products-hero__scroll {
+		bottom: max(1.7rem, env(safe-area-inset-bottom));
+		gap: 0.45rem;
+	}
+}
+
+@media (max-width: 55.999rem) {
+	.products-hero__search-motif {
+		display: none;
+	}
+
+	.products-hero__identity {
+		top: 48%;
+		width: min(94vw, 50rem);
+		padding-inline: var(--page-gutter);
+	}
+
+	.products-hero__title {
+		font-size: clamp(2.65rem, 11vw, 4.3rem);
+		letter-spacing: 0.13em;
+		white-space: normal;
+	}
+
+	.products-hero__descriptor {
+		width: min(25rem, 100%);
+		font-size: clamp(0.7rem, 2.7vw, 0.95rem);
+		letter-spacing: 0.22em;
+		line-height: 1.75;
+	}
+}
+
+@media (max-width: 32rem) {
+	.products-work {
+		padding-inline: clamp(1rem, 5vw, 1.5rem);
+	}
+
+	.products-hero__title {
+		font-size: clamp(2.35rem, 12vw, 3.2rem);
+		letter-spacing: 0.09em;
+	}
+
+	.products-hero__descriptor {
+		font-size: clamp(0.62rem, 2.8vw, 0.72rem);
+		letter-spacing: 0.18em;
+	}
+}
+
+@media
+	(max-height: 32rem)
+	and (orientation: landscape)
+	and (max-width: 55.999rem) {
+	.products-hero {
+		min-height: 32rem;
+	}
+
+	.products-hero__scroll {
+		bottom: 0.8rem;
+	}
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.products-hero__image,
+	.products-hero__identity,
+	.products-work {
+		animation: products-reveal 620ms var(--ease-standard) both;
+	}
+
+	.products-hero__identity {
+		animation-delay: 90ms;
+	}
+}
+
+@keyframes products-reveal {
+	from {
+		opacity: 0;
+	}
+
+	to {
+		opacity: 1;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.products-hero__scroll-chevron,
+	.product-preview__image {
+		transition: none;
+	}
+
+	.products-hero__scroll:hover .products-hero__scroll-chevron,
+	.products-hero__scroll:focus-visible .products-hero__scroll-chevron {
+		transform: rotate(45deg);
+	}
+
+	.product-preview__link:hover .product-preview__image,
+	.product-preview__link:focus-visible .product-preview__image {
+		filter: none;
+		transform: none;
+	}
+}
+
+@media (prefers-contrast: more) {
+	.products-hero__scrim {
+		background: rgba(14, 10, 7, 0.72);
+	}
+
+	.products-collection-card__media,
+	.product-preview__media,
+	.products-work__all-label {
+		border-color: var(--products-ink);
+	}
+}
+
+@media (forced-colors: active) {
+	body[data-current-path="/products"] .site-header,
+	.products-work {
+		border-color: CanvasText;
+		background: Canvas;
+		color: CanvasText;
+	}
+
+	.products-hero__scrim {
+		background: Canvas;
+		opacity: 0.78;
+	}
+
+	.products-hero__search-motif span::after {
+		background: ButtonText;
+		forced-color-adjust: none;
+	}
+
+	.products-hero__search-motif span {
+		border-color: ButtonText;
+		forced-color-adjust: none;
 	}
 }

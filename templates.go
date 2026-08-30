@@ -211,20 +211,53 @@ type disciplinePageData struct {
 // productListingData describes the Products-only catalogue section.
 //
 // The pointer to this value is optional on pageData because only /products uses
-// it. Keeping section copy beside its ordered preview slice establishes the
-// handler-to-template boundary while the repository remains responsible for
-// PostgreSQL eligibility, ordering, and stored-value validation.
+// it. Published previews remain repository-owned, while the checked-in
+// reference slices provide a non-interactive launch composition only when the
+// database contains no published Products.
 type productListingData struct {
-	// Eyebrow is the short interface label displayed above the section heading.
-	Eyebrow string
 	// Heading names the catalogue section and labels its semantic section.
 	Heading string
-	// Introduction explains the current scope without inventing product claims.
-	Introduction string
-	// EmptyMessage is shown when Items is nil or empty.
-	EmptyMessage string
 	// Items contains published catalogue previews in repository order.
 	Items []productPreviewData
+	// ReferenceCollections contains the fixed, non-interactive collection row.
+	ReferenceCollections []productReferenceCollectionData
+	// ReferenceItems contains non-interactive Product concepts used only when
+	// Items is empty.
+	ReferenceItems []productReferencePreviewData
+}
+
+// productReferenceCollectionData describes one local collection concept.
+//
+// It deliberately has no route field: collection pages do not exist, so the
+// supplied reference's call-to-action treatment renders as honest plain text.
+type productReferenceCollectionData struct {
+	// Name is the visible collection label.
+	Name string
+	// ImagePath identifies a checked-in, UI-free concept photograph.
+	ImagePath string
+	// Width and Height reserve the photograph's intrinsic layout space.
+	Width  int
+	Height int
+	// AltText describes the collection still life.
+	AltText string
+}
+
+// productReferencePreviewData describes one local Product concept.
+//
+// These records have neither a Path nor a commercial Price. They cannot
+// masquerade as published database Products or imply an unavailable purchase.
+type productReferencePreviewData struct {
+	// Name is the visible concept name.
+	Name string
+	// Category provides the secondary catalogue line.
+	Category string
+	// ImagePath identifies a checked-in, UI-free product photograph.
+	ImagePath string
+	// Width and Height reserve the photograph's intrinsic layout space.
+	Width  int
+	Height int
+	// AltText describes the photographed object.
+	AltText string
 }
 
 // productPreviewData is the minimal presentation shape for one published

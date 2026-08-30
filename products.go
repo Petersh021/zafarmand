@@ -65,6 +65,103 @@ func productPreviews(products []catalogueProduct) []productPreviewData {
 	return previews
 }
 
+// productReferenceCollections returns fresh values for the four collection
+// still lifes in the approved Products concept.
+//
+// These values intentionally contain no route. No collection pages exist, so
+// callers cannot accidentally turn the reference labels into dead links.
+func productReferenceCollections() []productReferenceCollectionData {
+	return []productReferenceCollectionData{
+		{
+			Name:      "Furniture",
+			ImagePath: "/static/images/products/collection-furniture.jpg",
+			Width:     1448,
+			Height:    1086,
+			AltText: "Sculptural walnut and brown upholstered lounge chair " +
+				"in a warm plaster studio",
+		},
+		{
+			Name:      "Lighting",
+			ImagePath: "/static/images/products/collection-lighting.jpg",
+			Width:     1448,
+			Height:    1086,
+			AltText: "Pale sculptural pendant lamp with a softly glowing " +
+				"cylindrical core",
+		},
+		{
+			Name:      "Accessories",
+			ImagePath: "/static/images/products/collection-accessories.jpg",
+			Width:     1448,
+			Height:    1086,
+			AltText: "Two blackened sculptural bowls arranged on a pale " +
+				"stone plinth",
+		},
+		{
+			Name:      "Materials",
+			ImagePath: "/static/images/products/collection-materials.jpg",
+			Width:     1448,
+			Height:    1086,
+			AltText: "Translucent ivory linen beside rough travertine and " +
+				"finely textured stone",
+		},
+	}
+}
+
+// productReferencePreviews returns fresh non-interactive values for the five
+// concept Products shown only while the published catalogue is empty.
+//
+// Prices and paths are deliberately absent. Commerce and fictional Product
+// detail destinations cannot leak across the PostgreSQL publication boundary.
+func productReferencePreviews() []productReferencePreviewData {
+	return []productReferencePreviewData{
+		{
+			Name:      "Pivot Lounge Chair",
+			Category:  "Furniture",
+			ImagePath: "/static/images/products/pivot-lounge-chair.jpg",
+			Width:     1448,
+			Height:    1086,
+			AltText: "Low charcoal leather lounge chair with a geometric " +
+				"blackened walnut frame",
+		},
+		{
+			Name:      "Noir Pendant Lamp",
+			Category:  "Lighting",
+			ImagePath: "/static/images/products/noir-pendant-lamp.jpg",
+			Width:     1448,
+			Height:    1086,
+			AltText: "Wide matte-black dome pendant lamp with a short " +
+				"antique-brass neck",
+		},
+		{
+			Name:      "Travertine Coffee Table",
+			Category:  "Furniture",
+			ImagePath: "/static/images/products/travertine-coffee-table.jpg",
+			Width:     1448,
+			Height:    1086,
+			AltText: "Low round pale travertine coffee table supported by " +
+				"three cylindrical legs",
+		},
+		{
+			Name:      "Bronze Bowl",
+			Category:  "Accessories",
+			ImagePath: "/static/images/products/bronze-bowl.jpg",
+			Width:     1448,
+			Height:    1086,
+			AltText: "Shallow hand-cast blackened bronze bowl with a " +
+				"softly irregular rim",
+		},
+		{
+			Name:      "Terra Vase",
+			Category:  "Accessories",
+			ImagePath: "/static/images/products/terra-vase.jpg",
+			Width:     1448,
+			Height:    1086,
+			AltText: "Dark umber earthenware vase with a rounded body and " +
+				"small loop handle",
+		},
+	}
+}
+
 // isValidPublishedProductCatalogue verifies the complete contract returned by
 // any injected reader before the public list renders it. Production performs
 // the same checks while scanning, but repeating this small boundary check makes

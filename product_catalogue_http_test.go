@@ -9,10 +9,10 @@ import (
 	"time"
 )
 
-// TestProductsRouteRendersDatabaseEmptyState proves that zero published rows is
-// a successful and truthful catalogue state. It must not resurrect the old
-// in-memory placeholder products in production behavior.
-func TestProductsRouteRendersDatabaseEmptyState(t *testing.T) {
+// TestProductsRouteRendersReferenceEmptyState proves that zero published rows
+// is successful and receives only the reviewed, non-interactive launch cards.
+// These presentation fallbacks never become repository records or detail URLs.
+func TestProductsRouteRendersReferenceEmptyState(t *testing.T) {
 	reader := newRecordingProductCatalogueReader()
 	reader.setProducts(nil)
 	app := newTestApplicationWithProductCatalogueReader(t, reader)
@@ -25,14 +25,32 @@ func TestProductsRouteRendersDatabaseEmptyState(t *testing.T) {
 		t.Fatalf("status code: got %d, want 200", recorder.Code)
 	}
 	body := recorder.Body.String()
+	mainElement := extractMainElement(t, body)
+	referenceProducts := extractElementByMarker(
+		t,
+		mainElement,
+		`aria-label="Product concept previews"`,
+		"ul",
+	)
+	if count := len(extractProductPreviewArticles(t, referenceProducts)); count != 5 {
+		t.Errorf("reference Product count: got %d, want 5", count)
+	}
 	if !strings.Contains(
+		extractOpeningTag(t, referenceProducts),
+		"products-grid--reference",
+	) {
+		t.Error("empty catalogue does not identify its reference-only branch")
+	}
+	for _, falseInteraction := range []string{"<a ", "href=", "<button"} {
+		if strings.Contains(referenceProducts, falseInteraction) {
+			t.Errorf("empty catalogue contains false interaction %q", falseInteraction)
+		}
+	}
+	if strings.Contains(
 		body,
 		"Product entries are being prepared for publication.",
 	) {
-		t.Error("empty catalogue does not explain its publication state")
-	}
-	if strings.Contains(body, `class="product-preview"`) {
-		t.Error("empty catalogue renders a fictional Product preview")
+		t.Error("empty catalogue regressed to the old text-only state")
 	}
 
 	assertProductReadDeadline(t, reader.listCallSnapshot())

@@ -12,8 +12,8 @@ read-only slice:
   number shown by the list; and
 - `GET /products/{slug}/cover/{version}` serves one normalized cover only while
   the owning Product remains Published; and
-- a fresh database truthfully renders an empty catalogue because the migration
-  inserts no sample business content.
+- a fresh database truthfully renders the noninteractive reference composition
+  because the migration inserts no sample business content.
 
 Stages 19–20 add protected all-state review and a concurrency-aware Product
 create/edit/publication workflow. Stage 21 adds optional reviewed editorial
@@ -106,15 +106,47 @@ SELECT COUNT(*) FROM public.products;
 
 must return zero. This is a feature, not a migration failure:
 
-- `/products` returns `200 OK` and displays the existing honest empty message;
+- `/products` returns `200 OK`, keeps the four noninteractive reference
+  collections, and displays five noninteractive reference Product concepts;
 - any otherwise valid `/products/{slug}` has no matching published record and
   returns the ordinary `404 Not Found`; and
-- no fictional item appears merely to make the page look populated.
+- no reference concept is stored, assigned a price or path, or presented as a
+  published Product merely to make the page look populated.
 
 Real content should enter through the protected Product management and
 publication workflow, not through a schema migration. Automated and manual
 checks use unmistakably synthetic rows in disposable or local development
 databases only.
+
+## Reference composition and checked-in media
+
+The Products route recreates the supplied visual direction with semantic HTML,
+route-owned CSS, and ten optimized, UI-free JPEG assets under
+`static/images/products`. The flattened
+`docs/reference/zafarmand-products.jpg` file remains a design reference only:
+it contains baked navigation, text, and identity and is never rendered by the
+public website.
+
+| Asset | Intrinsic dimensions | Delivery |
+| --- | --- | --- |
+| `products-hero.jpg` | 1672 x 941 | Preloaded, eagerly loaded, asynchronously decoded, and requested with high fetch priority as the first-viewport image. |
+| `collection-furniture.jpg` | 1448 x 1086 | Lazy-loaded below the hero. |
+| `collection-lighting.jpg` | 1448 x 1086 | Lazy-loaded below the hero. |
+| `collection-accessories.jpg` | 1448 x 1086 | Lazy-loaded below the hero. |
+| `collection-materials.jpg` | 1448 x 1086 | Lazy-loaded below the hero. |
+| `pivot-lounge-chair.jpg` | 1448 x 1086 | Lazy-loaded only for the zero-published-row reference branch. |
+| `noir-pendant-lamp.jpg` | 1448 x 1086 | Lazy-loaded only for the zero-published-row reference branch. |
+| `travertine-coffee-table.jpg` | 1448 x 1086 | Lazy-loaded only for the zero-published-row reference branch. |
+| `bronze-bowl.jpg` | 1448 x 1086 | Lazy-loaded only for the zero-published-row reference branch. |
+| `terra-vase.jpg` | 1448 x 1086 | Lazy-loaded only for the zero-published-row reference branch. |
+
+The four collection cards are always presentation concepts. They contain
+meaningful images and visible `View collection` copy, but no anchor or invented
+collection URL. When the repository returns zero published rows, the five
+reference Product cards provide the intended composition without a price,
+catalogue path, or interactive wrapper. When published rows exist, they replace
+that complete five-card reference Product branch. Those database-backed cards
+remain the only listing items linked to Product detail routes.
 
 ## Narrow public repository
 
@@ -221,7 +253,7 @@ Each public read receives a five-second request-derived timeout. Handler
 behavior is deliberately small:
 
 - a canonical published list or detail renders normally;
-- the empty list renders the truthful empty state;
+- the empty list renders the truthful, noninteractive reference composition;
 - a non-canonical, missing, draft, or archived detail slug returns ordinary
   `404 Not Found`; and
 - a dependency, PostgreSQL, scan, or data-contract failure returns generic
@@ -258,6 +290,8 @@ The existing template presentation boundary remains useful:
 - catalogue paths are constructed from validated slugs in Go;
 - published ordering determines the displayed number;
 - the listing retains semantic ordered-list and native-link behavior;
+- noninteractive collection and Product concepts remain isolated presentation
+  values rather than repository records or fake destinations;
 - the detail retains one real server-rendered URL and its native back link;
 - reviewed rich content renders as escaped ordinary text; and
 - an uploaded cover uses native responsive image markup while a Product without
@@ -352,9 +386,11 @@ reviewed protected workflow and its deployment-specific backup policy.
    ```
 
 5. Open `http://localhost:8080/products`. Confirm the route returns 200, keeps
-   the Products navigation active, and displays the empty catalogue message.
-   A made-up canonical detail such as `/products/stage18-missing-product` must
-   return 404.
+   the Products navigation active, preloads the Products hero, and displays
+   four noninteractive reference collections followed by five noninteractive
+   reference Product concepts. Confirm none of those nine cards contains a
+   price or link. A made-up canonical detail such as
+   `/products/stage18-missing-product` must return 404.
 
 ### Optional fictional browser data
 
@@ -381,6 +417,8 @@ VALUES
 Restart with the runtime role and verify:
 
 1. `/products` shows only Test Lamp, Test Vessel, and Test Chair.
+   They replace all five reference Product concepts; the four noninteractive
+   reference collections remain visible above them.
 2. Their visible catalogue numbers are 01, 02, and 03. The equal sort order for
    Lamp and Vessel is resolved by their generated IDs.
 3. `/products/stage18-test-lamp` shows number 01, matching the list.
@@ -440,9 +478,15 @@ It covers:
 - empty, published, missing, draft, archived, malformed, and dependency-failure
   handler behavior;
 - list/detail mapping, canonical paths, trusted published labels, and template
-  escaping; and
-- the rule that no temporary Product collection or unpublished state reaches a
-  public response.
+  escaping;
+- exact Products hero and ten-asset delivery contracts, including eager hero
+  delivery and lazy below-fold media;
+- zero-row reference collection and Product ordering, meaningful image text,
+  and the absence of concept prices or fake paths;
+- replacement of the complete reference Product branch by published rows while
+  the noninteractive reference collections remain; and
+- the rule that no reference concept, temporary Product collection, or
+  unpublished state becomes a linked public Product.
 
 Stages 19–21 extend that suite with the all-state administrator reader, strict
 Owner/Editor routes, version-guarded writer, rich Product and cover forms,
