@@ -654,14 +654,9 @@ body[data-current-path="/"] {
 		height: 1.125rem;
 	}
 
-	/* The first underline is the reference's visual entry accent, not aria-current. */
+	/* Preserve the shared hover/focus underline offset without forcing a route active. */
 	body[data-current-path="/"] .discipline-nav__link::after {
 		bottom: 0.3rem;
-	}
-
-	body[data-current-path="/"] .discipline-nav__link:first-child::after {
-		transform: scaleX(1);
-		transform-origin: left;
 	}
 
 	.home-hero__rail {

@@ -524,6 +524,7 @@ func TestInteriorDesignRouteRendersReferenceHero(t *testing.T) {
 		"nav",
 	)
 	for _, destination := range []string{
+		`href="/"`,
 		`href="#selected-work"`,
 		`href="/contact"`,
 	} {
@@ -531,8 +532,13 @@ func TestInteriorDesignRouteRendersReferenceHero(t *testing.T) {
 			t.Errorf("Interior reference navigation does not contain %q", destination)
 		}
 	}
-	if count := strings.Count(menuNavigation, "<a"); count != 2 {
-		t.Errorf("Interior reference navigation link count: got %d, want 2", count)
+	if count := strings.Count(menuNavigation, "<a"); count != 3 {
+		t.Errorf("Interior reference navigation link count: got %d, want 3", count)
+	}
+	homePosition := strings.Index(menuNavigation, `>Home</a>`)
+	projectsPosition := strings.Index(menuNavigation, `>Projects</a>`)
+	if homePosition == -1 || projectsPosition <= homePosition {
+		t.Error("Interior reference navigation does not place Home before Projects")
 	}
 
 	socials := extractElementByMarker(

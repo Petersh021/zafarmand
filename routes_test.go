@@ -577,6 +577,44 @@ func TestPageRoutes(t *testing.T) {
 				)
 			}
 
+			// Every non-landing page keeps an explicit Home menu item in both
+			// navigation implementations. It is a destination, never the current
+			// location, so assistive technology receives no false active state.
+			if test.path != "/" {
+				for _, navigationMarker := range []string{
+					`aria-label="Website navigation fallback"`,
+					`aria-label="Studio navigation"`,
+				} {
+					navigation := extractElementByMarker(
+						t,
+						string(body),
+						navigationMarker,
+						"nav",
+					)
+					homeLink := extractElementByMarker(
+						t,
+						navigation,
+						`href="/"`,
+						"a",
+					)
+					if !strings.Contains(normalizeHTMLWhitespace(homeLink), "Home") {
+						t.Errorf("%s does not label its landing-page link Home", navigationMarker)
+					}
+					if strings.Contains(extractOpeningTag(t, homeLink), "aria-current=") {
+						t.Errorf("%s incorrectly marks Home current on %s", navigationMarker, test.path)
+					}
+				}
+				compactHomeLink := extractElementByMarker(
+					t,
+					string(body),
+					`class="mobile-home-link"`,
+					"a",
+				)
+				if !strings.Contains(extractOpeningTag(t, compactHomeLink), `href="/"`) {
+					t.Errorf("compact header does not link %s back to Home", test.path)
+				}
+			}
+
 			// Only GET / receives HomeHero data and uses the homepage template.
 			hasHomeHero := strings.Contains(
 				string(body),

@@ -161,6 +161,20 @@ func TestStage26PublicShellPublishesOnlyUsableNavigation(t *testing.T) {
 	if count := strings.Count(landingNavigation, "<a"); count != 2 {
 		t.Errorf("landing navigation link count: got %d, want 2 real routes", count)
 	}
+	disciplineNavigation := extractElementByMarker(
+		t,
+		body,
+		`class="discipline-nav"`,
+		"nav",
+	)
+	for _, activeMarker := range []string{"is-active", "aria-current="} {
+		if strings.Contains(disciplineNavigation, activeMarker) {
+			t.Errorf(
+				"landing discipline navigation incorrectly contains %q",
+				activeMarker,
+			)
+		}
+	}
 
 	// The reference rail is persistent page navigation, not a second modal.
 	// Keeping modal semantics exclusive to the compact shared drawer avoids
@@ -527,6 +541,12 @@ func TestStage26LandingMenuFillsTheViewportWithoutAnInsetRule(t *testing.T) {
 	)
 	if !strings.Contains(disciplineSeparatorRule, "height: 1.125rem;") {
 		t.Error("landing discipline separator does not match the approved height")
+	}
+	if strings.Contains(
+		homeCSS,
+		`body[data-current-path="/"] .discipline-nav__link:first-child::after`,
+	) {
+		t.Error("landing stylesheet forces a discipline underline without an active route")
 	}
 	metadataRule := stage26CSSRule(t, homeCSS, ".home-feature__classification")
 	if expected := "font-size: max(clamp(0.8rem, 0.75vw, 0.84rem), 0.45vw);"; !strings.Contains(metadataRule, expected) {
