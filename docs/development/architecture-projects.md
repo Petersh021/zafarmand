@@ -58,9 +58,14 @@ The partial index
 `(sort_order, id)` order. Public portfolio numbers are derived after filtering,
 so private records never create visible numbering gaps.
 
-Migration 8 contains no seed records. A new database therefore renders the
-truthful Architecture empty state until an administrator creates and publishes
-approved content.
+Migration 8 contains no seed records. When the public list query returns no
+Published rows, `/architecture-design` presents four noninteractive concept
+previews backed by checked-in presentation media. These previews are not
+database records, do not appear in protected project management, and do not
+create slugs, detail routes, or cover routes. As soon as at least one Published
+row exists, real published project cards replace the complete concept-preview
+set; previews and stored projects are never mixed. Draft and Archived records
+remain private and do not count as Published content.
 
 The down migration strictly removes the cover child before its parent:
 
@@ -85,10 +90,13 @@ GET /architecture-design/{slug}
 GET /architecture-design/{slug}/cover/{version}
 ```
 
-The list and detail queries select only Published projects. Invalid, unknown,
-Draft, and Archived slugs all receive the same `404 Not Found` response. A
-repository or stored-contract failure becomes a generic
-`503 Service Unavailable` and a fixed-value log entry.
+The list and detail queries select only Published projects. The four concept
+previews are a presentation-only fallback on the list route when that query is
+empty. They are deliberately not links, and neither the detail nor cover route
+synthesizes a destination for them. Invalid, unknown, Draft, and Archived slugs
+all receive the same `404 Not Found` response. A repository or stored-contract
+failure becomes a generic `503 Service Unavailable` and a fixed-value log
+entry; the concept fallback does not mask repository failures.
 
 The cover route accepts only a canonical slug, canonical positive decimal
 revision, exact escaped path, and no query. It rechecks both current revision
@@ -252,7 +260,11 @@ go run .
 Then use fictional records only:
 
 1. Sign in at `http://localhost:8080/admin/login`.
-2. Open `http://localhost:8080/admin/architecture-projects`.
+2. With no Published Architecture rows, open
+   `http://localhost:8080/architecture-design` and confirm four noninteractive
+   concept previews appear without detail destinations. Then open
+   `http://localhost:8080/admin/architecture-projects` and confirm those
+   previews are not managed records.
 3. Create a Draft with a unique fictional slug and confirm revision 1 appears on
    its protected detail. Leave location, year, and description empty once to
    verify that optional data remains genuinely absent.
@@ -266,8 +278,9 @@ Then use fictional records only:
 7. Open the cover form in two tabs. Upload from tab A, then submit tab B. The
    stale second form must receive `409 Conflict`; it must not replace tab A's
    current cover or project revision.
-8. Publish the project and verify the list, detail, and exact current cover URLs.
-   Draft and Archived records must remain absent from the same public reads.
+8. Publish the project and verify its real card replaces the complete concept
+   preview set, then verify the detail and exact current cover URLs. Draft and
+   Archived records must remain absent from the same public reads.
 9. Replace the cover and verify the old revision is 404 and the new one loads.
    Revalidate the new URL with its ETag and confirm an unchanged request can
    receive `304 Not Modified` without weakening the publication check.

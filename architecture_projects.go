@@ -105,6 +105,53 @@ func architectureProjectPreviews(
 	return previews
 }
 
+// architectureReferenceProjectPreviews returns fresh presentation values for
+// the four approved concept cards stored in the public Architecture asset tree.
+//
+// Returning a new slice prevents callers from mutating package-level state.
+// The cards remain non-interactive and disappear as soon as the published-only
+// repository projection contains at least one real project.
+func architectureReferenceProjectPreviews() []architectureReferenceProjectPreviewData {
+	return []architectureReferenceProjectPreviewData{
+		{
+			Title:     "Mountain House",
+			Typology:  "Residential",
+			ImagePath: "/static/images/architecture-design/mountain-house.jpg",
+			Width:     1600,
+			Height:    686,
+			AltText: "Low pale-stone residence glowing at dusk against a dark " +
+				"mountain landscape",
+		},
+		{
+			Title:     "Terra Office Building",
+			Typology:  "Commercial",
+			ImagePath: "/static/images/architecture-design/terra-office-building.jpg",
+			Width:     1200,
+			Height:    900,
+			AltText: "Dark multi-storey office building with staggered volumes " +
+				"and illuminated glass façades",
+		},
+		{
+			Title:     "Silk Museum",
+			Typology:  "Cultural",
+			ImagePath: "/static/images/architecture-design/silk-museum.jpg",
+			Width:     1200,
+			Height:    900,
+			AltText: "Pale monolithic museum with rhythmic vertical fins above " +
+				"a recessed glass entrance",
+		},
+		{
+			Title:     "Coastal Retreat",
+			Typology:  "Residential",
+			ImagePath: "/static/images/architecture-design/coastal-retreat.jpg",
+			Width:     1200,
+			Height:    900,
+			AltText: "Angular two-storey residence with broad warm-lit windows " +
+				"in a quiet dusk landscape",
+		},
+	}
+}
+
 // newArchitectureProjectDetailData maps one validated public repository record
 // to the narrow detail-template contract. Routing identity stays in the
 // handler, while this conversion makes every presented field an explicit choice.

@@ -1,16 +1,16 @@
 {{/*
-The Architecture Design page remains a separate template-cache entry. Stage 23
-maps PostgreSQL's published-only projection into real list, detail, and exact
-cover routes while preserving the discipline's monumental visual language.
+The Architecture Design route owns this photographic reference composition.
+Its menu still comes exclusively from base.html, so this page changes neither
+the shared rail markup nor its item contract.
 */}}
 
-{{/*
-discipline.css supplies the established landing-page shell. The Architecture-
-only stylesheet loads second so its namespaced portfolio rules can compose the
-warm work surface without leaking into Products, Interior Design, or Home.
-*/}}
 {{define "pageStyles"}}
-	{{template "disciplinePageStyles" .}}
+	{{/* Preload only the above-the-fold route-owned LCP photograph. */}}
+	<link
+		rel="preload"
+		as="image"
+		href="/static/images/architecture-design/architecture-hero.jpg"
+	>
 
 	<link
 		rel="stylesheet"
@@ -18,145 +18,193 @@ warm work surface without leaking into Products, Interior Design, or Home.
 	>
 {{end}}
 
-{{/*
-The shared content partial continues to own the document's one main landmark,
-the discipline h1, and real route navigation. Root pageData passes through
-unchanged so the Architecture-specific block below can read its listing model.
-*/}}
 {{define "content"}}
-	{{template "disciplinePageContent" .}}
-{{end}}
+<main
+	class="architecture-page"
+	id="main-content"
+>
+	{{/*
+	The meaningful route-owned image supplies the full-viewport hero. Scrim and
+	search motif remain decorative, while the title and scroll cue are ordinary
+	HTML so they stay readable and operable without JavaScript.
+	*/}}
+	<section
+		class="architecture-hero"
+		aria-labelledby="architecture-title"
+		data-architecture-hero
+	>
+		<img
+			class="architecture-hero__image"
+			src="/static/images/architecture-design/architecture-hero.jpg"
+			width="1672"
+			height="941"
+			alt="Monumental pale-stone residence with broad steps, dark glass, and cubic volumes at dusk"
+			fetchpriority="high"
+			decoding="async"
+		>
 
-{{/*
-disciplineWorkContent replaces the shared default only inside the separately
-parsed Architecture Design template set. newTemplateCache parses each page
-independently, preventing this markup from appearing on either sibling route.
+		<div
+			class="architecture-hero__scrim"
+			aria-hidden="true"
+		></div>
 
-discipline-page.html calls the block with root $, so ArchitectureProjectListing
-remains available even while the shared outer template is inside its
-"with .DisciplinePage" context.
-*/}}
-{{define "disciplineWorkContent"}}
-	{{with .ArchitectureProjectListing}}
-	<header class="discipline-work__header architecture-portfolio__header">
-		<p class="discipline-work__eyebrow">
-			{{.Eyebrow}}
-		</p>
+		{{/* Search stays decorative until a reviewed search route exists. */}}
+		<span
+			class="architecture-hero__search-motif"
+			aria-hidden="true"
+		>
+			<span></span>
+		</span>
 
+		<header class="architecture-hero__identity">
+			<h1
+				class="architecture-hero__title"
+				id="architecture-title"
+			>
+				Architecture Design
+			</h1>
+
+			<p class="architecture-hero__descriptor">
+				Form. Function. Context.
+			</p>
+		</header>
+
+		<a
+			class="architecture-hero__scroll"
+			href="#selected-work"
+			data-architecture-scroll
+		>
+			<span>Scroll to explore</span>
+			<span
+				class="architecture-hero__scroll-chevron"
+				aria-hidden="true"
+			></span>
+		</a>
+	</section>
+
+	{{/*
+	Published database records always win. A new database receives four local,
+	non-interactive concept cards that reproduce the supplied launch composition
+	without inventing project detail destinations.
+	*/}}
+	<section
+		class="architecture-work"
+		id="selected-work"
+		aria-labelledby="selected-work-title"
+		tabindex="-1"
+	>
+		{{with .ArchitectureProjectListing}}
 		<h2
-			class="discipline-work__title"
+			class="architecture-work__title"
 			id="selected-work-title"
 		>
 			{{.Heading}}
 		</h2>
 
-		<p class="discipline-work__status">
-			{{.Introduction}}
-		</p>
-	</header>
+		{{if .Items}}
+		<ol
+			class="architecture-portfolio"
+			aria-label="Published Architecture project previews"
+			role="list"
+		>
+			{{range .Items}}
+			<li class="architecture-portfolio__item">
+				<article class="architecture-preview">
+					<a
+						class="architecture-preview__link"
+						href="{{.Path}}"
+					>
+						<div class="architecture-preview__media{{if .Cover}} architecture-preview__media--image{{end}}">
+							{{with .Cover}}
+							<img
+								class="architecture-preview__image"
+								src="{{.Path}}"
+								width="{{.Width}}"
+								height="{{.Height}}"
+								alt="{{.AltText}}"
+								loading="lazy"
+								decoding="async"
+							>
+							{{else}}
+							<span
+								class="architecture-preview__fallback-number"
+								aria-hidden="true"
+							>{{.Number}}</span>
+							{{end}}
 
-	{{/*
-	A nonempty preview slice becomes one semantic ordered list. Its source order
-	identifies the first entry as the featured structural field without changing
-	the document's reading order. Each article contains one native anchor supplied
-	by the Stage 23 published view model, so normal navigation, browser history,
-	new-tab commands, and copied URLs work without JavaScript.
-	*/}}
-	{{if .Items}}
-	<ol
-		class="architecture-portfolio"
-		aria-label="Architecture project previews"
-		role="list"
-	>
-		{{range .Items}}
-		<li class="architecture-portfolio__item">
-			<article class="architecture-preview">
-				<a
-					class="architecture-preview__link"
-					href="{{.Path}}"
-				>
-					{{/* A reviewed cover is meaningful content and therefore keeps
-					its required alternative text. Projects without one use the
-					decorative structural fallback, whose repeated number is hidden
-					from assistive technology. */}}
-					{{with .Cover}}
-					<figure class="architecture-preview__media architecture-preview__media--image">
+							<div
+								class="architecture-preview__gradient"
+								aria-hidden="true"
+							></div>
+
+							<div class="architecture-preview__body">
+								<h3 class="architecture-preview__title">
+									{{.Title}}
+								</h3>
+
+								<p class="architecture-preview__typology">
+									{{.Typology}}
+								</p>
+							</div>
+						</div>
+					</a>
+				</article>
+			</li>
+			{{end}}
+		</ol>
+		{{else}}
+		<ol
+			class="architecture-portfolio architecture-portfolio--reference"
+			aria-label="Architecture project concept previews"
+			role="list"
+		>
+			{{range .ReferenceItems}}
+			<li class="architecture-portfolio__item">
+				<article class="architecture-preview architecture-preview--reference">
+					<div class="architecture-preview__media architecture-preview__media--image">
 						<img
 							class="architecture-preview__image"
-							src="{{.Path}}"
+							src="{{.ImagePath}}"
 							width="{{.Width}}"
 							height="{{.Height}}"
 							alt="{{.AltText}}"
 							loading="lazy"
 							decoding="async"
 						>
-					</figure>
-					{{else}}
-					<div
-						class="architecture-preview__media"
-						aria-hidden="true"
-					>
-						<span class="architecture-preview__number">
-							{{.Number}}
-						</span>
+
+						<div
+							class="architecture-preview__gradient"
+							aria-hidden="true"
+						></div>
+
+						<div class="architecture-preview__body">
+							<h3 class="architecture-preview__title">
+								{{.Title}}
+							</h3>
+
+							<p class="architecture-preview__typology">
+								{{.Typology}}
+							</p>
+						</div>
 					</div>
-					{{end}}
-
-					{{/*
-					Real text remains in normal document structure and gives the
-					anchor its accessible name through the h3. CSS visually layers
-					this body over the decorative field while Grid lets long or
-					enlarged text increase the card height instead of being clipped.
-					*/}}
-					<div class="architecture-preview__body">
-						<p class="architecture-preview__label">
-							{{.Typology}} / Project {{.Number}}
-						</p>
-
-						<h3 class="architecture-preview__title">
-							{{.Title}}
-						</h3>
-
-						<p class="architecture-preview__status">
-							{{.ProjectStatus}}{{if .Location}} / {{.Location}}{{end}}{{if .YearLabel}} / {{.YearLabel}}{{end}}
-						</p>
-					</div>
-				</a>
-			</article>
-		</li>
+				</article>
+			</li>
+			{{end}}
+		</ol>
 		{{end}}
-	</ol>
-	{{else}}
-	{{/*
-	A visible empty state keeps the shared aria-labelledby relationship useful
-	when a future repository returns no published Architecture projects. Omitting
-	the ordered list avoids exposing an empty collection to assistive technology.
-	*/}}
-	<p class="architecture-portfolio__empty">
-		{{.EmptyMessage}}
-	</p>
-	{{end}}
-	{{else}}
-	{{/*
-	The production handler supplies ArchitectureProjectListing. This defensive
-	fallback still emits a truthful h2 and status if future code omits that
-	optional view model, preserving the shared section's accessible label.
-	*/}}
-	<header class="discipline-work__header architecture-portfolio__header">
-		<p class="discipline-work__eyebrow">
-			Zafarmand architecture
-		</p>
 
+		{{/* A separate all-projects route does not exist, so this is honest text. */}}
+		<p class="architecture-work__all-label">
+			View all projects
+		</p>
+		{{else}}
 		<h2
-			class="discipline-work__title"
+			class="architecture-work__title"
 			id="selected-work-title"
 		>
-			Architecture project index
+			Featured Architecture Projects
 		</h2>
-
-		<p class="discipline-work__status">
-			Architecture project entries are being prepared for publication.
-		</p>
-	</header>
-	{{end}}
+		{{end}}
+	</section>
+</main>
 {{end}}

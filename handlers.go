@@ -531,17 +531,13 @@ func (app *application) architectureDesignHandler(
 		NextPath: "/products",
 	}
 
-	// Section copy and ordered preview data travel to the template as one value.
-	// The listing and detail handlers share the same published-only dependency,
-	// preventing their eligibility and numbering rules from drifting apart.
+	// The template always prefers ordered published records. The checked-in
+	// reference composition is used only for a new database and deliberately has
+	// no detail paths, so presentation never weakens the publication boundary.
 	architectureProjectListing := &architectureProjectListingData{
-		Eyebrow: "Zafarmand architecture",
-		Heading: "Architecture project index",
-		Introduction: "A developing index of residential, commercial, " +
-			"cultural, and civic architecture studies.",
-		EmptyMessage: "Architecture project entries are being prepared " +
-			"for publication.",
-		Items: architectureProjectPreviews(projects),
+		Heading:        "Featured Architecture Projects",
+		Items:          architectureProjectPreviews(projects),
+		ReferenceItems: architectureReferenceProjectPreviews(),
 	}
 
 	app.render(

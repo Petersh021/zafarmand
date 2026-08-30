@@ -387,23 +387,38 @@ type interiorProjectDetailData struct {
 	Cover *publicInteriorProjectCoverPageData
 }
 
-// architectureProjectListingData describes the Architecture Design portfolio
-// section.
+// architectureProjectListingData describes the Architecture Design showcase.
 //
-// Only /architecture-design receives this optional view model. Keeping section
-// copy beside its ordered published projection prevents the template from
-// depending on database identity, lifecycle, or ordering columns.
+// Only /architecture-design receives this optional view model. Published rows
+// remain primary; ReferenceItems provide the approved non-interactive launch
+// composition only while the public projection is empty.
 type architectureProjectListingData struct {
-	// Eyebrow is the short interface label displayed above the section heading.
-	Eyebrow string
-	// Heading names the project index and labels the shared work section.
+	// Heading labels the reference-aligned project section.
 	Heading string
-	// Introduction is fixed explanatory copy above the published project index.
-	Introduction string
-	// EmptyMessage is shown when Items is nil or empty.
-	EmptyMessage string
 	// Items contains published previews in their database portfolio order.
 	Items []architectureProjectPreviewData
+	// ReferenceItems contains checked-in concept previews that never advertise
+	// project-detail destinations which are absent from PostgreSQL.
+	ReferenceItems []architectureReferenceProjectPreviewData
+}
+
+// architectureReferenceProjectPreviewData describes one local concept card.
+//
+// The type intentionally has no Path. Once an administrator publishes at least
+// one real project, the template replaces this entire slice with linked managed
+// previews rather than mixing fictional and database-backed destinations.
+type architectureReferenceProjectPreviewData struct {
+	// Title is the project name supplied by the approved page concept.
+	Title string
+	// Typology is the short category presented below Title.
+	Typology string
+	// ImagePath is an application-owned path under /static/images.
+	ImagePath string
+	// Width and Height reserve the optimized image's intrinsic dimensions.
+	Width  int
+	Height int
+	// AltText describes the architecture photograph without repeating its title.
+	AltText string
 }
 
 // architectureProjectPreviewData is the public presentation shape for one

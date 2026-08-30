@@ -25,6 +25,10 @@ const (
 	stage26InteriorHeroBudget = 256 * stage26KiB
 	// stage26InteriorPreviewBudget caps each lazy-loaded reference card image.
 	stage26InteriorPreviewBudget = 192 * stage26KiB
+	// stage26ArchitectureHeroBudget bounds the route-owned Architecture LCP.
+	stage26ArchitectureHeroBudget = 256 * stage26KiB
+	// stage26ArchitecturePreviewBudget caps each below-fold concept image.
+	stage26ArchitecturePreviewBudget = 192 * stage26KiB
 	// stage26PublicDocumentBudget guards representative server-rendered HTML.
 	stage26PublicDocumentBudget = 96 * stage26KiB
 )
@@ -78,7 +82,6 @@ func TestStage26CheckedInAssetBudgets(t *testing.T) {
 		{
 			name: "architecture design",
 			assets: []string{
-				"static/css/discipline.css",
 				"static/css/architecture-design.css",
 				"static/css/reference-menu.css",
 			},
@@ -174,6 +177,44 @@ func TestStage26CheckedInAssetBudgets(t *testing.T) {
 				path,
 				information.Size(),
 				stage26InteriorPreviewBudget,
+			)
+		}
+	}
+
+	// Architecture follows the same loading contract: one eager hero and four
+	// individually bounded lazy concept images below the first viewport.
+	architectureHeroBytes := stage26FileBytes(
+		t,
+		[]string{"static/images/architecture-design/architecture-hero.jpg"},
+	)
+	if architectureHeroBytes > stage26ArchitectureHeroBudget {
+		t.Errorf(
+			"Architecture hero bytes: got %d, budget %d",
+			architectureHeroBytes,
+			stage26ArchitectureHeroBudget,
+		)
+	}
+
+	architecturePreviews := []string{
+		"static/images/architecture-design/mountain-house.jpg",
+		"static/images/architecture-design/terra-office-building.jpg",
+		"static/images/architecture-design/silk-museum.jpg",
+		"static/images/architecture-design/coastal-retreat.jpg",
+	}
+	for _, path := range architecturePreviews {
+		information, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("stat Architecture preview %q: %v", path, err)
+		}
+		if !information.Mode().IsRegular() {
+			t.Fatalf("Architecture preview %q is not a regular file", path)
+		}
+		if information.Size() > stage26ArchitecturePreviewBudget {
+			t.Errorf(
+				"Architecture preview %q bytes: got %d, budget %d",
+				path,
+				information.Size(),
+				stage26ArchitecturePreviewBudget,
 			)
 		}
 	}

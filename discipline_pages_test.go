@@ -126,9 +126,9 @@ func extractOpeningTag(
 	return element[:openingEnd+1]
 }
 
-// TestDisciplinePageRoutes verifies Products and Architecture retain the shared
-// Stage 5 shell with their own Go-supplied editorial data. Interior Design owns
-// a separate photographic composition covered in interior_projects_test.go.
+// TestDisciplinePageRoutes verifies Products retains the shared Stage 5 shell
+// with its own Go-supplied editorial data. Interior and Architecture Design own
+// separate photographic compositions covered by their focused route tests.
 //
 // This test complements TestPageRoutes: that existing test owns the common
 // document title, CurrentPath, and aria-current contract, while this table owns
@@ -162,15 +162,6 @@ func TestDisciplinePageRoutes(t *testing.T) {
 			nextName:        "Interior Design",
 			nextPath:        "/interior-design",
 			workHeading:     "Product catalogue",
-			usesDefaultWork: false,
-		},
-		{
-			name:            "Architecture Design",
-			path:            "/architecture-design",
-			number:          "02",
-			nextName:        "Products",
-			nextPath:        "/products",
-			workHeading:     "Architecture project index",
 			usesDefaultWork: false,
 		},
 	}
@@ -534,8 +525,8 @@ func TestDisciplinePageRoutes(t *testing.T) {
 	}
 }
 
-// TestDisciplinePageTemplateUsesData renders both shared-shell page wrappers
-// with the same sentinel values.
+// TestDisciplinePageTemplateUsesData renders the remaining shared-shell page
+// wrapper with sentinel values.
 //
 // Exercising all cache keys proves each wrapper delegates to the shared partial
 // and reads DisciplinePage instead of hard-coding its production route body.
@@ -548,10 +539,7 @@ func TestDisciplinePageTemplateUsesData(t *testing.T) {
 		NextPath: "/next-sentinel",
 	}
 
-	pageNames := []string{
-		"products.html",
-		"architecture-design.html",
-	}
+	pageNames := []string{"products.html"}
 
 	for _, pageName := range pageNames {
 		// Each subtest starts with a fresh recorder because an HTTP response

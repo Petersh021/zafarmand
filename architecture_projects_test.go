@@ -6,9 +6,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 )
+
+var architectureNonEmptyAltPattern = regexp.MustCompile(`\salt="[^"]+"`)
 
 // validCatalogueArchitectureProject returns one deterministic reviewed public
 // record. Keeping this test-only constructor beside the public HTTP tests makes
@@ -189,6 +192,98 @@ func TestPublishedArchitectureProjectCatalogueValidation(t *testing.T) {
 	}
 }
 
+// TestArchitectureDesignRouteRendersReferenceHero verifies Architecture owns
+// the supplied photographic composition while continuing to use the unchanged
+// shared navigation rendered outside its main landmark.
+func TestArchitectureDesignRouteRendersReferenceHero(t *testing.T) {
+	reader := newRecordingArchitectureProjectCatalogueReader()
+	reader.setProjects(nil)
+	app := newTestApplication(t)
+	app.architectureProjects = reader
+	recorder := httptest.NewRecorder()
+
+	app.routes().ServeHTTP(
+		recorder,
+		httptest.NewRequest(http.MethodGet, "/architecture-design", nil),
+	)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", recorder.Code)
+	}
+	body := recorder.Body.String()
+	mainElement := extractMainElement(t, body)
+	if !strings.Contains(extractOpeningTag(t, mainElement), `class="architecture-page"`) {
+		t.Error("Architecture main does not own its route-specific page class")
+	}
+
+	hero := extractElementByMarker(
+		t,
+		mainElement,
+		`class="architecture-hero"`,
+		"section",
+	)
+	heroOpening := extractOpeningTag(t, hero)
+	for _, attribute := range []string{
+		`aria-labelledby="architecture-title"`,
+		`data-architecture-hero`,
+	} {
+		if !strings.Contains(heroOpening, attribute) {
+			t.Errorf("Architecture hero opening tag does not contain %q", attribute)
+		}
+	}
+	if count := strings.Count(hero, "<h1"); count != 1 {
+		t.Errorf("Architecture hero h1 count: got %d, want 1", count)
+	}
+	heading := extractElementByMarker(t, hero, `id="architecture-title"`, "h1")
+	if !strings.Contains(normalizeHTMLWhitespace(heading), "Architecture Design") {
+		t.Error("Architecture hero h1 does not contain the route title")
+	}
+	for _, expected := range []string{
+		"Form. Function. Context.",
+		`src="/static/images/architecture-design/architecture-hero.jpg"`,
+		`width="1672"`,
+		`height="941"`,
+		`fetchpriority="high"`,
+		`decoding="async"`,
+	} {
+		if !strings.Contains(normalizeHTMLWhitespace(hero), expected) {
+			t.Errorf("Architecture hero does not contain %q", expected)
+		}
+	}
+	if strings.Contains(hero, `loading="lazy"`) {
+		t.Error("above-fold Architecture hero is lazy-loaded")
+	}
+	if !architectureNonEmptyAltPattern.MatchString(hero) {
+		t.Error("Architecture hero image lacks nonempty alternative text")
+	}
+
+	scrollLink := extractElementByMarker(t, hero, `data-architecture-scroll`, "a")
+	if !strings.Contains(extractOpeningTag(t, scrollLink), `href="#selected-work"`) ||
+		!strings.Contains(normalizeHTMLWhitespace(scrollLink), "Scroll to explore") {
+		t.Error("Architecture hero scroll cue does not name its real fragment destination")
+	}
+	work := extractElementByMarker(
+		t,
+		mainElement,
+		`class="architecture-work"`,
+		"section",
+	)
+	workOpening := extractOpeningTag(t, work)
+	for _, attribute := range []string{
+		`id="selected-work"`,
+		`aria-labelledby="selected-work-title"`,
+		`tabindex="-1"`,
+	} {
+		if !strings.Contains(workOpening, attribute) {
+			t.Errorf("Architecture work opening tag does not contain %q", attribute)
+		}
+	}
+	if strings.Contains(mainElement, `class="discipline-hero"`) ||
+		strings.Contains(body, `href="/static/css/discipline.css"`) {
+		t.Error("Architecture route retained the removed shared discipline presentation")
+	}
+}
+
 // TestArchitectureDesignRouteRendersPublishedPortfolio verifies the complete
 // repository-backed index, optional facts, meaningful cover, honest fallback,
 // semantic ordering, and bounded dependency call.
@@ -241,7 +336,7 @@ func TestArchitectureDesignRouteRendersPublishedPortfolio(t *testing.T) {
 	work := extractElementByMarker(
 		t,
 		mainElement,
-		`class="discipline-work"`,
+		`class="architecture-work"`,
 		"section",
 	)
 	portfolio := extractElementByMarker(
@@ -252,7 +347,7 @@ func TestArchitectureDesignRouteRendersPublishedPortfolio(t *testing.T) {
 	)
 	if opening := extractOpeningTag(t, portfolio); !strings.Contains(
 		opening,
-		`aria-label="Architecture project previews"`,
+		`aria-label="Published Architecture project previews"`,
 	) || !strings.Contains(opening, `role="list"`) {
 		t.Errorf("portfolio semantics are incomplete: %s", opening)
 	}
@@ -264,9 +359,8 @@ func TestArchitectureDesignRouteRendersPublishedPortfolio(t *testing.T) {
 	covered := articles[0]
 	for _, expected := range []string{
 		`href="/architecture-design/covered-residence"`,
-		"Residential / Project 01",
+		"Residential",
 		"Covered Residence",
-		"Completed / Tehran / 2032",
 		`src="/architecture-design/covered-residence/cover/7"`,
 		`width="1800"`,
 		`height="1200"`,
@@ -282,7 +376,7 @@ func TestArchitectureDesignRouteRendersPublishedPortfolio(t *testing.T) {
 		t,
 		covered,
 		`class="architecture-preview__media architecture-preview__media--image"`,
-		"figure",
+		"div",
 	)
 	if strings.Contains(extractOpeningTag(t, coveredMedia), `aria-hidden=`) {
 		t.Error("meaningful covered media is hidden from assistive technology")
@@ -294,30 +388,32 @@ func TestArchitectureDesignRouteRendersPublishedPortfolio(t *testing.T) {
 	uncovered := articles[1]
 	for _, expected := range []string{
 		`href="/architecture-design/uncovered-gallery"`,
-		"Cultural / Project 02",
+		"Cultural",
 		"Uncovered Gallery",
-		"Ongoing",
 	} {
 		if !strings.Contains(normalizeHTMLWhitespace(uncovered), expected) {
 			t.Errorf("fallback article does not contain %q", expected)
 		}
 	}
-	if strings.Contains(uncovered, "<img") ||
-		strings.Contains(normalizeHTMLWhitespace(uncovered), "Ongoing /") {
-		t.Error("absent optional fields produced an image or dangling separator")
+	if strings.Contains(uncovered, "<img") {
+		t.Error("coverless published project unexpectedly produced an image")
 	}
-	fallbackMedia := extractElementByMarker(
+	fallbackNumber := extractElementByMarker(
 		t,
 		uncovered,
-		`class="architecture-preview__media"`,
-		"div",
+		`class="architecture-preview__fallback-number"`,
+		"span",
 	)
-	if !strings.Contains(extractOpeningTag(t, fallbackMedia), `aria-hidden="true"`) {
-		t.Error("decorative fallback is not hidden from assistive technology")
+	if !strings.Contains(extractOpeningTag(t, fallbackNumber), `aria-hidden="true"`) {
+		t.Error("decorative fallback number is not hidden from assistive technology")
 	}
 	if strings.Index(portfolio, "Covered Residence") >=
 		strings.Index(portfolio, "Uncovered Gallery") {
 		t.Error("template changed repository portfolio order")
+	}
+	if strings.Contains(portfolio, "architecture-portfolio--reference") ||
+		strings.Contains(portfolio, "/static/images/architecture-design/") {
+		t.Error("published projects did not take priority over reference previews")
 	}
 	if strings.Contains(mainElement, `href="#"`) ||
 		strings.Contains(mainElement, "docs/reference") {
@@ -325,9 +421,11 @@ func TestArchitectureDesignRouteRendersPublishedPortfolio(t *testing.T) {
 	}
 }
 
-// TestArchitectureDesignRouteRendersEmptyPublishedState verifies zero published
-// rows are a successful truthful page rather than seeded content or an error.
-func TestArchitectureDesignRouteRendersEmptyPublishedState(t *testing.T) {
+// TestArchitectureDesignRouteRendersReferencePortfolio verifies an empty
+// published catalogue uses the four approved, non-interactive concept images.
+// These cards preserve the launch composition without pretending detail routes
+// or database records exist.
+func TestArchitectureDesignRouteRendersReferencePortfolio(t *testing.T) {
 	reader := newRecordingArchitectureProjectCatalogueReader()
 	reader.setProjects(nil)
 	app := newTestApplication(t)
@@ -343,21 +441,111 @@ func TestArchitectureDesignRouteRendersEmptyPublishedState(t *testing.T) {
 		t.Fatalf("status: got %d, want 200", recorder.Code)
 	}
 	mainElement := extractMainElement(t, recorder.Body.String())
-	if strings.Contains(mainElement, `class="architecture-portfolio"`) ||
-		strings.Contains(mainElement, `class="architecture-preview`) {
-		t.Error("empty published query rendered a portfolio list or card")
-	}
-	empty := extractElementByMarker(
+	work := extractElementByMarker(
 		t,
 		mainElement,
-		`class="architecture-portfolio__empty"`,
+		`class="architecture-work"`,
+		"section",
+	)
+	portfolio := extractElementByMarker(
+		t,
+		work,
+		`class="architecture-portfolio architecture-portfolio--reference"`,
+		"ol",
+	)
+	opening := extractOpeningTag(t, portfolio)
+	if !strings.Contains(opening, `aria-label="Architecture project concept previews"`) ||
+		!strings.Contains(opening, `role="list"`) {
+		t.Errorf("reference portfolio semantics are incomplete: %s", opening)
+	}
+
+	referenceItems := []struct {
+		title     string
+		typology  string
+		imagePath string
+		width     string
+		height    string
+	}{
+		{
+			title:     "Mountain House",
+			typology:  "Residential",
+			imagePath: "/static/images/architecture-design/mountain-house.jpg",
+			width:     "1600",
+			height:    "686",
+		},
+		{
+			title:     "Terra Office Building",
+			typology:  "Commercial",
+			imagePath: "/static/images/architecture-design/terra-office-building.jpg",
+			width:     "1200",
+			height:    "900",
+		},
+		{
+			title:     "Silk Museum",
+			typology:  "Cultural",
+			imagePath: "/static/images/architecture-design/silk-museum.jpg",
+			width:     "1200",
+			height:    "900",
+		},
+		{
+			title:     "Coastal Retreat",
+			typology:  "Residential",
+			imagePath: "/static/images/architecture-design/coastal-retreat.jpg",
+			width:     "1200",
+			height:    "900",
+		},
+	}
+	articles := extractArchitecturePreviewArticles(t, portfolio)
+	if len(articles) != len(referenceItems) {
+		t.Fatalf("reference article count: got %d, want %d", len(articles), len(referenceItems))
+	}
+	for index, item := range referenceItems {
+		article := articles[index]
+		for _, expected := range []string{
+			item.title,
+			item.typology,
+			`src="` + item.imagePath + `"`,
+			`width="` + item.width + `"`,
+			`height="` + item.height + `"`,
+			`loading="lazy"`,
+			`decoding="async"`,
+		} {
+			if !strings.Contains(normalizeHTMLWhitespace(article), expected) {
+				t.Errorf("reference article %d does not contain %q", index+1, expected)
+			}
+		}
+		if !architectureNonEmptyAltPattern.MatchString(article) {
+			t.Errorf("reference article %d image lacks nonempty alternative text", index+1)
+		}
+		for _, falseInteraction := range []string{
+			"<a ",
+			"<a\n",
+			"<a>",
+			"href=",
+			`aria-disabled="true"`,
+			`role="link"`,
+		} {
+			if strings.Contains(article, falseInteraction) {
+				t.Errorf("reference article %d contains false interaction %q", index+1, falseInteraction)
+			}
+		}
+		if index > 0 && strings.Index(portfolio, referenceItems[index-1].title) >=
+			strings.Index(portfolio, item.title) {
+			t.Errorf("reference article %q is out of order", item.title)
+		}
+	}
+
+	allLabel := extractElementByMarker(
+		t,
+		work,
+		`class="architecture-work__all-label"`,
 		"p",
 	)
-	if !strings.Contains(
-		normalizeHTMLWhitespace(empty),
-		"Architecture project entries are being prepared for publication.",
-	) {
-		t.Error("empty state does not contain truthful publication copy")
+	if !strings.Contains(normalizeHTMLWhitespace(allLabel), "View all projects") {
+		t.Error("reference closing label is missing")
+	}
+	if strings.Contains(allLabel, "<a") || strings.Contains(allLabel, "href=") {
+		t.Error("reference closing label promises a nonexistent destination")
 	}
 }
 
@@ -433,10 +621,7 @@ func TestArchitectureDesignTemplateEscapesManagedData(t *testing.T) {
 	app := newTestApplication(t)
 	recorder := httptest.NewRecorder()
 	listing := &architectureProjectListingData{
-		Eyebrow:      "Sentinel architectures eyebrow",
-		Heading:      "Sentinel architectures heading",
-		Introduction: "Sentinel architectures introduction",
-		EmptyMessage: "Sentinel empty copy",
+		Heading: "<u>Unsafe heading</u>",
 		Items: []architectureProjectPreviewData{
 			{
 				Number:        "A1",
@@ -489,9 +674,9 @@ func TestArchitectureDesignTemplateEscapesManagedData(t *testing.T) {
 		}
 	}
 	for _, escaped := range []string{
+		"&lt;u&gt;Unsafe heading&lt;/u&gt;",
 		"&lt;b&gt;Unsafe title&lt;/b&gt;",
 		"&lt;em&gt;Unsafe typology&lt;/em&gt;",
-		"&lt;script&gt;Unsafe location&lt;/script&gt;",
 		"&#34; onload=&#34;alert(1)",
 	} {
 		if !strings.Contains(mainElement, escaped) {
@@ -567,8 +752,9 @@ func TestArchitectureDesignRouteAcceptsHead(t *testing.T) {
 	}
 }
 
-// TestArchitectureDesignPresentationIsolationAndStylesheet verifies route-specific
-// CSS loads only on Architecture and its static response contains Stage 23 selectors.
+// TestArchitectureDesignPresentationIsolationAndStylesheet verifies the
+// route-owned hero and project-grid CSS stays isolated while the shared menu
+// remains outside this stylesheet.
 func TestArchitectureDesignPresentationIsolationAndStylesheet(t *testing.T) {
 	app := newTestApplication(t)
 	handler := app.routes()
@@ -582,6 +768,18 @@ func TestArchitectureDesignPresentationIsolationAndStylesheet(t *testing.T) {
 		`href="/static/css/architecture-design.css"`,
 	); count != 1 {
 		t.Errorf("Architecture stylesheet count: got %d, want 1", count)
+	}
+	if count := strings.Count(
+		architecture.Body.String(),
+		`/static/images/architecture-design/architecture-hero.jpg`,
+	); count != 2 {
+		t.Errorf("Architecture hero URL count: got %d, want preload plus image", count)
+	}
+	if strings.Contains(
+		architecture.Body.String(),
+		`href="/static/css/discipline.css"`,
+	) {
+		t.Error("Architecture route still loads the removed shared discipline stylesheet")
 	}
 
 	home := httptest.NewRecorder()
@@ -603,14 +801,76 @@ func TestArchitectureDesignPresentationIsolationAndStylesheet(t *testing.T) {
 	if stylesheet.Code != http.StatusOK {
 		t.Fatalf("stylesheet status: got %d, want 200", stylesheet.Code)
 	}
+	architectureCSS := stylesheet.Body.String()
 	for _, selector := range []string{
+		".architecture-page",
+		".architecture-hero",
+		".architecture-hero__image",
+		".architecture-hero__identity",
+		".architecture-hero__scroll",
+		".architecture-work",
 		".architecture-portfolio",
 		".architecture-preview__media--image",
+		".architecture-preview__fallback-number",
 		".architecture-preview__image",
-		".architecture-portfolio__empty",
+		".architecture-work__all-label",
 	} {
-		if !strings.Contains(stylesheet.Body.String(), selector) {
+		if !strings.Contains(architectureCSS, selector) {
 			t.Errorf("stylesheet does not contain %q", selector)
 		}
+	}
+
+	heroRule := stage26CSSRule(t, architectureCSS, ".architecture-hero")
+	for _, required := range []string{
+		"min-height: 100vh;",
+		"min-height: 100svh;",
+		"overflow: hidden;",
+	} {
+		if !strings.Contains(heroRule, required) {
+			t.Errorf("Architecture hero rule does not contain %q", required)
+		}
+	}
+	imageRule := stage26CSSRule(t, architectureCSS, ".architecture-hero__image")
+	for _, required := range []string{
+		"width: 100%;",
+		"height: 100%;",
+		"object-fit: cover;",
+	} {
+		if !strings.Contains(imageRule, required) {
+			t.Errorf("Architecture hero image rule does not contain %q", required)
+		}
+	}
+	identityRule := stage26CSSRule(t, architectureCSS, ".architecture-hero__identity")
+	for _, required := range []string{
+		"top: 43%;",
+		"left: 50%;",
+		"transform: translate(-50%, -50%);",
+	} {
+		if !strings.Contains(identityRule, required) {
+			t.Errorf("Architecture identity rule does not contain %q", required)
+		}
+	}
+	headerRule := stage26CSSRule(
+		t,
+		architectureCSS,
+		`body[data-current-path="/architecture-design"] .site-header`,
+	)
+	for _, required := range []string{
+		"position: absolute;",
+		"background: transparent;",
+		"box-shadow: none;",
+		"pointer-events: none;",
+	} {
+		if !strings.Contains(headerRule, required) {
+			t.Errorf("Architecture header rule does not contain %q", required)
+		}
+	}
+	linkRule := stage26CSSRule(
+		t,
+		architectureCSS,
+		`body[data-current-path="/architecture-design"] .discipline-nav__link`,
+	)
+	if !strings.Contains(linkRule, "pointer-events: auto;") {
+		t.Error("Architecture discipline links are not restored above the click-through header")
 	}
 }
