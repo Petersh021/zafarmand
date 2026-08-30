@@ -54,32 +54,49 @@ func TestStage26CheckedInAssetBudgets(t *testing.T) {
 			assets: []string{
 				"static/css/discipline.css",
 				"static/css/products.css",
+				"static/css/reference-menu.css",
 			},
 		},
 		{
-			name:   "product detail",
-			assets: []string{"static/css/product-detail.css"},
+			name: "product detail",
+			assets: []string{
+				"static/css/product-detail.css",
+				"static/css/reference-menu.css",
+			},
 		},
 		{
 			name:   "interior design",
 			assets: []string{"static/css/interior-design.css"},
 		},
 		{
-			name:   "interior detail",
-			assets: []string{"static/css/interior-project-detail.css"},
+			name: "interior detail",
+			assets: []string{
+				"static/css/interior-project-detail.css",
+				"static/css/reference-menu.css",
+			},
 		},
 		{
 			name: "architecture design",
 			assets: []string{
 				"static/css/discipline.css",
 				"static/css/architecture-design.css",
+				"static/css/reference-menu.css",
 			},
 		},
 		{
-			name:   "architecture detail",
-			assets: []string{"static/css/architecture-project-detail.css"},
+			name: "architecture detail",
+			assets: []string{
+				"static/css/architecture-project-detail.css",
+				"static/css/reference-menu.css",
+			},
 		},
-		{name: "contact", assets: []string{"static/css/contact.css"}},
+		{
+			name: "contact",
+			assets: []string{
+				"static/css/contact.css",
+				"static/css/reference-menu.css",
+			},
+		},
 	}
 	sharedBytes := stage26FileBytes(t, publicSharedAssets)
 	for _, bundle := range publicRouteBundles {

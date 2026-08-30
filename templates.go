@@ -833,6 +833,7 @@ func newTemplateCache() (
 	requiredPartialTemplates := []string{
 		"disciplinePageStyles",
 		"disciplinePageContent",
+		"siteReferenceMenu",
 	}
 
 	for _, page := range pages {

@@ -1,0 +1,267 @@
+/* Shared desktop rail for public routes without a specialized hero menu. */
+.has-site-reference-menu {
+	--site-reference-menu-width: clamp(13.5rem, 17.5vw, 32rem);
+	--site-reference-rail-width: clamp(3.75rem, 6.5vw, 5.75rem);
+}
+
+/* Native details remains independently operable when JavaScript is unavailable. */
+.site-reference-menu {
+	position: absolute;
+	inset: 0 auto auto 0;
+	z-index: 110;
+	display: none;
+	width: var(--site-reference-menu-width);
+	height: 100vh;
+	height: 100svh;
+	color: var(--color-text);
+	pointer-events: none;
+}
+
+.site-reference-menu__summary {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 2;
+	width: var(--site-reference-menu-width);
+	height: 6.5rem;
+	list-style: none;
+	color: inherit;
+	cursor: pointer;
+	pointer-events: auto;
+}
+
+.site-reference-menu__summary::-webkit-details-marker {
+	display: none;
+}
+
+.site-reference-menu__summary::marker {
+	content: "";
+}
+
+.site-reference-menu__summary:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: -0.35rem;
+}
+
+/* Thin CSS strokes reproduce the approved hamburger and close motifs. */
+.site-reference-menu__hamburger {
+	position: absolute;
+	top: 2.625rem;
+	left: clamp(2.1rem, 5vw, 4.4rem);
+	display: grid;
+	width: 1.75rem;
+	gap: 0.5rem;
+}
+
+.site-reference-menu__hamburger span {
+	display: block;
+	width: 100%;
+	height: 1px;
+	background: currentColor;
+}
+
+.site-reference-menu__close {
+	position: absolute;
+	top: 2.625rem;
+	right: clamp(1.8rem, 3vw, 2.65rem);
+	width: 1rem;
+	height: 1rem;
+}
+
+.site-reference-menu__close::before,
+.site-reference-menu__close::after {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 100%;
+	height: 1px;
+	background: currentColor;
+	content: "";
+}
+
+.site-reference-menu__close::before {
+	transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.site-reference-menu__close::after {
+	transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.site-reference-menu:not([open]) .site-reference-menu__summary {
+	width: var(--site-reference-rail-width);
+}
+
+/* A stronger translucent surface protects contrast over both light and dark pages. */
+.site-reference-menu__panel {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	width: var(--site-reference-menu-width);
+	height: 100vh;
+	height: 100svh;
+	flex-direction: column;
+	padding-block-start: clamp(10rem, 27vh, 15.5rem);
+	padding-block-end: clamp(3.25rem, 6.5vh, 4.25rem);
+	padding-inline: 0;
+	border-right: 1px solid rgba(243, 239, 231, 0.16);
+	background: rgba(19, 17, 14, 0.82);
+	backdrop-filter: blur(0.42rem);
+	-webkit-backdrop-filter: blur(0.42rem);
+	overflow-x: hidden;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	pointer-events: auto;
+}
+
+.site-reference-menu:not([open]) .site-reference-menu__close,
+.site-reference-menu:not([open]) .site-reference-menu__panel {
+	display: none;
+}
+
+.site-reference-menu__primary {
+	display: grid;
+	width: 100%;
+	align-self: stretch;
+	align-content: start;
+	justify-items: center;
+	gap: clamp(1.65rem, 4.1vh, 2.4rem);
+	text-align: center;
+}
+
+.site-reference-menu__primary a,
+.site-reference-menu__label {
+	width: fit-content;
+	max-width: 100%;
+	font-family: var(--font-navigation);
+	font-size: clamp(0.875rem, 0.86vw, 1.75rem);
+	font-weight: 400;
+	letter-spacing: 0.2em;
+	line-height: 1.35;
+	text-transform: uppercase;
+	text-shadow: 0 0.12rem 0.8rem rgba(0, 0, 0, 0.58);
+	overflow-wrap: anywhere;
+}
+
+.site-reference-menu__label {
+	cursor: default;
+}
+
+.site-reference-menu__primary a {
+	transition:
+		opacity var(--duration-fast) ease,
+		transform var(--duration-medium) var(--ease-standard);
+}
+
+.site-reference-menu__primary a:hover,
+.site-reference-menu__primary a:focus-visible {
+	opacity: 0.72;
+	transform: translateX(0.18rem);
+}
+
+.site-reference-menu__primary a:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 0.3rem;
+}
+
+/* Social marks stay decorative until reviewed profile destinations exist. */
+.site-reference-menu__socials {
+	display: grid;
+	width: fit-content;
+	gap: clamp(0.5rem, 0.55vw, 1rem);
+	margin: auto 0 0 calc(
+		clamp(3.25rem, 6.1vw, 7rem) +
+		clamp(0.45rem, 0.65vw, 0.65rem)
+	);
+	padding: 0;
+	list-style: none;
+	font-family: var(--font-navigation);
+	font-size: clamp(0.625rem, 0.6vw, 1.15rem);
+	font-weight: 400;
+	letter-spacing: 0.2em;
+	line-height: 1.5;
+	text-transform: uppercase;
+	text-shadow: 0 0.12rem 0.8rem rgba(0, 0, 0, 0.58);
+}
+
+.site-reference-menu__social-item {
+	display: grid;
+	grid-template-columns: clamp(1rem, 0.9vw, 1.65rem) max-content;
+	align-items: center;
+	justify-items: start;
+	gap: clamp(0.5rem, 0.55vw, 1rem);
+}
+
+.site-reference-menu__social-icon {
+	display: block;
+	width: clamp(1rem, 0.9vw, 1.65rem);
+	height: clamp(1rem, 0.9vw, 1.65rem);
+	fill: none;
+	stroke: currentColor;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke-width: 2.15;
+	filter: drop-shadow(0 0.08rem 0.25rem rgba(0, 0, 0, 0.65));
+	pointer-events: none;
+}
+
+.site-reference-menu__social-icon > * {
+	vector-effect: non-scaling-stroke;
+}
+
+.site-reference-menu__social-icon-dot {
+	fill: currentColor;
+	stroke: none;
+}
+
+@media (min-width: 56rem) {
+	.site-reference-menu {
+		display: block;
+	}
+
+	/* The rail owns the desktop menu control; the compact drawer remains present. */
+	.has-site-reference-menu .site-header__left {
+		visibility: hidden;
+	}
+
+	.has-site-reference-menu .discipline-nav__link {
+		--discipline-link-padding: clamp(1.75rem, 3.3vw, 2.9rem);
+
+		font-size: clamp(0.78rem, 0.75vw, 1.5rem);
+		font-weight: 300;
+		letter-spacing: 0.24em;
+	}
+
+	.has-site-reference-menu .discipline-nav__separator {
+		height: 1.125rem;
+	}
+}
+
+@media (min-width: 56rem) and (max-height: 45rem) and (min-aspect-ratio: 16/9) {
+	.site-reference-menu__panel {
+		padding-block-start: 10rem;
+		padding-block-end: 2.25rem;
+	}
+
+	.site-reference-menu__primary {
+		gap: clamp(1.35rem, 4.4vh, 2rem);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.site-reference-menu__primary a {
+		transition: none;
+	}
+
+	.site-reference-menu__primary a:hover,
+	.site-reference-menu__primary a:focus-visible {
+		transform: none;
+	}
+}
+
+@media (forced-colors: active) {
+	.site-reference-menu__panel {
+		border-color: CanvasText;
+		background: Canvas;
+		color: CanvasText;
+	}
+}

@@ -1,0 +1,119 @@
+{{/*
+siteReferenceMenu gives every inner public route the same native desktop rail
+as the approved Home and Interior compositions. The caller excludes those two
+specialized routes, while compact CSS leaves their shared drawer unchanged.
+*/}}
+{{define "siteReferenceMenu"}}
+	{{$referenceSectionPath := .CurrentPath}}
+	{{with .NavigationPath}}
+		{{$referenceSectionPath = .}}
+	{{end}}
+	{{$referenceProjectsPath := "/#disciplines"}}
+	{{if or
+		(eq $referenceSectionPath "/products")
+		(eq $referenceSectionPath "/interior-design")
+		(eq $referenceSectionPath "/architecture-design")
+	}}
+		{{if eq .CurrentPath $referenceSectionPath}}
+			{{$referenceProjectsPath = "#selected-work"}}
+		{{else}}
+			{{$referenceProjectsPath = printf "%s#selected-work" $referenceSectionPath}}
+		{{end}}
+	{{end}}
+
+	<details
+		class="site-reference-menu"
+		open
+		data-reference-menu
+	>
+		<summary
+			class="site-reference-menu__summary"
+			aria-label="Toggle page navigation"
+			data-reference-menu-toggle
+		>
+			<span
+				class="site-reference-menu__hamburger"
+				aria-hidden="true"
+			>
+				<span></span>
+				<span></span>
+				<span></span>
+			</span>
+
+			<span
+				class="site-reference-menu__close"
+				aria-hidden="true"
+			></span>
+		</summary>
+
+		<div class="site-reference-menu__panel">
+			<nav
+				class="site-reference-menu__primary"
+				aria-label="Page navigation"
+				data-reference-menu-primary
+			>
+				<a href="/">Home</a>
+				<a href="{{$referenceProjectsPath}}">Projects</a>
+				<span class="site-reference-menu__label">Services</span>
+				<span class="site-reference-menu__label">About Us</span>
+				<span class="site-reference-menu__label">Journal</span>
+				<a href="/contact">Contact</a>
+			</nav>
+
+			{{/* Social names remain text until reviewed profile URLs exist. */}}
+			<ul
+				class="site-reference-menu__socials"
+				aria-label="Social platforms"
+				role="list"
+				data-reference-menu-socials
+			>
+				<li class="site-reference-menu__social-item">
+					<svg
+						class="site-reference-menu__social-icon"
+						width="16"
+						height="16"
+						viewBox="0 0 24 24"
+						aria-hidden="true"
+						focusable="false"
+					>
+						<rect x="3" y="3" width="18" height="18" rx="5"></rect>
+						<circle cx="12" cy="12" r="4.1"></circle>
+						<circle class="site-reference-menu__social-icon-dot" cx="17.4" cy="6.7" r="1.1"></circle>
+					</svg>
+					<span>Instagram</span>
+				</li>
+
+				<li class="site-reference-menu__social-item">
+					<svg
+						class="site-reference-menu__social-icon"
+						width="16"
+						height="16"
+						viewBox="0 0 24 24"
+						aria-hidden="true"
+						focusable="false"
+					>
+						<circle cx="12" cy="12" r="9"></circle>
+						<path d="M9.2 18.7 11 11.2c.35-1.55.8-3 2.45-3 1.7 0 2.8 1.4 2.45 3.05-.4 1.8-1.55 2.95-3.05 2.95-.95 0-1.65-.4-2.05-1.2"></path>
+					</svg>
+					<span>Pinterest</span>
+				</li>
+
+				<li class="site-reference-menu__social-item">
+					<svg
+						class="site-reference-menu__social-icon"
+						width="16"
+						height="16"
+						viewBox="0 0 24 24"
+						aria-hidden="true"
+						focusable="false"
+					>
+						<rect x="3" y="3" width="18" height="18" rx="2.5"></rect>
+						<circle class="site-reference-menu__social-icon-dot" cx="7.3" cy="8" r="1.1"></circle>
+						<path d="M6.3 11v6.5M10.5 17.5V11M10.5 14.1c.15-2 1.35-3.35 3.35-3.35 2.25 0 3.85 1.5 3.85 4.25v2.5"></path>
+					</svg>
+					<span>LinkedIn</span>
+				</li>
+			</ul>
+		</div>
+	</details>
+{{end}}

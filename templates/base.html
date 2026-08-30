@@ -12,6 +12,7 @@ them while rendering, so these learning notes do not appear in the response
 sent to the browser.
 */}}
 {{define "base"}}
+{{$usesSiteReferenceMenu := and (ne .CurrentPath "/") (ne .CurrentPath "/interior-design")}}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -97,6 +98,15 @@ sent to the browser.
 	to replace this default without requiring unfinished pages to do so.
 	*/}}
 	{{block "pageStyles" .}}{{end}}
+
+	{{/* Inner public routes load the approved full-height rail without charging
+	the already-specialized Home and Interior bundles for unused presentation. */}}
+	{{if $usesSiteReferenceMenu}}
+	<link
+		rel="stylesheet"
+		href="/static/css/reference-menu.css"
+	>
+	{{end}}
 </head>
 
 {{/*
@@ -119,7 +129,7 @@ an exact route and "location" when the active link represents a parent section.
 	{{$navigationCurrent = "location"}}
 {{end}}
 <body
-	class="site-body"
+	class="site-body{{if $usesSiteReferenceMenu}} has-site-reference-menu{{end}}"
 	data-current-path="{{.CurrentPath}}"
 >
 	<div class="site-shell" data-page-shell>
@@ -151,10 +161,12 @@ an exact route and "location" when the active link represents a parent section.
 				class="home-reference-menu"
 				open
 				data-home-reference-menu
+				data-reference-menu
 			>
 				<summary
 					class="home-reference-menu__summary"
 					aria-label="Toggle landing page navigation"
+					data-reference-menu-toggle
 				>
 					<span
 						class="home-reference-menu__hamburger"
@@ -175,6 +187,7 @@ an exact route and "location" when the active link represents a parent section.
 					<nav
 						class="home-reference-menu__primary"
 						aria-label="Landing page navigation"
+						data-reference-menu-primary
 					>
 						{{if .HomeDisciplines}}
 							<a
@@ -197,6 +210,7 @@ an exact route and "location" when the active link represents a parent section.
 						class="home-reference-menu__socials"
 						aria-label="Social platforms"
 						role="list"
+						data-reference-menu-socials
 					>
 						<li class="home-reference-menu__social-item">
 							<svg
@@ -257,6 +271,12 @@ an exact route and "location" when the active link represents a parent section.
 					</ul>
 				</div>
 			</details>
+		{{end}}
+
+		{{/* Routes without a specialized photographic rail share one equivalent
+		desktop disclosure. Compact layouts continue using the drawer below. */}}
+		{{if $usesSiteReferenceMenu}}
+			{{template "siteReferenceMenu" .}}
 		{{end}}
 
 		{{/*
