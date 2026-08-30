@@ -39,6 +39,12 @@
 	--font-display: Georgia, "Times New Roman", serif;
 	--font-interface: Arial, Helvetica, sans-serif;
 	/*
+	 * Navigation uses the light neo-grotesk faces available on each platform.
+	 * The stack preserves the reference's open geometry without downloading a
+	 * render-blocking or unlicensed font asset.
+	 */
+	--font-navigation: "Helvetica Neue", "Avenir Next", Avenir, "Segoe UI", Arial, sans-serif;
+	/*
 	 * clamp(minimum, fluid preference, maximum) lets small interface text grow
 	 * gently with the viewport without becoming unreadably small or oversized.
 	 */

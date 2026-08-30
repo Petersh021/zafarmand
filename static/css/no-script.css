@@ -71,8 +71,11 @@
 .no-script-navigation__panel a {
 	padding: 0.8rem 0;
 	color: var(--color-text-soft);
-	font-size: var(--font-size-sm);
-	letter-spacing: 0.14em;
+	font-family: var(--font-navigation);
+	font-size: clamp(0.95rem, 1.25vw, 3rem);
+	font-weight: 300;
+	letter-spacing: 0.24em;
+	line-height: 1.35;
 	text-transform: uppercase;
 }
 

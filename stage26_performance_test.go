@@ -20,6 +20,11 @@ const (
 	stage26AdminAssetBudget = 48 * stage26KiB
 	// stage26FallbackHeroBudget bounds the checked-in bootstrap photograph.
 	stage26FallbackHeroBudget = 256 * stage26KiB
+	// stage26InteriorHeroBudget keeps the route-owned photographic LCP below the
+	// same conservative transfer ceiling as the Homepage fallback.
+	stage26InteriorHeroBudget = 256 * stage26KiB
+	// stage26InteriorPreviewBudget caps each lazy-loaded reference card image.
+	stage26InteriorPreviewBudget = 192 * stage26KiB
 	// stage26PublicDocumentBudget guards representative server-rendered HTML.
 	stage26PublicDocumentBudget = 96 * stage26KiB
 )
@@ -56,11 +61,8 @@ func TestStage26CheckedInAssetBudgets(t *testing.T) {
 			assets: []string{"static/css/product-detail.css"},
 		},
 		{
-			name: "interior design",
-			assets: []string{
-				"static/css/discipline.css",
-				"static/css/interior-design.css",
-			},
+			name:   "interior design",
+			assets: []string{"static/css/interior-design.css"},
 		},
 		{
 			name:   "interior detail",
@@ -118,6 +120,45 @@ func TestStage26CheckedInAssetBudgets(t *testing.T) {
 			heroBytes,
 			stage26FallbackHeroBudget,
 		)
+	}
+
+	// The dedicated Interior hero is eager, while its four concept previews are
+	// lazy. Individual limits prevent one replacement image from quietly
+	// dominating the initial page or below-fold transfer.
+	interiorHeroBytes := stage26FileBytes(
+		t,
+		[]string{"static/images/interior-design/interior-hero.jpg"},
+	)
+	if interiorHeroBytes > stage26InteriorHeroBudget {
+		t.Errorf(
+			"Interior hero bytes: got %d, budget %d",
+			interiorHeroBytes,
+			stage26InteriorHeroBudget,
+		)
+	}
+
+	interiorPreviews := []string{
+		"static/images/interior-design/hillside-residence.jpg",
+		"static/images/interior-design/karimi-apartment.jpg",
+		"static/images/interior-design/noor-office.jpg",
+		"static/images/interior-design/atrium-lobby.jpg",
+	}
+	for _, path := range interiorPreviews {
+		information, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("stat Interior preview %q: %v", path, err)
+		}
+		if !information.Mode().IsRegular() {
+			t.Fatalf("Interior preview %q is not a regular file", path)
+		}
+		if information.Size() > stage26InteriorPreviewBudget {
+			t.Errorf(
+				"Interior preview %q bytes: got %d, budget %d",
+				path,
+				information.Size(),
+				stage26InteriorPreviewBudget,
+			)
+		}
 	}
 }
 

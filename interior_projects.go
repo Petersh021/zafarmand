@@ -132,6 +132,53 @@ func interiorProjectPreviews(
 	return previews
 }
 
+// interiorReferenceProjectPreviews returns fresh presentation values for the
+// four approved concept cards copied into the public static asset tree.
+//
+// A function avoids exposing a mutable package-level slice. These previews are
+// deliberately non-interactive and are replaced by the published-only database
+// projection as soon as at least one real public project exists.
+func interiorReferenceProjectPreviews() []interiorReferenceProjectPreviewData {
+	return []interiorReferenceProjectPreviewData{
+		{
+			Title:     "Hillside Residence",
+			Typology:  "Residential",
+			ImagePath: "/static/images/interior-design/hillside-residence.jpg",
+			Width:     1681,
+			Height:    936,
+			AltText: "Warm living room overlooking a wooded hillside through " +
+				"a tall central window",
+		},
+		{
+			Title:     "Karimi Apartment",
+			Typology:  "Residential",
+			ImagePath: "/static/images/interior-design/karimi-apartment.jpg",
+			Width:     1678,
+			Height:    937,
+			AltText: "Low-lit apartment living area beside a dark timber " +
+				"kitchen and full-height window",
+		},
+		{
+			Title:     "Noor Office",
+			Typology:  "Commercial",
+			ImagePath: "/static/images/interior-design/noor-office.jpg",
+			Width:     1681,
+			Height:    936,
+			AltText: "Dark open office with shared tables, a window wall, and " +
+				"warm perimeter lighting",
+		},
+		{
+			Title:     "Atrium Lobby",
+			Typology:  "Hospitality",
+			ImagePath: "/static/images/interior-design/atrium-lobby.jpg",
+			Width:     1679,
+			Height:    937,
+			AltText: "Enclosed lobby lounge with curved seating, indoor trees, " +
+				"and a garden-facing glass wall",
+		},
+	}
+}
+
 // newInteriorProjectDetailData maps one validated public repository record to
 // the narrow detail-template contract. Routing identity stays in the handler,
 // while this conversion makes every newly presented field an explicit choice.

@@ -1,16 +1,16 @@
 {{/*
-The Interior Design page remains a separate template-cache entry. Stage 22 now
-maps PostgreSQL's published-only projection into the established project index
-while preserving the shared discipline hero and real detail navigation.
+The Interior Design route owns a photographic, reference-aligned composition.
+It remains an isolated template-cache entry, so Products and Architecture can
+continue using the shared discipline shell without inheriting these sections.
 */}}
 
-{{/*
-discipline.css supplies the established landing-page shell. The Interior-only
-stylesheet loads second so its namespaced rules can compose that warm work
-surface without leaking into Products, Architecture Design, or the homepage.
-*/}}
 {{define "pageStyles"}}
-	{{template "disciplinePageStyles" .}}
+	{{/* Preload only the above-the-fold route-owned image used as the LCP. */}}
+	<link
+		rel="preload"
+		as="image"
+		href="/static/images/interior-design/interior-hero.jpg"
+	>
 
 	<link
 		rel="stylesheet"
@@ -18,139 +18,309 @@ surface without leaking into Products, Architecture Design, or the homepage.
 	>
 {{end}}
 
-{{/*
-The shared content template continues to own the one main landmark, hero h1,
-and route navigation. This wrapper supplies root pageData unchanged.
-*/}}
 {{define "content"}}
-	{{template "disciplinePageContent" .}}
-{{end}}
+<main
+	class="interior-page"
+	id="main-content"
+>
+	{{/*
+	The hero is exactly one viewport tall at reference-capable sizes. Its image is
+	meaningful content, while the scrim and search motif are decorative layers.
+	*/}}
+	<section
+		class="interior-hero"
+		aria-labelledby="interior-title"
+		data-interior-hero
+	>
+		<img
+			class="interior-hero__image"
+			src="/static/images/interior-design/interior-hero.jpg"
+			width="1426"
+			height="936"
+			alt="Warm minimalist living and dining room with low cream seating, a dark recessed kitchen, and a branch arrangement"
+			fetchpriority="high"
+			decoding="async"
+		>
 
-{{/*
-disciplineWorkContent overrides the shared default only inside the separately
-parsed Interior Design template set. The Products and Architecture template
-sets therefore cannot inherit this project markup accidentally.
+		<div
+			class="interior-hero__scrim"
+			aria-hidden="true"
+		></div>
 
-The shared partial calls the block with root $, so InteriorProjectListing is
-available even though disciplinePageContent is temporarily inside a
-DisciplinePage "with" action.
-*/}}
-{{define "disciplineWorkContent"}}
-	{{with .InteriorProjectListing}}
-	<header class="discipline-work__header interior-portfolio__header">
-		<p class="discipline-work__eyebrow">
-			{{.Eyebrow}}
-		</p>
+		{{/*
+		The desktop concept keeps a native, open disclosure along the complete hero.
+		It is ordinary navigation rather than a modal; compact screens hide it and
+		use the shared accessible drawer rendered by base.html.
+		*/}}
+		<details
+			class="interior-reference-menu"
+			open
+		>
+			<summary
+				class="interior-reference-menu__summary"
+				aria-label="Toggle Interior Design navigation"
+			>
+				<span
+					class="interior-reference-menu__hamburger"
+					aria-hidden="true"
+				>
+					<span></span>
+					<span></span>
+					<span></span>
+				</span>
 
+				<span
+					class="interior-reference-menu__close"
+					aria-hidden="true"
+				></span>
+			</summary>
+
+			<div class="interior-reference-menu__panel">
+				<nav
+					class="interior-reference-menu__primary"
+					aria-label="Interior page navigation"
+				>
+					<a href="#selected-work">Projects</a>
+					<span class="interior-reference-menu__label">Services</span>
+					<span class="interior-reference-menu__label">About Us</span>
+					<span class="interior-reference-menu__label">Journal</span>
+					<a href="/contact">Contact</a>
+				</nav>
+
+				{{/*
+				Social names and decorative brand marks remain non-links until reviewed
+				profile URLs exist, preserving the composition without dead destinations.
+				*/}}
+				<ul
+					class="interior-reference-menu__socials"
+					aria-label="Social platforms"
+					role="list"
+				>
+					<li class="interior-reference-menu__social-item">
+						<svg
+							class="interior-reference-menu__social-icon interior-reference-menu__social-icon--instagram"
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							aria-hidden="true"
+							focusable="false"
+						>
+							<rect x="3" y="3" width="18" height="18" rx="5"></rect>
+							<circle cx="12" cy="12" r="4.1"></circle>
+							<circle
+								class="interior-reference-menu__social-icon-dot"
+								cx="17.4"
+								cy="6.7"
+								r="1.1"
+							></circle>
+						</svg>
+						<span>Instagram</span>
+					</li>
+
+					<li class="interior-reference-menu__social-item">
+						<svg
+							class="interior-reference-menu__social-icon interior-reference-menu__social-icon--pinterest"
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							aria-hidden="true"
+							focusable="false"
+						>
+							<circle cx="12" cy="12" r="9"></circle>
+							<path d="M9.2 18.7 11 11.2c.35-1.55.8-3 2.45-3 1.7 0 2.8 1.4 2.45 3.05-.4 1.8-1.55 2.95-3.05 2.95-.95 0-1.65-.4-2.05-1.2"></path>
+						</svg>
+						<span>Pinterest</span>
+					</li>
+
+					<li class="interior-reference-menu__social-item">
+						<svg
+							class="interior-reference-menu__social-icon interior-reference-menu__social-icon--linkedin"
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							aria-hidden="true"
+							focusable="false"
+						>
+							<rect x="3" y="3" width="18" height="18" rx="2.5"></rect>
+							<circle
+								class="interior-reference-menu__social-icon-dot"
+								cx="7.3"
+								cy="8"
+								r="1.1"
+							></circle>
+							<path d="M6.3 11v6.5M10.5 17.5V11M10.5 14.1c.15-2 1.35-3.35 3.35-3.35 2.25 0 3.85 1.5 3.85 4.25v2.5"></path>
+						</svg>
+						<span>LinkedIn</span>
+					</li>
+				</ul>
+			</div>
+		</details>
+
+		{{/* Search is decorative until a real search route and results exist. */}}
+		<span
+			class="interior-hero__search-motif"
+			aria-hidden="true"
+		>
+			<span></span>
+		</span>
+
+		<header class="interior-hero__identity">
+			<h1
+				class="interior-hero__title"
+				id="interior-title"
+			>
+				Interior Design
+			</h1>
+
+			<p class="interior-hero__descriptor">
+				Thoughtful spaces. Refined living.
+			</p>
+		</header>
+
+		{{/*
+		This real fragment destination works without JavaScript. main.js adds the
+		reference's smooth movement only when motion is allowed by the visitor.
+		*/}}
+		<a
+			class="interior-hero__scroll"
+			href="#selected-work"
+			data-interior-scroll
+		>
+			<span>Scroll to explore</span>
+			<span
+				class="interior-hero__scroll-chevron"
+				aria-hidden="true"
+			></span>
+		</a>
+	</section>
+
+	{{/*
+	The project section begins immediately after the hero. Published repository
+	records always win. When none exist, the four approved concept previews keep
+	the requested launch composition without inventing detail destinations.
+	*/}}
+	<section
+		class="interior-work"
+		id="selected-work"
+		aria-labelledby="selected-work-title"
+		tabindex="-1"
+	>
+		{{with .InteriorProjectListing}}
 		<h2
-			class="discipline-work__title"
+			class="interior-work__title"
 			id="selected-work-title"
 		>
 			{{.Heading}}
 		</h2>
 
-		<p class="discipline-work__status">
-			{{.Introduction}}
-		</p>
-	</header>
-
-	{{/*
-	A nonempty preview slice becomes one semantic ordered list. Go controls the
-	editorial order and html/template escapes every visible field. Each article
-	contains one native anchor supplied by the Stage 22 view model, so ordinary
-	browser navigation, new-tab commands, and history work without JavaScript.
-	*/}}
-	{{if .Items}}
-	<ol
-		class="interior-portfolio"
-		aria-label="Interior project previews"
-		role="list"
-	>
-		{{range .Items}}
-		<li class="interior-portfolio__item">
-			<article class="interior-preview">
-				<a
-					class="interior-preview__link"
-					href="{{.Path}}"
-				>
-					{{/*
-					A reviewed cover is meaningful content and therefore keeps its
-					required alternative text. Only the CSS fallback is decorative
-					and hidden from assistive technology.
-					*/}}
-					{{with .Cover}}
-					<div
-						class="interior-preview__media interior-preview__media--image"
+		{{if .Items}}
+		<ol
+			class="interior-portfolio"
+			aria-label="Published Interior project previews"
+			role="list"
+		>
+			{{range .Items}}
+			<li class="interior-portfolio__item">
+				<article class="interior-preview">
+					<a
+						class="interior-preview__link"
+						href="{{.Path}}"
 					>
+						<div class="interior-preview__media">
+							{{with .Cover}}
+							<img
+								class="interior-preview__image"
+								src="{{.Path}}"
+								width="{{.Width}}"
+								height="{{.Height}}"
+								alt="{{.AltText}}"
+								loading="lazy"
+								decoding="async"
+							>
+							{{else}}
+							<span
+								class="interior-preview__fallback-number"
+								aria-hidden="true"
+							>{{.Number}}</span>
+							{{end}}
+
+							<div
+								class="interior-preview__gradient"
+								aria-hidden="true"
+							></div>
+
+							<div class="interior-preview__body">
+								<h3 class="interior-preview__title">
+									{{.Title}}
+								</h3>
+
+								<p class="interior-preview__typology">
+									{{.Typology}}
+								</p>
+							</div>
+						</div>
+					</a>
+				</article>
+			</li>
+			{{end}}
+		</ol>
+		{{else}}
+		<ol
+			class="interior-portfolio interior-portfolio--reference"
+			aria-label="Interior project concept previews"
+			role="list"
+		>
+			{{range .ReferenceItems}}
+			<li class="interior-portfolio__item">
+				<article class="interior-preview interior-preview--reference">
+					<div class="interior-preview__media">
 						<img
 							class="interior-preview__image"
-							src="{{.Path}}"
+							src="{{.ImagePath}}"
 							width="{{.Width}}"
 							height="{{.Height}}"
 							alt="{{.AltText}}"
-							decoding="async"
 							loading="lazy"
+							decoding="async"
 						>
-					</div>
-					{{else}}
-					<div
-						class="interior-preview__media"
-						aria-hidden="true"
-					>
-						<span class="interior-preview__number">
-							{{.Number}}
-						</span>
-					</div>
-					{{end}}
 
-					<div class="interior-preview__body">
-						<p class="interior-preview__label">
-							{{.Typology}} / Project {{.Number}}
-						</p>
+						<div
+							class="interior-preview__gradient"
+							aria-hidden="true"
+						></div>
 
-						<h3 class="interior-preview__title">
-							{{.Title}}
-						</h3>
+						<div class="interior-preview__body">
+							<h3 class="interior-preview__title">
+								{{.Title}}
+							</h3>
 
-						<p class="interior-preview__status">
-							{{.ProjectStatus}}{{with .Location}} / {{.}}{{end}}{{with .YearLabel}} / {{.}}{{end}}
-						</p>
+							<p class="interior-preview__typology">
+								{{.Typology}}
+							</p>
+						</div>
 					</div>
-				</a>
-			</article>
-		</li>
+				</article>
+			</li>
+			{{end}}
+		</ol>
 		{{end}}
-	</ol>
-	{{else}}
-	{{/*
-	A visible empty state keeps the h2-labelled work section useful when the
-	database query returns no published projects. An empty list is not emitted.
-	*/}}
-	<p class="interior-portfolio__empty">
-		{{.EmptyMessage}}
-	</p>
-	{{end}}
-	{{else}}
-	{{/*
-	The production handler always supplies InteriorProjectListing. This defensive
-	fallback preserves a truthful labelled section if future code accidentally
-	omits that optional view model.
-	*/}}
-	<header class="discipline-work__header interior-portfolio__header">
-		<p class="discipline-work__eyebrow">
-			Zafarmand interiors
-		</p>
 
+		{{/*
+		The concept includes this framed closing label. It remains non-interactive
+		until a distinct all-projects destination exists, avoiding a self-link that
+		would misleadingly behave like a button.
+		*/}}
+		<p class="interior-work__all-label">
+			View all projects
+		</p>
+		{{else}}
 		<h2
-			class="discipline-work__title"
+			class="interior-work__title"
 			id="selected-work-title"
 		>
-			Interior project index
+			Featured Interior Projects
 		</h2>
-
-		<p class="discipline-work__status">
-			Interior project entries are being prepared for publication.
-		</p>
-	</header>
-	{{end}}
+		{{end}}
+	</section>
+</main>
 {{end}}

@@ -1,350 +1,861 @@
 /* --------------------------------------------------
-   Stage 22: PostgreSQL-backed Interior Design portfolio
+   Interior Design reference composition
 
-   This stylesheet specializes only the selected-work region on
-   /interior-design. discipline.css continues to own the shared hero and route
-   navigation. Every selector is namespaced with "interior-portfolio" or
-   "interior-preview" so no presentation leaks into another public route.
-   Reviewed covers and managed copy now fill the established card composition;
-   the detail page remains isolated in interior-project-detail.css.
+   This stylesheet is intentionally route-specific. It replaces the generic
+   discipline landing treatment with the approved photographic hero, open
+   desktop rail, and compact two-column project showcase without changing the
+   Product, Architecture, or Interior detail pages.
+-------------------------------------------------- */
+
+body[data-current-path="/interior-design"] {
+	--interior-ink: #231f1a;
+	--interior-paper: #e7e2dc;
+	--interior-paper-rule: rgba(35, 31, 26, 0.28);
+	--interior-hero-text: #f3efe7;
+	--interior-menu-width: clamp(13.5rem, 17.5vw, 32rem);
+	--interior-menu-rail-width: clamp(3.75rem, 6.5vw, 5.75rem);
+}
+
+/* The page owns both the dark hero and warm project surface edge to edge. */
+.interior-page {
+	min-width: 0;
+	background: var(--interior-paper);
+	color: var(--interior-hero-text);
+	overflow: clip;
+}
+
+/* --------------------------------------------------
+   Full-viewport hero
 -------------------------------------------------- */
 
 /*
- * The reference uses a restrained introduction before a two-column landscape
- * index. This header keeps the shared asymmetric grid but gives the explanatory
- * copy slightly more room than the Products catalogue needs.
+ * A real viewport boundary makes the below-fold section begin at the same point
+ * as the concept and gives the scroll cue a dependable visual destination.
  */
-.interior-portfolio__header {
-	grid-template-columns:
-		minmax(0, 1.3fr)
-		minmax(18rem, 0.7fr);
+.interior-hero {
+	position: relative;
+	isolation: isolate;
+	display: grid;
+	min-height: 100vh;
+	min-height: 100svh;
+	place-items: center;
+	overflow: hidden;
+	background: #17140f;
+}
+
+/* The route-owned photograph fills every viewport ratio without distortion. */
+.interior-hero__image {
+	position: absolute;
+	z-index: -3;
+	inset: 0;
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	object-position: center 52%;
 }
 
 /*
- * The ordered list establishes a stable two-column project rhythm. Removing
- * browser markers is paired with role="list" in the template for dependable
- * list semantics in Safari and VoiceOver. minmax(0, 1fr) prevents long future
- * managed text from widening the page.
+ * The generated photograph is already low-key; this restrained directional
+ * scrim keeps the rail and centered identity legible without flattening it.
  */
+.interior-hero__scrim {
+	position: absolute;
+	z-index: -2;
+	inset: 0;
+	background:
+		linear-gradient(
+			90deg,
+			rgba(8, 7, 5, 0.31),
+			rgba(8, 7, 5, 0.14) 40%,
+			rgba(8, 7, 5, 0.22)
+		),
+		rgba(8, 7, 5, 0.1);
+	pointer-events: none;
+}
+
+/*
+ * Centered type follows the reference's wide editorial letter spacing. The
+ * heading scale responds to both viewport width and height, giving desktop
+ * screens more presence without forcing overflow in a short landscape window.
+ */
+.interior-hero__identity {
+	position: absolute;
+	z-index: 2;
+	top: 50%;
+	left: 50%;
+	display: grid;
+	width: min(78vw, 72rem);
+	gap: clamp(1.15rem, 2.2vh, 1.7rem);
+	place-items: center;
+	text-align: center;
+	text-shadow: 0 0.2rem 1.5rem rgba(0, 0, 0, 0.66);
+	transform: translate(-50%, -50%);
+}
+
+.interior-hero__title {
+	margin: 0;
+	padding-left: 0.18em;
+	color: var(--interior-hero-text);
+	font-family: var(--font-display);
+	font-size: clamp(4.25rem, min(6vw, 14vh), 6.5rem);
+	font-weight: 400;
+	letter-spacing: 0.18em;
+	line-height: 0.96;
+	text-transform: uppercase;
+	text-wrap: balance;
+}
+
+.interior-hero__descriptor {
+	min-width: 0;
+	max-width: 100%;
+	margin: 0;
+	padding-left: 0.42em;
+	color: rgba(243, 239, 231, 0.9);
+	font-size: clamp(0.88rem, 1.4vw, 1.25rem);
+	font-weight: 600;
+	letter-spacing: 0.42em;
+	line-height: 1.5;
+	text-transform: uppercase;
+	text-wrap: balance;
+}
+
+/*
+ * The native fragment cue sits near the lower center. Its two borders form the
+ * same thin chevron as the approved comp without an image or icon dependency.
+ */
+.interior-hero__scroll {
+	position: absolute;
+	z-index: 3;
+	bottom: max(2.2rem, env(safe-area-inset-bottom));
+	left: 50%;
+	display: grid;
+	gap: 0.75rem;
+	place-items: center;
+	color: var(--interior-hero-text);
+	font-size: max(clamp(0.68rem, 0.6rem + 0.25vw, 0.9rem), 0.64vw);
+	font-weight: 400;
+	letter-spacing: 0.24em;
+	line-height: 1.2;
+	text-transform: uppercase;
+	text-shadow: 0 0.15rem 0.8rem rgba(0, 0, 0, 0.72);
+	transform: translateX(-50%);
+}
+
+.interior-hero__scroll-chevron {
+	display: block;
+	width: max(clamp(1.15rem, 1.05rem + 0.15vw, 1.3rem), 0.82vw);
+	height: max(clamp(1.15rem, 1.05rem + 0.15vw, 1.3rem), 0.82vw);
+	border-right: 1px solid currentColor;
+	border-bottom: 1px solid currentColor;
+	transform: rotate(45deg);
+	transition: transform var(--duration-medium) var(--ease-standard);
+}
+
+.interior-hero__scroll:hover .interior-hero__scroll-chevron,
+.interior-hero__scroll:focus-visible .interior-hero__scroll-chevron {
+	transform: translateY(0.2rem) rotate(45deg);
+}
+
+.interior-hero__scroll:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 0.55rem;
+}
+
+/* --------------------------------------------------
+   Desktop reference rail
+-------------------------------------------------- */
+
+/*
+ * Native details starts open, can be closed without JavaScript, and stays
+ * inside the hero so it naturally scrolls away before the light project grid.
+ */
+.interior-reference-menu {
+	position: absolute;
+	inset: 0 auto 0 0;
+	z-index: 5;
+	display: none;
+	width: var(--interior-menu-width);
+	height: 100vh;
+	height: 100svh;
+	color: var(--interior-hero-text);
+	pointer-events: none;
+}
+
+.interior-reference-menu__summary {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 2;
+	width: var(--interior-menu-width);
+	height: 6.5rem;
+	list-style: none;
+	color: inherit;
+	cursor: pointer;
+	pointer-events: auto;
+}
+
+/* The custom hamburger and close strokes replace the browser disclosure marker. */
+.interior-reference-menu__summary::-webkit-details-marker {
+	display: none;
+}
+
+.interior-reference-menu__summary::marker {
+	content: "";
+}
+
+.interior-reference-menu__summary:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: -0.35rem;
+}
+
+.interior-reference-menu__hamburger {
+	position: absolute;
+	top: 2.625rem;
+	left: clamp(2.1rem, 5vw, 4.4rem);
+	display: grid;
+	width: 1.75rem;
+	gap: 0.5rem;
+}
+
+.interior-reference-menu__hamburger span {
+	display: block;
+	width: 100%;
+	height: 1px;
+	background: currentColor;
+}
+
+.interior-reference-menu__close {
+	position: absolute;
+	top: 2.625rem;
+	right: clamp(1.8rem, 3vw, 2.65rem);
+	width: 1rem;
+	height: 1rem;
+}
+
+.interior-reference-menu__close::before,
+.interior-reference-menu__close::after {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 100%;
+	height: 1px;
+	background: currentColor;
+	content: "";
+}
+
+.interior-reference-menu__close::before {
+	transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.interior-reference-menu__close::after {
+	transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+/* A closed rail leaves only the truthful reopening control over the image. */
+.interior-reference-menu:not([open]) .interior-reference-menu__summary {
+	width: var(--interior-menu-rail-width);
+}
+
+.interior-reference-menu:not([open]) .interior-reference-menu__close,
+.interior-reference-menu:not([open]) .interior-reference-menu__panel {
+	display: none;
+}
+
+/*
+ * The reference's upper vertical rhythm is independent of the rail width.
+ * Flex flow keeps social platforms at the bottom and lets short rails scroll
+ * instead of clipping real navigation.
+ */
+.interior-reference-menu[open] .interior-reference-menu__panel {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	width: var(--interior-menu-width);
+	height: 100vh;
+	height: 100svh;
+	flex-direction: column;
+	padding-block-start: clamp(10rem, 27vh, 15.5rem);
+	padding-block-end: clamp(3.25rem, 6.5vh, 4.25rem);
+	padding-inline: 0;
+	border-right: 1px solid rgba(243, 239, 231, 0.13);
+	background: rgba(19, 17, 14, 0.44);
+	backdrop-filter: blur(0.42rem);
+	-webkit-backdrop-filter: blur(0.42rem);
+	overflow-x: hidden;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	pointer-events: auto;
+}
+
+.interior-reference-menu__primary {
+	display: grid;
+	width: 100%;
+	align-self: stretch;
+	align-content: start;
+	justify-items: center;
+	gap: clamp(1.65rem, 4.1vh, 2.4rem);
+	text-align: center;
+}
+
+.interior-reference-menu__primary a,
+.interior-reference-menu__label {
+	width: fit-content;
+	max-width: 100%;
+	color: inherit;
+	font-family: var(--font-navigation);
+	font-size: clamp(0.875rem, 0.86vw, 1.75rem);
+	font-weight: 400;
+	letter-spacing: 0.2em;
+	line-height: 1.35;
+	text-transform: uppercase;
+	text-shadow: 0 0.12rem 0.8rem rgba(0, 0, 0, 0.58);
+	overflow-wrap: anywhere;
+}
+
+/* Plain labels match the composition without pretending unfinished routes exist. */
+.interior-reference-menu__label {
+	cursor: default;
+}
+
+.interior-reference-menu__primary a {
+	transition:
+		opacity var(--duration-fast) ease,
+		transform var(--duration-medium) var(--ease-standard);
+}
+
+.interior-reference-menu__primary a:hover,
+.interior-reference-menu__primary a:focus-visible {
+	opacity: 0.72;
+	transform: translateX(0.18rem);
+}
+
+.interior-reference-menu__primary a:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 0.3rem;
+}
+
+.interior-reference-menu__socials {
+	display: grid;
+	width: fit-content;
+	gap: clamp(0.5rem, 0.55vw, 1rem);
+	margin: auto 0 0 calc(
+		clamp(3.25rem, 6.1vw, 7rem) +
+		clamp(0.45rem, 0.65vw, 0.65rem)
+	);
+	padding: 0;
+	list-style: none;
+	font-family: var(--font-navigation);
+	font-size: clamp(0.625rem, 0.6vw, 1.15rem);
+	font-weight: 400;
+	letter-spacing: 0.2em;
+	line-height: 1.5;
+	text-transform: uppercase;
+	text-shadow: 0 0.12rem 0.8rem rgba(0, 0, 0, 0.58);
+}
+
+/* The fixed first column keeps each brand mark visibly ahead of its label. */
+.interior-reference-menu__social-item {
+	display: grid;
+	grid-template-columns: clamp(1rem, 0.9vw, 1.65rem) max-content;
+	align-items: center;
+	justify-items: start;
+	gap: clamp(0.5rem, 0.55vw, 1rem);
+}
+
+/* Inline vectors inherit rail colour and remain decorative beside named text. */
+.interior-reference-menu__social-icon {
+	display: block;
+	width: clamp(1rem, 0.9vw, 1.65rem);
+	height: clamp(1rem, 0.9vw, 1.65rem);
+	fill: none;
+	stroke: currentColor;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke-width: 2.15;
+	filter: drop-shadow(0 0.08rem 0.25rem rgba(0, 0, 0, 0.65));
+	opacity: 1;
+	pointer-events: none;
+}
+
+/* Non-scaling strokes keep the compact logos legible at browser zoom levels. */
+.interior-reference-menu__social-icon > * {
+	vector-effect: non-scaling-stroke;
+}
+
+.interior-reference-menu__social-icon-dot {
+	fill: currentColor;
+	stroke: none;
+}
+
+/* --------------------------------------------------
+   Decorative search motif
+-------------------------------------------------- */
+
+.interior-hero__search-motif {
+	position: absolute;
+	top: 2.15rem;
+	right: 2.5rem;
+	z-index: 5;
+	display: grid;
+	width: 2.75rem;
+	height: 2.75rem;
+	place-items: center;
+	pointer-events: none;
+}
+
+.interior-hero__search-motif span {
+	position: relative;
+	display: block;
+	width: 1.18rem;
+	height: 1.18rem;
+	border: 1px solid currentColor;
+	border-radius: 50%;
+}
+
+.interior-hero__search-motif span::after {
+	position: absolute;
+	right: -0.38rem;
+	bottom: -0.22rem;
+	width: 0.52rem;
+	height: 1px;
+	background: currentColor;
+	content: "";
+	transform: rotate(48deg);
+	transform-origin: left center;
+}
+
+/* --------------------------------------------------
+   Featured project grid
+-------------------------------------------------- */
+
+/*
+ * The asymmetric horizontal padding mirrors the supplied desktop comp, where
+ * the right card ends closer to the viewport edge than the left card begins.
+ */
+.interior-work {
+	display: grid;
+	min-width: 0;
+	scroll-margin-top: var(--header-height);
+	padding:
+		clamp(2.8rem, 4vw, 3.75rem)
+		clamp(1.25rem, 1.9vw, 2.25rem)
+		clamp(3.75rem, 6vw, 6rem)
+		clamp(1.25rem, 6.1vw, 7rem);
+	background: var(--interior-paper);
+	color: var(--interior-ink);
+}
+
+.interior-work__title {
+	margin: 0 0 clamp(2rem, 3.3vw, 3.25rem);
+	font-family: var(--font-interface);
+	font-size: clamp(0.82rem, 1.32vw, 1.1rem);
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	line-height: 1.3;
+	text-align: center;
+	text-transform: uppercase;
+}
+
+/* The semantic ordered list is visually reset and arranged in reference order. */
 .interior-portfolio {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap:
-		clamp(3.5rem, 7vw, 7rem)
-		clamp(1rem, 2.5vw, 2.75rem);
+		clamp(1.1rem, 1.55vw, 1.55rem)
+		clamp(1rem, 1.7vw, 1.7rem);
 	margin: 0;
 	padding: 0;
 	list-style: none;
 }
 
-/*
- * Grid children receive an explicit shrink boundary. This small rule is
- * important when administrator-managed titles contain long unbroken text.
- */
-.interior-portfolio__item {
-	min-width: 0;
-}
-
-/*
- * Each article remains the semantic boundary for one published project. Its
- * single child anchor owns the complete interactive region, giving mouse,
- * touch, keyboard, and new-tab users one consistent real destination.
- */
-.interior-preview {
-	min-width: 0;
-}
-
-/*
- * The anchor preserves the established media-then-copy order and stretches
- * through the complete article. Inherited color and a dedicated focus outline
- * replace browser-default link styling without obscuring interactivity.
- */
+.interior-portfolio__item,
+.interior-preview,
 .interior-preview__link {
-	display: grid;
 	min-width: 0;
-	min-height: 100%;
-	gap: clamp(1.1rem, 2vw, 1.6rem);
+}
+
+/* A real published card retains one complete native detail-page target. */
+.interior-preview__link {
+	display: block;
 	color: inherit;
 	text-decoration: none;
 }
 
-/*
- * Keyboard focus outlines the complete card without changing its dimensions.
- * Hover and focus also strengthen existing media and copy rules immediately;
- * no transform or transition introduces motion.
- */
 .interior-preview__link:focus-visible {
-	outline: 2px solid var(--discipline-light-ink);
-	outline-offset: 0.3rem;
-}
-
-.interior-preview__link:hover .interior-preview__media,
-.interior-preview__link:focus-visible .interior-preview__media,
-.interior-preview__link:hover .interior-preview__body,
-.interior-preview__link:focus-visible .interior-preview__body {
-	border-color: var(--discipline-light-ink);
+	outline: 2px solid var(--interior-ink);
+	outline-offset: 0.35rem;
 }
 
 /*
- * A 16:10 landscape field echoes the supplied portfolio composition without
- * displaying its baked-in projects. Layered charcoal and umber gradients
- * provide sufficient visual weight while remaining clearly abstract.
+ * Every image uses the same cinematic 16:9 field. The fallback gradient remains
+ * honest when a published record has not received a reviewed cover.
  */
 .interior-preview__media {
 	position: relative;
 	isolation: isolate;
 	display: grid;
-	aspect-ratio: 16 / 10;
+	aspect-ratio: 16 / 9;
 	min-width: 0;
 	overflow: hidden;
 	place-items: end start;
-	border: 1px solid var(--discipline-light-rule);
+	border: 1px solid var(--interior-paper-rule);
 	background:
 		radial-gradient(
-			circle at 68% 32%,
-			rgba(216, 199, 170, 0.22),
-			transparent 30%
+			circle at 64% 30%,
+			rgba(218, 200, 171, 0.22),
+			transparent 34%
 		),
-		linear-gradient(
-			145deg,
-			#4c463b,
-			#2c2923 54%,
-			#171613
-		);
-}
-
-/*
- * The first generated layer suggests an interior wall and opening through
- * simple geometry. The image modifier suppresses it; in the fallback it remains
- * inside an aria-hidden field with no alternative-text responsibility.
- */
-.interior-preview__media::before {
-	position: absolute;
-	z-index: -1;
-	inset: 12% 10% 23% 32%;
-	border:
-		1px
-		solid
-		rgba(232, 224, 209, 0.18);
-	background:
-		linear-gradient(
-			90deg,
-			rgba(232, 224, 209, 0.06) 0 48%,
-			rgba(17, 16, 13, 0.16) 48% 52%,
-			rgba(232, 224, 209, 0.035) 52% 100%
-		);
-	box-shadow: 0 1.5rem 3rem rgba(0, 0, 0, 0.24);
-	content: "";
-}
-
-/*
- * The second layer establishes a low floor plane. Its clipped polygon creates
- * perspective without raster imagery, scripting, or animation.
- */
-.interior-preview__media::after {
-	position: absolute;
-	z-index: -2;
-	right: -8%;
-	bottom: -1px;
-	left: -8%;
-	height: 34%;
-	background:
-		linear-gradient(
-			155deg,
-			rgba(202, 184, 153, 0.16),
-			rgba(17, 16, 13, 0.26)
-		);
-	clip-path: polygon(9% 15%, 91% 0, 100% 100%, 0 100%);
-	content: "";
-}
-
-/*
- * Reviewed photography occupies the same stable landscape field. Suppressing
- * decorative layers prevents them from tinting meaningful image content,
- * while object-fit preserves the editorial crop at every breakpoint.
- */
-.interior-preview__media--image::before,
-.interior-preview__media--image::after {
-	content: none;
+		linear-gradient(145deg, #4c463b, #201e1a 64%, #12110f);
 }
 
 .interior-preview__image {
+	position: absolute;
+	z-index: 0;
+	inset: 0;
 	display: block;
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
+	transition:
+		transform 700ms var(--ease-standard),
+		filter 700ms var(--ease-standard);
 }
 
-/*
- * Alternating geometry prevents adjacent structural fallbacks from looking
- * like a repeated bitmap. These changes affect presentation only; source and
- * reading order still come directly from the Go slice.
- */
-.interior-portfolio__item:nth-child(even) .interior-preview__media::before {
-	inset: 18% 34% 18% 10%;
-	background:
-		linear-gradient(
-			90deg,
-			rgba(232, 224, 209, 0.04) 0 62%,
-			rgba(17, 16, 13, 0.2) 62% 66%,
-			rgba(232, 224, 209, 0.08) 66% 100%
-		);
+/* A lower gradient reproduces the baked reference labels with accessible HTML. */
+.interior-preview__gradient {
+	position: absolute;
+	z-index: 1;
+	inset: 35% 0 0;
+	background: linear-gradient(
+		180deg,
+		transparent,
+		rgba(8, 7, 5, 0.16) 38%,
+		rgba(8, 7, 5, 0.78)
+	);
+	pointer-events: none;
 }
 
-.interior-portfolio__item:nth-child(3n) .interior-preview__media::before {
-	inset: 10% 16% 28% 22%;
-	transform: skewX(-5deg);
-}
-
-/*
- * The large number acts as an editorial marker over the dark field. The same
- * value appears in visible card text, while the aria-hidden parent prevents a
- * duplicate announcement for screen-reader users.
- */
-.interior-preview__number {
-	padding: clamp(0.8rem, 1.7vw, 1.4rem);
-	color: rgba(243, 240, 233, 0.56);
-	font-family: var(--font-display);
-	font-size: clamp(2.25rem, 4.5vw, 5rem);
-	letter-spacing: -0.04em;
-	line-height: 0.9;
-}
-
-/*
- * Text sits outside the decorative media for reliable contrast and zoom
- * reflow. A fine top rule connects each copy block to its image field without
- * making the article appear interactive.
- */
 .interior-preview__body {
+	position: relative;
+	z-index: 2;
 	display: grid;
-	min-width: 0;
-	gap: 0.6rem;
-	padding-top: 1rem;
-	border-top: 1px solid var(--discipline-light-rule);
+	gap: 0.45rem;
+	padding:
+		clamp(1rem, 2vw, 1.75rem)
+		clamp(1rem, 2.2vw, 2rem);
+	color: var(--interior-hero-text);
+	text-shadow: 0 0.12rem 0.75rem rgba(0, 0, 0, 0.72);
 }
 
-.interior-preview__label,
-.interior-preview__status {
-	min-width: 0;
-	margin: 0;
-	color: var(--discipline-light-soft);
-	font-family: var(--font-interface);
-	font-size: clamp(0.75rem, 0.72rem + 0.1vw, 0.82rem);
-	letter-spacing: 0.16em;
-	line-height: 1.45;
-	overflow-wrap: anywhere;
-	text-transform: uppercase;
-}
-
-/*
- * The h3 names one published project. Fluid type and aggressive wrapping
- * protect localized or administrator-managed project titles.
- */
 .interior-preview__title {
-	min-width: 0;
 	margin: 0;
-	color: var(--discipline-light-ink);
-	font-family: var(--font-display);
-	font-size: clamp(1.75rem, 1.45rem + 1vw, 2.75rem);
-	font-weight: 400;
-	letter-spacing: -0.02em;
-	line-height: 1;
-	overflow-wrap: anywhere;
+	font-family: var(--font-interface);
+	font-size: max(clamp(0.92rem, 1.35vw, 1.18rem), 0.65vw);
+	font-weight: 600;
+	letter-spacing: 0.09em;
+	line-height: 1.2;
+	text-transform: uppercase;
 	text-wrap: balance;
 }
 
-/*
- * Empty query results retain a visible, ruled portfolio boundary rather than
- * producing an empty list after migration or when nothing is Published.
- */
-.interior-portfolio__empty {
-	min-height: clamp(12rem, 24vw, 22rem);
+.interior-preview__typology {
 	margin: 0;
-	padding-block: clamp(2rem, 4vw, 4rem);
-	border-top: 1px solid var(--discipline-light-rule);
-	border-bottom: 1px solid var(--discipline-light-rule);
-	color: var(--discipline-light-soft);
-	font-family: var(--font-interface);
-	font-size: clamp(0.9rem, 0.86rem + 0.18vw, 1.05rem);
-	line-height: 1.7;
+	font-family: var(--font-display);
+	font-size: max(clamp(0.95rem, 1.28vw, 1.2rem), 0.65vw);
+	font-style: italic;
+	line-height: 1.25;
+}
+
+/* The fallback number gives an uncovered published record a deliberate field. */
+.interior-preview__fallback-number {
+	position: absolute;
+	z-index: 0;
+	right: clamp(1rem, 2vw, 2rem);
+	bottom: clamp(1rem, 2vw, 2rem);
+	color: rgba(243, 239, 231, 0.18);
+	font-family: var(--font-display);
+	font-size: clamp(4rem, 9vw, 9rem);
+	line-height: 0.8;
+}
+
+.interior-preview__link:hover .interior-preview__image,
+.interior-preview__link:focus-visible .interior-preview__image {
+	filter: brightness(1.06);
+	transform: scale(1.015);
 }
 
 /*
- * The shared compact-header breakpoint also stacks the asymmetric section
- * introduction. The project grid remains two columns at exactly 768px because
- * two landscape cards still have a practical reading width there.
+ * The concept's closing outline is presented as editorial text, not as a false
+ * button, until a separate all-projects route exists.
  */
-@media (max-width: 48rem) {
-	.interior-portfolio__header {
-		grid-template-columns: minmax(0, 1fr);
-	}
+.interior-work__all-label {
+	display: grid;
+	width: min(20rem, 100%);
+	min-height: 2.9rem;
+	place-items: center;
+	margin:
+		clamp(1.5rem, 2.5vw, 2.4rem)
+		auto
+		0;
+	padding: 0.7rem 1.5rem;
+	border: 1px solid rgba(35, 31, 26, 0.48);
+	font-size: clamp(0.68rem, 0.6rem + 0.18vw, 0.78rem);
+	font-weight: 500;
+	letter-spacing: 0.12em;
+	line-height: 1.2;
+	text-align: center;
+	text-transform: uppercase;
 }
 
-/*
- * At and below 40rem each landscape preview receives the full content width. This
- * content-driven breakpoint avoids cramped titles while leaving the navigation
- * breakpoint independent.
- */
-@media (max-width: 40rem) {
-	.interior-portfolio {
-		grid-template-columns: minmax(0, 1fr);
-		gap: 3.75rem;
-	}
-}
+/* --------------------------------------------------
+   Desktop header integration
+-------------------------------------------------- */
 
 /*
- * Very narrow phones use a slightly taller field so the abstract spatial
- * composition retains presence without forcing an excessive page length.
+ * At reference-capable widths the shared discipline navigation becomes a
+ * transparent hero overlay. Its duplicate hamburger is hidden because the open
+ * rail owns that position; the compact drawer returns below this breakpoint.
  */
-@media (max-width: 36rem) {
-	.interior-preview__media {
-		aspect-ratio: 4 / 3;
-	}
-}
-
-/*
- * Short landscape screens keep the two-column index but reduce each field's
- * vertical footprint. The page remains naturally scrollable and no content is
- * hidden or absolutely positioned outside its article.
- */
-@media
-	(max-height: 32rem) and
-	(orientation: landscape) and
-	(min-width: 40.0625rem) {
-	.interior-preview__media {
-		aspect-ratio: 16 / 8;
-	}
-}
-
-/*
- * Increased-contrast users receive opaque fields and strong boundaries.
- * Stage 22 introduces no animation, transition, or smooth scrolling, so
- * reduced-motion preference already requires no additional override.
- */
-@media (prefers-contrast: more) {
-	.interior-preview__media,
-	.interior-preview__body,
-	.interior-portfolio__empty {
-		border-color: var(--discipline-light-ink);
+@media (min-width: 56rem) {
+	.interior-reference-menu {
+		display: block;
 	}
 
-	.interior-preview__media {
-		background: var(--discipline-dark);
-	}
-
-	.interior-preview__media::before {
-		border-color: var(--discipline-light);
+	body[data-current-path="/interior-design"] .site-header {
+		position: absolute;
+		z-index: 4;
+		min-height: 8.75rem;
+		align-items: start;
+		padding-top: 3.45rem;
 		background: transparent;
 		box-shadow: none;
+		backdrop-filter: none;
+		-webkit-backdrop-filter: none;
+		pointer-events: none;
 	}
 
-	.interior-preview__media::after {
-		background: transparent;
-		border-top: 1px solid var(--discipline-light);
+	body[data-current-path="/interior-design"] .site-header__left {
+		visibility: hidden;
 	}
 
-	.interior-preview__label,
-	.interior-preview__status {
-		color: var(--discipline-light-ink);
+	/* Keep the header links operable through the otherwise click-through overlay. */
+	body[data-current-path="/interior-design"] .discipline-nav__link {
+		--discipline-link-padding: clamp(1.75rem, 3.3vw, 2.9rem);
+
+		font-size: clamp(0.78rem, 0.75vw, 1.5rem);
+		font-weight: 300;
+		letter-spacing: 0.24em;
+		pointer-events: auto;
+	}
+
+	/* Shift only while the wider rail approaches the centered discipline row. */
+	body[data-current-path="/interior-design"] .discipline-nav {
+		transform: translateX(clamp(0rem, calc(30rem - 50vw), 2rem));
+	}
+
+	body[data-current-path="/interior-design"] .discipline-nav__separator {
+		height: 1.125rem;
+	}
+
+	body[data-current-path="/interior-design"] .discipline-nav__link::after {
+		bottom: 0.3rem;
+	}
+}
+
+/*
+ * Wide, short browser windows use proportions from the supplied GIF rather
+ * than the taller page comp, keeping all rail labels and the scroll cue visible.
+ * The base fluid hero-title scale remains unchanged so the primary heading
+ * retains the reference's editorial presence at every desktop aspect ratio.
+ */
+@media
+	(min-width: 56rem)
+	and (max-height: 45rem)
+	and (min-aspect-ratio: 16/9) {
+	body[data-current-path="/interior-design"] .site-header {
+		padding-top: 2.25rem;
+	}
+
+	.interior-reference-menu__hamburger,
+	.interior-reference-menu__close {
+		top: 2rem;
+	}
+
+	.interior-reference-menu[open] .interior-reference-menu__panel {
+		padding-block-start: 10rem;
+		padding-block-end: 2.25rem;
+	}
+
+	.interior-reference-menu__primary {
+		gap: clamp(1.35rem, 4.4vh, 2rem);
+	}
+
+	.interior-hero__search-motif {
+		top: 1.25rem;
+	}
+
+	.interior-hero__identity {
+		gap: 1rem;
+	}
+
+	.interior-hero__scroll {
+		bottom: max(1.7rem, env(safe-area-inset-bottom));
+		gap: 0.45rem;
+	}
+}
+
+/* --------------------------------------------------
+   Compact and accessibility adaptations
+-------------------------------------------------- */
+
+/* Compact screens use the established shared header and modal drawer. */
+@media (max-width: 55.999rem) {
+	.interior-reference-menu,
+	.interior-hero__search-motif {
+		display: none;
+	}
+
+	.interior-hero__identity {
+		top: 50%;
+		left: 50%;
+		width: min(94vw, 50rem);
+		padding-inline: var(--page-gutter);
+	}
+
+	.interior-hero__title {
+		font-size: clamp(2.5rem, 8.8vw, 4.25rem);
+		letter-spacing: 0.1em;
+	}
+
+	.interior-hero__descriptor {
+		width: min(20rem, 100%);
+		font-size: clamp(0.7rem, 2.7vw, 0.95rem);
+		letter-spacing: 0.22em;
+		line-height: 1.75;
+		white-space: normal;
+	}
+}
+
+/* One card per row preserves titles and the 16:9 artwork on small viewports. */
+@media (max-width: 48rem) {
+	.interior-work {
+		scroll-margin-top: var(--header-height);
+		padding-inline: clamp(1rem, 5vw, 2rem);
+	}
+
+	.interior-portfolio {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+/* Very narrow screens avoid title overflow caused by editorial tracking. */
+@media (max-width: 26rem) {
+	.interior-hero__title {
+		font-size: clamp(2.1rem, 10vw, 2.5rem);
+		letter-spacing: 0.08em;
+	}
+
+	.interior-hero__descriptor {
+		font-size: clamp(0.62rem, 2.7vw, 0.7rem);
+		letter-spacing: 0.2em;
+	}
+}
+
+/* Short landscape devices keep the page scrollable and cards cinematic. */
+@media
+	(max-height: 32rem)
+	and (orientation: landscape)
+	and (max-width: 55.999rem) {
+	.interior-hero {
+		min-height: 32rem;
+	}
+
+	.interior-hero__scroll {
+		bottom: 0.8rem;
+	}
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	/* A restrained page reveal approximates the crossfade shown in the GIF. */
+	.interior-hero__image,
+	.interior-hero__identity,
+	.interior-work {
+		animation: interior-reveal 620ms var(--ease-standard) both;
+	}
+
+	.interior-hero__identity {
+		animation-delay: 90ms;
+	}
+}
+
+@keyframes interior-reveal {
+	from {
+		opacity: 0;
+	}
+
+	to {
+		opacity: 1;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.interior-hero__scroll-chevron,
+	.interior-preview__image,
+	.interior-reference-menu__primary a {
+		transition: none;
+	}
+
+	.interior-hero__scroll:hover .interior-hero__scroll-chevron,
+	.interior-hero__scroll:focus-visible .interior-hero__scroll-chevron {
+		transform: rotate(45deg);
+	}
+
+	.interior-preview__link:hover .interior-preview__image,
+	.interior-preview__link:focus-visible .interior-preview__image,
+	.interior-reference-menu__primary a:hover,
+	.interior-reference-menu__primary a:focus-visible {
+		filter: none;
+		transform: none;
+	}
+}
+
+@media (prefers-contrast: more) {
+	.interior-hero__scrim,
+	.interior-reference-menu__panel {
+		background: rgba(8, 7, 5, 0.82);
+	}
+
+	.interior-preview__media,
+	.interior-work__all-label {
+		border-color: var(--interior-ink);
+	}
+}
+
+@media (forced-colors: active) {
+	body[data-current-path="/interior-design"] .site-header,
+	.interior-reference-menu__panel,
+	.interior-work {
+		border-color: CanvasText;
+		background: Canvas;
+		color: CanvasText;
+	}
+
+	.interior-hero__scrim {
+		background: Canvas;
+		opacity: 0.78;
+	}
+
+	.interior-reference-menu__hamburger span,
+	.interior-reference-menu__close::before,
+	.interior-reference-menu__close::after,
+	.interior-hero__search-motif span::after {
+		background: ButtonText;
+		forced-color-adjust: none;
+	}
+
+	.interior-hero__search-motif span {
+		border-color: ButtonText;
+		forced-color-adjust: none;
 	}
 }

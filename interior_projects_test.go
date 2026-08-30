@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -168,8 +169,8 @@ func TestPublishedInteriorProjectCatalogueValidation(t *testing.T) {
 }
 
 // TestInteriorDesignRouteRendersPublishedPortfolio verifies the complete
-// repository-backed index, optional facts, meaningful cover, honest fallback,
-// semantic ordering, and bounded dependency call.
+// repository-backed showcase, meaningful cover, honest structural fallback,
+// semantic ordering, reference-card suppression, and bounded dependency call.
 func TestInteriorDesignRouteRendersPublishedPortfolio(t *testing.T) {
 	reader := newRecordingInteriorProjectCatalogueReader()
 	projects := []catalogueInteriorProject{
@@ -219,7 +220,7 @@ func TestInteriorDesignRouteRendersPublishedPortfolio(t *testing.T) {
 	work := extractElementByMarker(
 		t,
 		mainElement,
-		`class="discipline-work"`,
+		`class="interior-work"`,
 		"section",
 	)
 	portfolio := extractElementByMarker(
@@ -230,7 +231,7 @@ func TestInteriorDesignRouteRendersPublishedPortfolio(t *testing.T) {
 	)
 	if opening := extractOpeningTag(t, portfolio); !strings.Contains(
 		opening,
-		`aria-label="Interior project previews"`,
+		`aria-label="Published Interior project previews"`,
 	) || !strings.Contains(opening, `role="list"`) {
 		t.Errorf("portfolio semantics are incomplete: %s", opening)
 	}
@@ -242,9 +243,8 @@ func TestInteriorDesignRouteRendersPublishedPortfolio(t *testing.T) {
 	covered := articles[0]
 	for _, expected := range []string{
 		`href="/interior-design/covered-residence"`,
-		"Residential / Project 01",
 		"Covered Residence",
-		"Completed / Tehran / 2032",
+		"Residential",
 		`src="/interior-design/covered-residence/cover/7"`,
 		`width="1800"`,
 		`height="1200"`,
@@ -259,7 +259,7 @@ func TestInteriorDesignRouteRendersPublishedPortfolio(t *testing.T) {
 	coveredMedia := extractElementByMarker(
 		t,
 		covered,
-		`class="interior-preview__media interior-preview__media--image"`,
+		`class="interior-preview__media"`,
 		"div",
 	)
 	if strings.Contains(extractOpeningTag(t, coveredMedia), `aria-hidden=`) {
@@ -272,30 +272,41 @@ func TestInteriorDesignRouteRendersPublishedPortfolio(t *testing.T) {
 	uncovered := articles[1]
 	for _, expected := range []string{
 		`href="/interior-design/uncovered-gallery"`,
-		"Cultural / Project 02",
 		"Uncovered Gallery",
-		"Ongoing",
+		"Cultural",
 	} {
 		if !strings.Contains(normalizeHTMLWhitespace(uncovered), expected) {
 			t.Errorf("fallback article does not contain %q", expected)
 		}
 	}
-	if strings.Contains(uncovered, "<img") ||
-		strings.Contains(normalizeHTMLWhitespace(uncovered), "Ongoing /") {
-		t.Error("absent optional fields produced an image or dangling separator")
+	if strings.Contains(uncovered, "<img") {
+		t.Error("absent cover produced an image")
 	}
-	fallbackMedia := extractElementByMarker(
+	fallbackNumber := extractElementByMarker(
 		t,
 		uncovered,
-		`class="interior-preview__media"`,
-		"div",
+		`class="interior-preview__fallback-number"`,
+		"span",
 	)
-	if !strings.Contains(extractOpeningTag(t, fallbackMedia), `aria-hidden="true"`) {
-		t.Error("decorative fallback is not hidden from assistive technology")
+	if !strings.Contains(extractOpeningTag(t, fallbackNumber), `aria-hidden="true"`) ||
+		!strings.Contains(normalizeHTMLWhitespace(fallbackNumber), "02") {
+		t.Error("decorative fallback number is not hidden or correctly numbered")
 	}
 	if strings.Index(portfolio, "Covered Residence") >=
 		strings.Index(portfolio, "Uncovered Gallery") {
 		t.Error("template changed repository portfolio order")
+	}
+	for _, referenceOnly := range []string{
+		"Hillside Residence",
+		"Karimi Apartment",
+		"Noor Office",
+		"Atrium Lobby",
+		`class="interior-portfolio--reference"`,
+		`/static/images/interior-design/hillside-residence.jpg`,
+	} {
+		if strings.Contains(work, referenceOnly) {
+			t.Errorf("published portfolio retained reference-only content %q", referenceOnly)
+		}
 	}
 	if strings.Contains(mainElement, `href="#"`) ||
 		strings.Contains(mainElement, "docs/reference") {
@@ -303,9 +314,10 @@ func TestInteriorDesignRouteRendersPublishedPortfolio(t *testing.T) {
 	}
 }
 
-// TestInteriorDesignRouteRendersEmptyPublishedState verifies zero published
-// rows are a successful truthful page rather than seeded content or an error.
-func TestInteriorDesignRouteRendersEmptyPublishedState(t *testing.T) {
+// TestInteriorDesignRouteRendersReferencePortfolio verifies zero published rows
+// select exactly the four approved, noninteractive concept cards. These local
+// previews provide no false detail path and never masquerade as database rows.
+func TestInteriorDesignRouteRendersReferencePortfolio(t *testing.T) {
 	reader := newRecordingInteriorProjectCatalogueReader()
 	reader.setProjects(nil)
 	app := newTestApplication(t)
@@ -321,21 +333,281 @@ func TestInteriorDesignRouteRendersEmptyPublishedState(t *testing.T) {
 		t.Fatalf("status: got %d, want 200", recorder.Code)
 	}
 	mainElement := extractMainElement(t, recorder.Body.String())
-	if strings.Contains(mainElement, `class="interior-portfolio"`) ||
-		strings.Contains(mainElement, `class="interior-preview`) {
-		t.Error("empty published query rendered a portfolio list or card")
-	}
-	empty := extractElementByMarker(
+	work := extractElementByMarker(
 		t,
 		mainElement,
-		`class="interior-portfolio__empty"`,
+		`class="interior-work"`,
+		"section",
+	)
+	portfolio := extractElementByMarker(
+		t,
+		work,
+		`class="interior-portfolio interior-portfolio--reference"`,
+		"ol",
+	)
+	opening := extractOpeningTag(t, portfolio)
+	if !strings.Contains(opening, `aria-label="Interior project concept previews"`) ||
+		!strings.Contains(opening, `role="list"`) {
+		t.Errorf("reference portfolio semantics are incomplete: %s", opening)
+	}
+
+	referenceItems := []interiorReferenceProjectPreviewData{
+		{
+			Title:     "Hillside Residence",
+			Typology:  "Residential",
+			ImagePath: "/static/images/interior-design/hillside-residence.jpg",
+			Width:     1681,
+			Height:    936,
+			AltText: "Warm living room overlooking a wooded hillside through " +
+				"a tall central window",
+		},
+		{
+			Title:     "Karimi Apartment",
+			Typology:  "Residential",
+			ImagePath: "/static/images/interior-design/karimi-apartment.jpg",
+			Width:     1678,
+			Height:    937,
+			AltText: "Low-lit apartment living area beside a dark timber " +
+				"kitchen and full-height window",
+		},
+		{
+			Title:     "Noor Office",
+			Typology:  "Commercial",
+			ImagePath: "/static/images/interior-design/noor-office.jpg",
+			Width:     1681,
+			Height:    936,
+			AltText: "Dark open office with shared tables, a window wall, and " +
+				"warm perimeter lighting",
+		},
+		{
+			Title:     "Atrium Lobby",
+			Typology:  "Hospitality",
+			ImagePath: "/static/images/interior-design/atrium-lobby.jpg",
+			Width:     1679,
+			Height:    937,
+			AltText: "Enclosed lobby lounge with curved seating, indoor trees, " +
+				"and a garden-facing glass wall",
+		},
+	}
+	articles := extractInteriorPreviewArticles(t, portfolio)
+	if len(articles) != len(referenceItems) || len(articles) != 4 {
+		t.Fatalf(
+			"reference article count: got %d, want 4",
+			len(articles),
+		)
+	}
+	for index, item := range referenceItems {
+		article := articles[index]
+		for _, expected := range []string{
+			item.Title,
+			item.Typology,
+			`src="` + item.ImagePath + `"`,
+			`width="` + strconv.Itoa(item.Width) + `"`,
+			`height="` + strconv.Itoa(item.Height) + `"`,
+			`alt="` + item.AltText + `"`,
+			`loading="lazy"`,
+			`decoding="async"`,
+		} {
+			if !strings.Contains(normalizeHTMLWhitespace(article), expected) {
+				t.Errorf("reference article %d does not contain %q", index+1, expected)
+			}
+		}
+		for _, falseInteraction := range []string{
+			"<a ",
+			"<a\n",
+			"<a>",
+			"href=",
+			`aria-disabled="true"`,
+		} {
+			if strings.Contains(article, falseInteraction) {
+				t.Errorf(
+					"reference article %d contains false interaction %q",
+					index+1,
+					falseInteraction,
+				)
+			}
+		}
+		if index > 0 && strings.Index(portfolio, referenceItems[index-1].Title) >=
+			strings.Index(portfolio, item.Title) {
+			t.Errorf("reference article %q is out of order", item.Title)
+		}
+	}
+
+	allLabel := extractElementByMarker(
+		t,
+		work,
+		`class="interior-work__all-label"`,
 		"p",
 	)
-	if !strings.Contains(
-		normalizeHTMLWhitespace(empty),
-		"Interior project entries are being prepared for publication.",
-	) {
-		t.Error("empty state does not contain truthful publication copy")
+	if !strings.Contains(normalizeHTMLWhitespace(allLabel), "View all projects") {
+		t.Error("reference closing label is missing")
+	}
+	if strings.Contains(allLabel, "<a") || strings.Contains(allLabel, "href=") {
+		t.Error("reference closing label promises a nonexistent destination")
+	}
+}
+
+// TestInteriorDesignRouteRendersReferenceHero verifies the route-specific
+// photographic hero, labelled identity, open desktop rail, and real fragment
+// cue that replace the shared discipline shell only on Interior Design.
+func TestInteriorDesignRouteRendersReferenceHero(t *testing.T) {
+	reader := newRecordingInteriorProjectCatalogueReader()
+	reader.setProjects(nil)
+	app := newTestApplication(t)
+	app.interiorProjects = reader
+	recorder := httptest.NewRecorder()
+
+	app.routes().ServeHTTP(
+		recorder,
+		httptest.NewRequest(http.MethodGet, "/interior-design", nil),
+	)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", recorder.Code)
+	}
+	body := recorder.Body.String()
+	mainElement := extractMainElement(t, body)
+	if !strings.Contains(extractOpeningTag(t, mainElement), `class="interior-page"`) {
+		t.Error("Interior main does not own its route-specific page class")
+	}
+
+	hero := extractElementByMarker(t, mainElement, `class="interior-hero"`, "section")
+	heroOpening := extractOpeningTag(t, hero)
+	for _, attribute := range []string{
+		`aria-labelledby="interior-title"`,
+		`data-interior-hero`,
+	} {
+		if !strings.Contains(heroOpening, attribute) {
+			t.Errorf("Interior hero opening tag does not contain %q", attribute)
+		}
+	}
+	if count := strings.Count(hero, "<h1"); count != 1 {
+		t.Errorf("Interior hero h1 count: got %d, want 1", count)
+	}
+	heading := extractElementByMarker(t, hero, `id="interior-title"`, "h1")
+	if !strings.Contains(normalizeHTMLWhitespace(heading), "Interior Design") {
+		t.Error("Interior hero h1 does not contain the route title")
+	}
+	for _, expected := range []string{
+		"Thoughtful spaces. Refined living.",
+		`src="/static/images/interior-design/interior-hero.jpg"`,
+		`width="1426"`,
+		`height="936"`,
+		`fetchpriority="high"`,
+		`decoding="async"`,
+	} {
+		if !strings.Contains(normalizeHTMLWhitespace(hero), expected) {
+			t.Errorf("Interior hero does not contain %q", expected)
+		}
+	}
+
+	menu := extractElementByMarker(
+		t,
+		hero,
+		`class="interior-reference-menu"`,
+		"details",
+	)
+	menuStartsOpen := false
+	for _, attribute := range strings.Fields(extractOpeningTag(t, menu)) {
+		if attribute == "open" {
+			menuStartsOpen = true
+			break
+		}
+	}
+	if !menuStartsOpen {
+		t.Error("Interior reference menu does not start open")
+	}
+	menuNavigation := extractElementByMarker(
+		t,
+		menu,
+		`aria-label="Interior page navigation"`,
+		"nav",
+	)
+	for _, destination := range []string{
+		`href="#selected-work"`,
+		`href="/contact"`,
+	} {
+		if !strings.Contains(menuNavigation, destination) {
+			t.Errorf("Interior reference navigation does not contain %q", destination)
+		}
+	}
+	if count := strings.Count(menuNavigation, "<a"); count != 2 {
+		t.Errorf("Interior reference navigation link count: got %d, want 2", count)
+	}
+
+	socials := extractElementByMarker(
+		t,
+		menu,
+		`class="interior-reference-menu__socials"`,
+		"ul",
+	)
+	for _, required := range []string{
+		`role="list"`,
+		`interior-reference-menu__social-icon--instagram`,
+		`interior-reference-menu__social-icon--pinterest`,
+		`interior-reference-menu__social-icon--linkedin`,
+		"Instagram",
+		"Pinterest",
+		"LinkedIn",
+	} {
+		if !strings.Contains(socials, required) {
+			t.Errorf("Interior social list does not contain %q", required)
+		}
+	}
+	if count := strings.Count(socials, "<svg"); count != 3 {
+		t.Errorf("Interior social icon count: got %d, want 3", count)
+	}
+	if count := strings.Count(socials, `aria-hidden="true"`); count != 3 {
+		t.Errorf("decorative Interior social icon count: got %d, want 3", count)
+	}
+	if count := strings.Count(socials, `focusable="false"`); count != 3 {
+		t.Errorf("unfocusable Interior social icon count: got %d, want 3", count)
+	}
+	for _, platform := range []struct {
+		icon  string
+		label string
+	}{
+		{icon: "social-icon--instagram", label: ">Instagram</span>"},
+		{icon: "social-icon--pinterest", label: ">Pinterest</span>"},
+		{icon: "social-icon--linkedin", label: ">LinkedIn</span>"},
+	} {
+		iconPosition := strings.Index(socials, platform.icon)
+		labelPosition := strings.Index(socials, platform.label)
+		if iconPosition < 0 || labelPosition < 0 || iconPosition >= labelPosition {
+			t.Errorf("Interior social icon %q is not before its visible label", platform.icon)
+		}
+	}
+	for _, forbidden := range []string{
+		"<a",
+		"<button",
+		"href=",
+		"tabindex=",
+		`role="img"`,
+	} {
+		if strings.Contains(socials, forbidden) {
+			t.Errorf("non-interactive Interior social list contains %q", forbidden)
+		}
+	}
+
+	scrollLink := extractElementByMarker(t, hero, `data-interior-scroll`, "a")
+	if !strings.Contains(extractOpeningTag(t, scrollLink), `href="#selected-work"`) ||
+		!strings.Contains(normalizeHTMLWhitespace(scrollLink), "Scroll to explore") {
+		t.Error("Interior hero scroll cue does not name its real fragment destination")
+	}
+	work := extractElementByMarker(t, mainElement, `class="interior-work"`, "section")
+	workOpening := extractOpeningTag(t, work)
+	for _, attribute := range []string{
+		`id="selected-work"`,
+		`aria-labelledby="selected-work-title"`,
+		`tabindex="-1"`,
+	} {
+		if !strings.Contains(workOpening, attribute) {
+			t.Errorf("Interior work opening tag does not contain %q", attribute)
+		}
+	}
+	if strings.Contains(mainElement, `class="discipline-hero"`) ||
+		strings.Contains(body, `href="/static/css/discipline.css"`) {
+		t.Error("Interior route retained the removed shared discipline presentation")
 	}
 }
 
@@ -411,10 +683,7 @@ func TestInteriorDesignTemplateEscapesManagedData(t *testing.T) {
 	app := newTestApplication(t)
 	recorder := httptest.NewRecorder()
 	listing := &interiorProjectListingData{
-		Eyebrow:      "Sentinel interiors eyebrow",
-		Heading:      "Sentinel interiors heading",
-		Introduction: "Sentinel interiors introduction",
-		EmptyMessage: "Sentinel empty copy",
+		Heading: "<u>Unsafe heading</u>",
 		Items: []interiorProjectPreviewData{
 			{
 				Number:        "A1",
@@ -467,9 +736,9 @@ func TestInteriorDesignTemplateEscapesManagedData(t *testing.T) {
 		}
 	}
 	for _, escaped := range []string{
+		"&lt;u&gt;Unsafe heading&lt;/u&gt;",
 		"&lt;b&gt;Unsafe title&lt;/b&gt;",
 		"&lt;em&gt;Unsafe typology&lt;/em&gt;",
-		"&lt;script&gt;Unsafe location&lt;/script&gt;",
 		"&#34; onload=&#34;alert(1)",
 	} {
 		if !strings.Contains(mainElement, escaped) {
@@ -581,14 +850,163 @@ func TestInteriorDesignPresentationIsolationAndStylesheet(t *testing.T) {
 	if stylesheet.Code != http.StatusOK {
 		t.Fatalf("stylesheet status: got %d, want 200", stylesheet.Code)
 	}
+	interiorCSS := stylesheet.Body.String()
 	for _, selector := range []string{
+		".interior-hero",
+		".interior-reference-menu",
+		".interior-reference-menu__social-item",
+		".interior-reference-menu__social-icon",
+		".interior-work",
 		".interior-portfolio",
-		".interior-preview__media--image",
 		".interior-preview__image",
-		".interior-portfolio__empty",
+		".interior-preview__fallback-number",
+		".interior-work__all-label",
 	} {
-		if !strings.Contains(stylesheet.Body.String(), selector) {
+		if !strings.Contains(interiorCSS, selector) {
 			t.Errorf("stylesheet does not contain %q", selector)
+		}
+	}
+
+	// The transparent route header must not intercept the native menu summary.
+	headerRule := stage26CSSRule(
+		t,
+		interiorCSS,
+		`body[data-current-path="/interior-design"] .site-header`,
+	)
+	if !strings.Contains(headerRule, "pointer-events: none;") {
+		t.Error("Interior header still blocks pointer input to the menu summary")
+	}
+
+	linkRule := stage26CSSRule(
+		t,
+		interiorCSS,
+		`body[data-current-path="/interior-design"] .discipline-nav__link`,
+	)
+	if !strings.Contains(linkRule, "pointer-events: auto;") {
+		t.Error("Interior discipline links are not restored above the click-through header")
+	}
+
+	menuRule := stage26CSSRule(t, interiorCSS, ".interior-reference-menu")
+	for _, required := range []string{"z-index: 5;", "pointer-events: none;"} {
+		if !strings.Contains(menuRule, required) {
+			t.Errorf("Interior menu rule does not contain %q", required)
+		}
+	}
+
+	summaryRule := stage26CSSRule(
+		t,
+		interiorCSS,
+		".interior-reference-menu__summary",
+	)
+	for _, required := range []string{
+		"z-index: 2;",
+		"width: var(--interior-menu-width);",
+		"height: 6.5rem;",
+		"pointer-events: auto;",
+	} {
+		if !strings.Contains(summaryRule, required) {
+			t.Errorf("Interior menu summary rule does not contain %q", required)
+		}
+	}
+
+	// Geometry stays tied to the viewport rather than to the menu rail width.
+	identityRule := stage26CSSRule(t, interiorCSS, ".interior-hero__identity")
+	for _, required := range []string{"top: 50%;", "left: 50%;"} {
+		if !strings.Contains(identityRule, required) {
+			t.Errorf("Interior identity rule does not contain %q", required)
+		}
+	}
+
+	panelRule := stage26CSSRule(
+		t,
+		interiorCSS,
+		".interior-reference-menu[open] .interior-reference-menu__panel",
+	)
+	for _, required := range []string{
+		"display: flex;",
+		"flex-direction: column;",
+		"padding-block-start: clamp(10rem, 27vh, 15.5rem);",
+		"padding-block-end: clamp(3.25rem, 6.5vh, 4.25rem);",
+		"padding-inline: 0;",
+	} {
+		if !strings.Contains(panelRule, required) {
+			t.Errorf("Interior menu panel rule does not contain %q", required)
+		}
+	}
+
+	primaryRule := stage26CSSRule(
+		t,
+		interiorCSS,
+		".interior-reference-menu__primary",
+	)
+	for _, required := range []string{
+		"width: 100%;",
+		"align-self: stretch;",
+		"justify-items: center;",
+		"text-align: center;",
+	} {
+		if !strings.Contains(primaryRule, required) {
+			t.Errorf("Interior primary menu rule does not contain %q", required)
+		}
+	}
+
+	socialRule := stage26CSSRule(
+		t,
+		interiorCSS,
+		".interior-reference-menu__socials",
+	)
+	for _, required := range []string{
+		"margin: auto 0 0 calc(",
+	} {
+		if !strings.Contains(socialRule, required) {
+			t.Errorf("Interior social menu rule does not contain %q", required)
+		}
+	}
+
+	// The approved project-name scale stays fixed while its typology grows.
+	for selector, size := range map[string]string{
+		".interior-preview__title":    "max(clamp(0.92rem, 1.35vw, 1.18rem), 0.65vw)",
+		".interior-preview__typology": "max(clamp(0.95rem, 1.28vw, 1.2rem), 0.65vw)",
+	} {
+		rule := stage26CSSRule(t, interiorCSS, selector)
+		if !strings.Contains(rule, "font-size: "+size+";") {
+			t.Errorf("%s does not retain responsive font size %q", selector, size)
+		}
+	}
+
+	iconRule := stage26CSSRule(
+		t,
+		interiorCSS,
+		".interior-reference-menu__social-icon",
+	)
+	for _, required := range []string{
+		"display: block;",
+		"width: clamp(1rem, 0.9vw, 1.65rem);",
+		"height: clamp(1rem, 0.9vw, 1.65rem);",
+		"stroke: currentColor;",
+		"stroke-width: 2.15;",
+		"filter: drop-shadow(",
+		"opacity: 1;",
+	} {
+		if !strings.Contains(iconRule, required) {
+			t.Errorf("Interior social icon rule does not contain %q", required)
+		}
+	}
+
+	scrollRule := stage26CSSRule(t, interiorCSS, ".interior-hero__scroll")
+	if expected := "font-size: max(clamp(0.68rem, 0.6rem + 0.25vw, 0.9rem), 0.64vw);"; !strings.Contains(scrollRule, expected) {
+		t.Errorf("Interior scroll cue does not retain %q", expected)
+	}
+
+	chevronRule := stage26CSSRule(
+		t,
+		interiorCSS,
+		".interior-hero__scroll-chevron",
+	)
+	for _, dimension := range []string{"width", "height"} {
+		expected := dimension + ": max(clamp(1.15rem, 1.05rem + 0.15vw, 1.3rem), 0.82vw);"
+		if !strings.Contains(chevronRule, expected) {
+			t.Errorf("Interior scroll chevron does not retain %q", expected)
 		}
 	}
 }

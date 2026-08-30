@@ -35,6 +35,12 @@ const homeProjectsLink = document.querySelector("[data-home-projects-link]");
 /* The disciplines section is the focusable destination of the Projects link. */
 const homeDisciplines = document.querySelector("[data-home-disciplines]");
 
+/* The Interior hero cue enhances one real fragment link with GIF-like motion. */
+const interiorScrollLink = document.querySelector("[data-interior-scroll]");
+
+/* The labelled work section is both the visual and keyboard-focus destination. */
+const interiorWork = document.querySelector("#selected-work");
+
 /* A null frame means no geometry synchronization is waiting to run. */
 let homeReferenceMenuSyncFrame = null;
 
@@ -431,6 +437,36 @@ function focusHomeDisciplines() {
 	homeDisciplines.focus({ preventScroll: true });
 }
 
+/**
+ * Follow the Interior hero's real fragment link with optional smooth movement.
+ *
+ * The server-rendered href remains a complete no-script fallback. Enhancement
+ * first moves focus to the labelled destination, then scrolls it into view and
+ * records the same hash native navigation would have produced. Visitors who
+ * request reduced motion receive an immediate scroll instead.
+ *
+ * @param {MouseEvent} event The activation of the Interior scroll cue.
+ * @returns {void}
+ */
+function revealInteriorWork(event) {
+	if (!interiorWork) {
+		return;
+	}
+
+	event.preventDefault();
+	interiorWork.focus({ preventScroll: true });
+	interiorWork.scrollIntoView({
+		behavior: window.matchMedia(
+			"(prefers-reduced-motion: reduce)",
+		).matches ? "auto" : "smooth",
+		block: "start",
+	});
+
+	if (window.location.hash !== "#selected-work") {
+		window.history.pushState(null, "", "#selected-work");
+	}
+}
+
 /* A missing menu button simply leaves the server-rendered page unenhanced. */
 if (openButton) {
 	openButton.addEventListener("click", openMenu);
@@ -527,6 +563,11 @@ if (homeReferenceMenu && homeHero) {
 /* Preserve native fragment navigation while preventing focus from being hidden. */
 if (homeProjectsLink && homeDisciplines) {
 	homeProjectsLink.addEventListener("click", focusHomeDisciplines);
+}
+
+/* Preserve the native href when either route-specific enhancement hook is absent. */
+if (interiorScrollLink && interiorWork) {
+	interiorScrollLink.addEventListener("click", revealInteriorWork);
 }
 
 /*

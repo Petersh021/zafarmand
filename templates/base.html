@@ -189,17 +189,71 @@ an exact route and "location" when the active link represents a parent section.
 					</nav>
 
 					{{/*
-					The reference places three quiet social labels at the foot of the
-					desktop rail. They remain plain text until reviewed profile URLs
-					exist, avoiding invented or dead external destinations.
+					The reference places three quiet social labels and brand marks at
+					the foot of the desktop rail. They remain non-links until reviewed
+					profile URLs exist, avoiding invented or dead destinations.
 					*/}}
 					<ul
 						class="home-reference-menu__socials"
 						aria-label="Social platforms"
+						role="list"
 					>
-						<li>Instagram</li>
-						<li>Pinterest</li>
-						<li>LinkedIn</li>
+						<li class="home-reference-menu__social-item">
+							<svg
+								class="home-reference-menu__social-icon home-reference-menu__social-icon--instagram"
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								aria-hidden="true"
+								focusable="false"
+							>
+								<rect x="3" y="3" width="18" height="18" rx="5"></rect>
+								<circle cx="12" cy="12" r="4.1"></circle>
+								<circle
+									class="home-reference-menu__social-icon-dot"
+									cx="17.4"
+									cy="6.7"
+									r="1.1"
+								></circle>
+							</svg>
+							<span>Instagram</span>
+						</li>
+
+						<li class="home-reference-menu__social-item">
+							<svg
+								class="home-reference-menu__social-icon home-reference-menu__social-icon--pinterest"
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								aria-hidden="true"
+								focusable="false"
+							>
+								<circle cx="12" cy="12" r="9"></circle>
+								<path d="M9.2 18.7 11 11.2c.35-1.55.8-3 2.45-3 1.7 0 2.8 1.4 2.45 3.05-.4 1.8-1.55 2.95-3.05 2.95-.95 0-1.65-.4-2.05-1.2"></path>
+							</svg>
+							<span>Pinterest</span>
+						</li>
+
+						<li class="home-reference-menu__social-item">
+							<svg
+								class="home-reference-menu__social-icon home-reference-menu__social-icon--linkedin"
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								aria-hidden="true"
+								focusable="false"
+							>
+								<rect x="3" y="3" width="18" height="18" rx="2.5"></rect>
+								<circle
+									class="home-reference-menu__social-icon-dot"
+									cx="7.3"
+									cy="8"
+									r="1.1"
+								></circle>
+								<path d="M6.3 11v6.5M10.5 17.5V11M10.5 14.1c.15-2 1.35-3.35 3.35-3.35 2.25 0 3.85 1.5 3.85 4.25v2.5"></path>
+							</svg>
+							<span>LinkedIn</span>
+						</li>
 					</ul>
 				</div>
 			</details>

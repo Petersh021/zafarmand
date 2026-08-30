@@ -213,32 +213,57 @@ func TestStage26PublicShellPublishesOnlyUsableNavigation(t *testing.T) {
 		}
 	}
 
-	// The supplied desktop reference ends with three social names. Until reviewed
-	// profile URLs exist, the shell must preserve their order without publishing
-	// fake anchors or disabled interactive controls.
+	// Each platform keeps a visible name and a preceding decorative brand mark.
+	// Until reviewed profile URLs exist, none becomes a false interaction.
 	socials := extractElementByMarker(
 		t,
 		landingMenu,
 		`class="home-reference-menu__socials"`,
 		"ul",
 	)
+	if !strings.Contains(extractOpeningTag(t, socials), `role="list"`) {
+		t.Error("landing social group does not restore list semantics")
+	}
 	previousSocialPosition := -1
-	for _, social := range []string{
-		">Instagram</li>",
-		">Pinterest</li>",
-		">LinkedIn</li>",
+	for _, platform := range []struct {
+		icon  string
+		label string
+	}{
+		{icon: "social-icon--instagram", label: ">Instagram</span>"},
+		{icon: "social-icon--pinterest", label: ">Pinterest</span>"},
+		{icon: "social-icon--linkedin", label: ">LinkedIn</span>"},
 	} {
-		position := strings.Index(socials, social)
-		if position == -1 {
-			t.Errorf("landing social group does not contain %q", social)
+		iconPosition := strings.Index(socials, platform.icon)
+		labelPosition := strings.Index(socials, platform.label)
+		if iconPosition == -1 || labelPosition == -1 {
+			t.Errorf("landing social group does not contain %q and its label", platform.icon)
 			continue
 		}
-		if position <= previousSocialPosition {
-			t.Errorf("landing social label %q is out of reference order", social)
+		if iconPosition >= labelPosition {
+			t.Errorf("landing social icon %q does not precede its label", platform.icon)
 		}
-		previousSocialPosition = position
+		if iconPosition <= previousSocialPosition {
+			t.Errorf("landing social icon %q is out of reference order", platform.icon)
+		}
+		previousSocialPosition = iconPosition
 	}
-	for _, falseInteraction := range []string{"<a", "href=", `aria-disabled="true"`} {
+	if count := strings.Count(socials, "<svg"); count != 3 {
+		t.Errorf("landing social icon count: got %d, want 3", count)
+	}
+	if count := strings.Count(socials, `aria-hidden="true"`); count != 3 {
+		t.Errorf("decorative landing social icon count: got %d, want 3", count)
+	}
+	if count := strings.Count(socials, `focusable="false"`); count != 3 {
+		t.Errorf("unfocusable landing social icon count: got %d, want 3", count)
+	}
+	for _, falseInteraction := range []string{
+		"<a",
+		"<button",
+		"href=",
+		"tabindex=",
+		`aria-disabled="true"`,
+		`role="img"`,
+	} {
 		if strings.Contains(socials, falseInteraction) {
 			t.Errorf(
 				"landing social group contains false interaction %q",
@@ -295,6 +320,19 @@ func TestStage26LandingMenuFillsTheViewportWithoutAnInsetRule(t *testing.T) {
 		t.Fatalf("home stylesheet status: got %d, want 200", recorder.Code)
 	}
 	homeCSS := recorder.Body.String()
+	landingVariablesRule := stage26CSSRule(
+		t,
+		homeCSS,
+		`body[data-current-path="/"]`,
+	)
+	for _, required := range []string{
+		"--home-reference-menu-width: clamp(11.5rem, 20.35vw, 40rem);",
+		"--home-reference-rail-width: clamp(3.75rem, 6.5vw, 13rem);",
+	} {
+		if !strings.Contains(landingVariablesRule, required) {
+			t.Errorf("landing reference geometry does not contain %q", required)
+		}
+	}
 	menuRule := stage26CSSRule(t, homeCSS, ".home-reference-menu")
 	for _, required := range []string{
 		"position: absolute;",
@@ -307,6 +345,12 @@ func TestStage26LandingMenuFillsTheViewportWithoutAnInsetRule(t *testing.T) {
 	}
 	if strings.Contains(menuRule, "position: fixed;") {
 		t.Error("unenhanced landing menu is fixed over below-hero content")
+	}
+	baseHeroRule := stage26CSSRule(t, homeCSS, ".home-hero")
+	for _, required := range []string{"display: grid;", "place-items: center;"} {
+		if !strings.Contains(baseHeroRule, required) {
+			t.Errorf("landing hero centering rule does not contain %q", required)
+		}
 	}
 	activeMenuRule := stage26CSSRule(
 		t,
@@ -347,6 +391,9 @@ func TestStage26LandingMenuFillsTheViewportWithoutAnInsetRule(t *testing.T) {
 		"flex-direction: column;",
 		"height: 100vh;",
 		"height: 100svh;",
+		"padding-block-start: clamp(10rem, 22vh, 13rem);",
+		"padding-block-end: clamp(3.5rem, 9.25vh, 5.4rem);",
+		"padding-inline: 0;",
 		"overflow-x: hidden;",
 		"overflow-y: auto;",
 		"overscroll-behavior: contain;",
@@ -358,16 +405,132 @@ func TestStage26LandingMenuFillsTheViewportWithoutAnInsetRule(t *testing.T) {
 	if strings.Contains(panelRule, "height: 100%;") {
 		t.Error("landing panel relies on an unresolved details-wrapper percentage height")
 	}
+	primaryRule := stage26CSSRule(t, homeCSS, ".home-reference-menu__primary")
+	for _, required := range []string{
+		"width: 100%;",
+		"align-self: stretch;",
+		"justify-items: center;",
+		"gap: clamp(1.65rem, 4.1vh, 2.4rem);",
+		"text-align: center;",
+	} {
+		if !strings.Contains(primaryRule, required) {
+			t.Errorf("landing primary menu rule does not contain %q", required)
+		}
+	}
+	menuTypeRule := stage26CSSRule(t, homeCSS, ".home-reference-menu__label")
+	for _, required := range []string{
+		"font-size: clamp(0.875rem, 0.86vw, 1.75rem);",
+		"letter-spacing: 0.2em;",
+	} {
+		if !strings.Contains(menuTypeRule, required) {
+			t.Errorf("landing menu typography rule does not contain %q", required)
+		}
+	}
 	socialRule := stage26CSSRule(t, homeCSS, ".home-reference-menu__socials")
 	for _, required := range []string{
 		"display: grid;",
-		"margin: auto 0 0 clamp(0.45rem, 0.65vw, 0.65rem);",
+		"gap: clamp(0.5rem, 0.55vw, 1rem);",
+		"margin: auto 0 0 calc(",
+		"font-size: clamp(0.625rem, 0.6vw, 1.15rem);",
 		"list-style: none;",
 		"text-transform: uppercase;",
 	} {
 		if !strings.Contains(socialRule, required) {
 			t.Errorf("landing social rule does not contain %q", required)
 		}
+	}
+	homeSocialItemRule := stage26CSSRule(
+		t,
+		homeCSS,
+		".home-reference-menu__social-item",
+	)
+	for _, required := range []string{
+		"display: grid;",
+		"grid-template-columns: clamp(1rem, 0.9vw, 1.65rem) max-content;",
+	} {
+		if !strings.Contains(homeSocialItemRule, required) {
+			t.Errorf("landing social item rule does not contain %q", required)
+		}
+	}
+	homeSocialIconRule := stage26CSSRule(
+		t,
+		homeCSS,
+		".home-reference-menu__social-icon",
+	)
+	for _, required := range []string{
+		"display: block;",
+		"width: clamp(1rem, 0.9vw, 1.65rem);",
+		"height: clamp(1rem, 0.9vw, 1.65rem);",
+		"stroke: currentColor;",
+		"stroke-width: 2.15;",
+		"opacity: 1;",
+	} {
+		if !strings.Contains(homeSocialIconRule, required) {
+			t.Errorf("landing social icon rule does not contain %q", required)
+		}
+	}
+	identityRule := stage26CSSRule(t, homeCSS, ".home-hero__identity")
+	for _, required := range []string{
+		"justify-items: center;",
+		"text-align: center;",
+		"transform: none;",
+	} {
+		if !strings.Contains(identityRule, required) {
+			t.Errorf("landing identity centering rule does not contain %q", required)
+		}
+	}
+	for selector, expected := range map[string]string{
+		".home-hero__title":      "font-size: clamp(4.25rem, min(6vw, 14vh), 6.5rem);",
+		".home-hero__descriptor": "font-size: clamp(0.88rem, 1.4vw, 1.25rem);",
+		".home-hero__scroll":     "font-size: max(clamp(0.68rem, 0.6rem + 0.25vw, 0.9rem), 0.64vw);",
+	} {
+		rule := stage26CSSRule(t, homeCSS, selector)
+		if !strings.Contains(rule, expected) {
+			t.Errorf("%s does not contain %q", selector, expected)
+		}
+	}
+	chevronRule := stage26CSSRule(t, homeCSS, ".home-hero__scroll-chevron")
+	for _, dimension := range []string{"width", "height"} {
+		expected := dimension + ": max(clamp(1.15rem, 1.05rem + 0.15vw, 1.3rem), 0.82vw);"
+		if !strings.Contains(chevronRule, expected) {
+			t.Errorf("landing scroll chevron does not contain %q", expected)
+		}
+	}
+	scrollRailRule := stage26CSSRule(t, homeCSS, ".home-hero__rail")
+	for _, required := range []string{
+		"inset-inline: 0;",
+		"display: flex;",
+		"justify-content: center;",
+	} {
+		if !strings.Contains(scrollRailRule, required) {
+			t.Errorf("landing scroll rail rule does not contain %q", required)
+		}
+	}
+	disciplineLinkRule := stage26CSSRule(
+		t,
+		homeCSS,
+		`body[data-current-path="/"] .discipline-nav__link`,
+	)
+	for _, required := range []string{
+		"--discipline-link-padding: clamp(1.75rem, 3.3vw, 2.9rem);",
+		"font-size: clamp(0.78rem, 0.75vw, 1.5rem);",
+		"letter-spacing: 0.24em;",
+	} {
+		if !strings.Contains(disciplineLinkRule, required) {
+			t.Errorf("landing discipline link rule does not contain %q", required)
+		}
+	}
+	disciplineSeparatorRule := stage26CSSRule(
+		t,
+		homeCSS,
+		`body[data-current-path="/"] .discipline-nav__separator`,
+	)
+	if !strings.Contains(disciplineSeparatorRule, "height: 1.125rem;") {
+		t.Error("landing discipline separator does not match the approved height")
+	}
+	metadataRule := stage26CSSRule(t, homeCSS, ".home-feature__classification")
+	if expected := "font-size: max(clamp(0.8rem, 0.75vw, 0.84rem), 0.45vw);"; !strings.Contains(metadataRule, expected) {
+		t.Errorf("landing feature metadata does not contain %q", expected)
 	}
 	activePanelRule := stage26CSSRule(
 		t,

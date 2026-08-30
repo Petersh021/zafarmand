@@ -102,23 +102,28 @@
 	padding: 0 var(--page-gutter);
 	text-align: center;
 	text-shadow: 0 0.15rem 1.5rem rgba(0, 0, 0, 0.32);
-	transform: translateY(0.33rem);
+	transform: none;
 }
 
 /*
- * The primary heading uses the editorial font and fluid type. Letter spacing is
- * compensated with a small leading inset so the final tracked character does
- * not make the wordmark appear optically off-center.
+ * The primary heading uses the editorial font and fluid type. Its preferred
+ * size follows viewport width but is capped by viewport height, keeping the
+ * wordmark prominent on large monitors without crowding short browser windows.
+ * Letter spacing is compensated with a small leading inset so the final tracked
+ * character does not make the wordmark appear optically off-center.
  */
 .home-hero__title {
 	margin: 0;
+	max-width: 100%;
 	padding-inline-start: 0.24em;
 	font-family: "Bodoni MT", Didot, Georgia, "Times New Roman", serif;
-	font-size: clamp(3.25rem, 4.3vw, 3.75rem);
+	font-size: clamp(4.25rem, min(6vw, 14vh), 6.5rem);
 	font-weight: 400;
 	letter-spacing: 0.24em;
 	line-height: 0.94;
+	overflow-wrap: anywhere;
 	text-transform: uppercase;
+	text-wrap: balance;
 }
 
 /*
@@ -130,7 +135,7 @@
 	margin: 0;
 	padding-inline-start: 0.7em;
 	font-family: var(--font-interface);
-	font-size: clamp(0.75rem, 1.15vw, 1rem);
+	font-size: clamp(0.88rem, 1.4vw, 1.25rem);
 	font-weight: 400;
 	letter-spacing: 0.7em;
 	line-height: 1.2;
@@ -175,11 +180,11 @@
 	place-items: center;
 	align-content: center;
 	justify-self: center;
-	gap: 1rem;
+	gap: 0.75rem;
 	padding: 0.3rem 1.2rem;
 	color: inherit;
 	font-family: var(--font-interface);
-	font-size: 0.625rem;
+	font-size: max(clamp(0.68rem, 0.6rem + 0.25vw, 0.9rem), 0.64vw);
 	letter-spacing: 0.25em;
 	line-height: 1.25;
 	text-align: center;
@@ -193,8 +198,8 @@
  * below.
  */
 .home-hero__scroll-chevron {
-	width: 0.95rem;
-	height: 0.95rem;
+	width: max(clamp(1.15rem, 1.05rem + 0.15vw, 1.3rem), 0.82vw);
+	height: max(clamp(1.15rem, 1.05rem + 0.15vw, 1.3rem), 0.82vw);
 	border-right: 1px solid currentColor;
 	border-bottom: 1px solid currentColor;
 	transition: transform var(--duration-fast) var(--ease-standard);
@@ -235,13 +240,13 @@
 
 	.home-hero__title {
 		padding-inline-start: 0.16em;
-		font-size: clamp(2.35rem, 10vw, 4.2rem);
+		font-size: clamp(3.75rem, 9.5vw, 4.5rem);
 		letter-spacing: 0.16em;
 	}
 
 	.home-hero__descriptor {
 		padding-inline-start: 0.42em;
-		font-size: clamp(0.65rem, 2vw, 0.78rem);
+		font-size: clamp(0.72rem, 2.2vw, 0.95rem);
 		letter-spacing: 0.42em;
 	}
 }
@@ -259,13 +264,13 @@
 
 	.home-hero__title {
 		padding-inline-start: 0.12em;
-		font-size: clamp(2.2rem, 11vw, 3.5rem);
-		letter-spacing: 0.12em;
+		font-size: clamp(2.4rem, 12vw, 3.75rem);
+		letter-spacing: 0.1em;
 	}
 
 	.home-hero__descriptor {
 		padding-inline-start: 0.34em;
-		font-size: 0.62rem;
+		font-size: 0.68rem;
 		letter-spacing: 0.34em;
 	}
 
@@ -289,7 +294,7 @@
 	}
 
 	.home-hero__title {
-		font-size: clamp(2.25rem, 12vh, 4.5rem);
+		font-size: clamp(2.75rem, 13vh, 4.5rem);
 	}
 
 	.home-hero__rail {
@@ -324,8 +329,8 @@
 -------------------------------------------------- */
 
 body[data-current-path="/"] {
-	--home-reference-menu-width: clamp(13rem, 20.35vw, 20rem);
-	--home-reference-rail-width: clamp(3.75rem, 6.5vw, 5.75rem);
+	--home-reference-menu-width: clamp(11.5rem, 20.35vw, 40rem);
+	--home-reference-rail-width: clamp(3.75rem, 6.5vw, 13rem);
 }
 
 /*
@@ -394,7 +399,7 @@ body[data-current-path="/"] {
 .home-reference-menu__close {
 	position: absolute;
 	top: 2.625rem;
-	right: 2.5rem;
+	right: clamp(1.5rem, 3vw, 6rem);
 	width: 1rem;
 	height: 1rem;
 }
@@ -437,11 +442,9 @@ body[data-current-path="/"] {
 	width: var(--home-reference-menu-width);
 	height: 100vh;
 	height: 100svh;
-	padding:
-		clamp(10rem, 22vh, 13rem)
-		clamp(1.25rem, 2.4vw, 2.1rem)
-		clamp(3.5rem, 9.25vh, 5.4rem)
-		clamp(3rem, 5.25vw, 5.25rem);
+	padding-block-start: clamp(10rem, 22vh, 13rem);
+	padding-block-end: clamp(3.5rem, 9.25vh, 5.4rem);
+	padding-inline: 0;
 	border-right: 1px solid rgba(243, 240, 233, 0.14);
 	background: rgba(20, 18, 15, 0.42);
 	backdrop-filter: blur(0.42rem);
@@ -461,18 +464,23 @@ body[data-current-path="/"] {
 	position: relative;
 	z-index: 1;
 	display: grid;
+	width: 100%;
+	align-self: stretch;
 	align-content: start;
-	gap: clamp(2rem, 3.55vh, 2.15rem);
+	justify-items: center;
+	gap: clamp(1.65rem, 4.1vh, 2.4rem);
+	text-align: center;
 }
 
 .home-reference-menu__primary a,
 .home-reference-menu__label {
 	max-width: 100%;
 	width: fit-content;
-	font-size: clamp(0.72rem, 0.62rem + 0.28vw, 0.875rem);
+	font-family: var(--font-navigation);
+	font-size: clamp(0.875rem, 0.86vw, 1.75rem);
 	font-weight: 400;
-	letter-spacing: 0.25em;
-	line-height: 1.4;
+	letter-spacing: 0.2em;
+	line-height: 1.35;
 	text-transform: uppercase;
 	overflow-wrap: anywhere;
 }
@@ -515,16 +523,53 @@ body[data-current-path="/"] {
 	z-index: 1;
 	display: grid;
 	width: fit-content;
-	gap: clamp(0.45rem, 1.1vh, 0.65rem);
-	margin: auto 0 0 clamp(0.45rem, 0.65vw, 0.65rem);
+	gap: clamp(0.5rem, 0.55vw, 1rem);
+	margin: auto 0 0 calc(
+		clamp(3rem, 5.25vw, 11rem) +
+		clamp(0.45rem, 0.65vw, 0.65rem)
+	);
 	padding: 0;
 	list-style: none;
-	font-size: clamp(0.5rem, 0.44rem + 0.12vw, 0.6rem);
+	font-family: var(--font-navigation);
+	font-size: clamp(0.625rem, 0.6vw, 1.15rem);
 	font-weight: 400;
-	letter-spacing: 0.22em;
-	line-height: 1.35;
+	letter-spacing: 0.2em;
+	line-height: 1.5;
 	text-transform: uppercase;
 	text-shadow: 0 0.12rem 0.8rem rgba(0, 0, 0, 0.5);
+}
+
+/* Each decorative brand mark occupies a stable column before its text name. */
+.home-reference-menu__social-item {
+	display: grid;
+	grid-template-columns: clamp(1rem, 0.9vw, 1.65rem) max-content;
+	align-items: center;
+	justify-items: start;
+	gap: clamp(0.5rem, 0.55vw, 1rem);
+}
+
+/* Strong non-scaling outlines keep the small logos visible over photography. */
+.home-reference-menu__social-icon {
+	display: block;
+	width: clamp(1rem, 0.9vw, 1.65rem);
+	height: clamp(1rem, 0.9vw, 1.65rem);
+	fill: none;
+	stroke: currentColor;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke-width: 2.15;
+	filter: drop-shadow(0 0.08rem 0.25rem rgba(0, 0, 0, 0.65));
+	opacity: 1;
+	pointer-events: none;
+}
+
+.home-reference-menu__social-icon > * {
+	vector-effect: non-scaling-stroke;
+}
+
+.home-reference-menu__social-icon-dot {
+	fill: currentColor;
+	stroke: none;
 }
 
 /*
@@ -596,11 +641,17 @@ body[data-current-path="/"] {
 		visibility: hidden;
 	}
 
+	/* Match the approved Interior discipline typography on the landing hero. */
 	body[data-current-path="/"] .discipline-nav__link {
-		--discipline-link-padding: clamp(1.85rem, 3.3vw, 2.9rem);
+		--discipline-link-padding: clamp(1.75rem, 3.3vw, 2.9rem);
 
-		font-size: clamp(0.7rem, 0.4rem + 0.55vw, 0.875rem);
-		letter-spacing: 0.26em;
+		font-size: clamp(0.78rem, 0.75vw, 1.5rem);
+		font-weight: 300;
+		letter-spacing: 0.24em;
+	}
+
+	body[data-current-path="/"] .discipline-nav__separator {
+		height: 1.125rem;
 	}
 
 	/* The first underline is the reference's visual entry accent, not aria-current. */
@@ -617,9 +668,6 @@ body[data-current-path="/"] {
 		bottom: max(3.25rem, env(safe-area-inset-bottom));
 	}
 
-	.home-hero__scroll {
-		transform: translateX(0.45rem);
-	}
 }
 
 /*
@@ -646,8 +694,9 @@ body[data-current-path="/"] {
 
 /*
  * Wide, short desktop viewports need the reference's vertical proportions
- * rather than the taller 3:2 comp's fixed offsets. Aspect-ratio scoping keeps
- * the original tuning intact on ordinary laptops and portrait-oriented screens.
+ * rather than the taller 3:2 comp's fixed offsets. The base fluid title scale
+ * remains intact here so a wide screen does not make the studio identity
+ * smaller than it appears in the supplied composition.
  */
 @media
 	(min-width: 56rem)
@@ -662,21 +711,10 @@ body[data-current-path="/"] {
 
 	.home-reference-menu__close {
 		top: 2rem;
-		right: 2.75rem;
 	}
 
 	body[data-current-path="/"] .site-header {
 		padding-top: 2.375rem;
-	}
-
-	body[data-current-path="/"] .discipline-nav__link {
-		--discipline-link-padding: clamp(1.85rem, 3.3vw, 3.1rem);
-
-		letter-spacing: 0.31em;
-	}
-
-	body[data-current-path="/"] .discipline-nav__link::after {
-		bottom: 0.55rem;
 	}
 
 	.home-hero__search-motif {
@@ -693,25 +731,12 @@ body[data-current-path="/"] {
 		gap: 1.15rem;
 	}
 
-	.home-reference-menu__primary {
-		gap: 3vh;
-	}
-
-	.home-reference-menu__primary a,
-	.home-reference-menu__label {
-		letter-spacing: 0.39em;
-	}
-
-	.home-hero__title {
-		font-size: 3rem;
-	}
-
 	.home-hero__rail {
 		bottom: max(2rem, env(safe-area-inset-bottom));
 	}
 
 	.home-hero__scroll {
-		gap: 0.25rem;
+		gap: 0.45rem;
 	}
 }
 
@@ -731,8 +756,8 @@ body[data-current-path="/"] {
 	}
 
 	.home-reference-menu__panel {
-		padding-top: 7rem;
-		padding-bottom: 1.5rem;
+		padding-block-start: 7rem;
+		padding-block-end: 1.5rem;
 	}
 
 	.home-reference-menu__primary {
@@ -912,7 +937,7 @@ body[data-current-path="/"] {
 .home-feature__classification {
 	margin: 0;
 	font-family: var(--font-interface);
-	font-size: 0.72rem;
+	font-size: max(clamp(0.8rem, 0.75vw, 0.84rem), 0.45vw);
 	letter-spacing: 0.16em;
 	line-height: 1.5;
 	text-transform: uppercase;

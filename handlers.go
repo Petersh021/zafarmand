@@ -348,9 +348,9 @@ func (app *application) productDetailHandler(
 
 // interiorDesignHandler renders the published Interior Design portfolio.
 //
-// Stage 22 reads the ordered public projection through a narrow repository. A
-// new database therefore renders the truthful empty state, while Draft and
-// Archived projects never cross into the public template contract.
+// Stage 22 reads the ordered public projection through a narrow repository.
+// Draft and Archived projects never cross into the public template contract;
+// an empty projection receives only the approved non-interactive concept cards.
 func (app *application) interiorDesignHandler(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -392,17 +392,14 @@ func (app *application) interiorDesignHandler(
 		NextPath: "/architecture-design",
 	}
 
-	// Section copy and ordered preview data travel to the template as one value.
-	// The listing and detail handlers share the same published-only dependency,
-	// preventing their eligibility and numbering rules from drifting apart.
+	// Ordered database previews and the reviewed launch composition travel as one
+	// value. The template prefers Items and uses ReferenceItems only when the
+	// repository returns no published records, so concept cards never gain false
+	// detail links or bypass the published-only detail boundary.
 	interiorProjectListing := &interiorProjectListingData{
-		Eyebrow: "Zafarmand interiors",
-		Heading: "Interior project index",
-		Introduction: "A developing index of residential, hospitality, " +
-			"workplace, and cultural interior studies.",
-		EmptyMessage: "Interior project entries are being prepared " +
-			"for publication.",
-		Items: interiorProjectPreviews(projects),
+		Heading:        "Featured Interior Projects",
+		Items:          interiorProjectPreviews(projects),
+		ReferenceItems: interiorReferenceProjectPreviews(),
 	}
 
 	app.render(

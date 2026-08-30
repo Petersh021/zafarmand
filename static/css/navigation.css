@@ -158,23 +158,24 @@ body.is-menu-open {
 }
 
 /*
- * Each link owns a fluid horizontal padding custom property. The underline
- * reuses the same value, so it aligns precisely with the text area. nowrap is
- * important for the long "Architecture Design" label; tablet rules reduce the
- * padding and tracking before the navigation is hidden on genuinely narrow
- * screens.
+ * Each link owns viewport-proportional type and spacing so the three discipline
+ * names retain the reference composition on large or zoomed-out displays. The
+ * minimums protect intermediate widths, while the generous caps avoid freezing
+ * the row at laptop dimensions on a large monitor.
  */
 .discipline-nav__link {
-	--discipline-link-padding: clamp(1.25rem, 2.1vw, 2.5rem);
+	--discipline-link-padding: clamp(1.75rem, 3.3vw, 6rem);
 
 	position: relative;
 	display: inline-flex;
 	align-items: center;
 	padding: 1rem var(--discipline-link-padding);
 	color: var(--color-text-soft);
-	font-size: var(--font-size-xs);
-	font-weight: 400;
-	letter-spacing: 0.23em;
+	font-family: var(--font-navigation);
+	font-size: clamp(0.78rem, 1.15vw, 3rem);
+	font-weight: 300;
+	letter-spacing: 0.26em;
+	line-height: 1.2;
 	white-space: nowrap;
 	text-transform: uppercase;
 	transition: color var(--duration-fast) ease;
@@ -188,7 +189,7 @@ body.is-menu-open {
 .discipline-nav__separator {
 	display: block;
 	width: 1px;
-	height: 1rem;
+	height: clamp(0.75rem, 1.33vw, 3rem);
 	flex: none;
 	background: var(--color-border-strong);
 	opacity: 0.9;
@@ -201,7 +202,7 @@ body.is-menu-open {
 .discipline-nav__link::after {
 	position: absolute;
 	right: var(--discipline-link-padding);
-	bottom: 0.55rem;
+	bottom: 0.3rem;
 	left: var(--discipline-link-padding);
 	height: 1px;
 	background: currentColor;
@@ -411,9 +412,11 @@ body.is-menu-open {
 .drawer-navigation__link {
 	width: fit-content;
 	color: var(--color-text-soft);
-	font-size: clamp(0.85rem, 0.75rem + 0.25vw, 1.05rem);
-	font-weight: 400;
-	letter-spacing: 0.22em;
+	font-family: var(--font-navigation);
+	font-size: clamp(0.95rem, 1.25vw, 3rem);
+	font-weight: 300;
+	letter-spacing: 0.24em;
+	line-height: 1.35;
 	text-transform: uppercase;
 	transition:
 		color var(--duration-fast) ease,
@@ -454,21 +457,14 @@ a.drawer-navigation__link:focus-visible,
 
 /*
  * 70rem (1120px at the default root size) is an intermediate fitting state,
- * not the mobile switch. Reducing gutters, label padding, font size, and
- * tracking preserves all three real route links on tablets and small laptops.
+ * not the mobile switch. Reduced header gutters preserve all three real route
+ * links while their shared fluid typography continues scaling naturally.
  */
 @media (max-width: 70rem) {
 	.site-header {
 		column-gap: clamp(0.5rem, 1.2vw, 0.85rem);
 		min-height: 4.75rem;
 		padding-inline: clamp(1rem, 2vw, 1.5rem);
-	}
-
-	.discipline-nav__link {
-		--discipline-link-padding: clamp(0.75rem, 1.4vw, 1rem);
-
-		font-size: 0.64rem;
-		letter-spacing: 0.2em;
 	}
 
 	.page {
@@ -534,11 +530,12 @@ a.drawer-navigation__link:focus-visible,
 		align-items: baseline;
 		padding-block: 0.45rem;
 		color: var(--color-text-soft);
-		font-family: var(--font-display);
-		font-size: clamp(1.7rem, 6vw, 3rem);
-		font-weight: 400;
-		line-height: 1.05;
-		letter-spacing: -0.02em;
+		font-family: var(--font-navigation);
+		font-size: clamp(1.15rem, 4.8vw, 1.75rem);
+		font-weight: 300;
+		line-height: 1.2;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
 		transition:
 			color var(--duration-fast) ease,
 			transform var(--duration-medium) var(--ease-standard);
@@ -547,9 +544,9 @@ a.drawer-navigation__link:focus-visible,
 	/* Route numbers use the compact interface face to contrast with link titles. */
 	.drawer-disciplines__link span {
 		color: var(--color-muted);
-		font-family: var(--font-interface);
+		font-family: var(--font-navigation);
 		font-size: var(--font-size-xs);
-		letter-spacing: 0.12em;
+		letter-spacing: 0.18em;
 	}
 
 	/* Mouse, keyboard, and current-route states share a clear emphasis. */

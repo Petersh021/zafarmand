@@ -126,14 +126,15 @@ func extractOpeningTag(
 	return element[:openingEnd+1]
 }
 
-// TestDisciplinePageRoutes verifies that all three real URLs retain the shared
-// Stage 5 shell with their own Go-supplied editorial data.
+// TestDisciplinePageRoutes verifies Products and Architecture retain the shared
+// Stage 5 shell with their own Go-supplied editorial data. Interior Design owns
+// a separate photographic composition covered in interior_projects_test.go.
 //
 // This test complements TestPageRoutes: that existing test owns the common
 // document title, CurrentPath, and aria-current contract, while this table owns
 // discipline-page semantics, stylesheet isolation, and route-cycle data.
-// All three disciplines now specialize their work content, so the table also
-// states which visible h2 and default-status behavior belongs to each route.
+// Both shared-shell disciplines specialize their work content, so the table
+// also states which visible h2 and default-status behavior belongs to each.
 func TestDisciplinePageRoutes(t *testing.T) {
 	app := newTestApplication(t)
 	handler := app.routes()
@@ -161,15 +162,6 @@ func TestDisciplinePageRoutes(t *testing.T) {
 			nextName:        "Interior Design",
 			nextPath:        "/interior-design",
 			workHeading:     "Product catalogue",
-			usesDefaultWork: false,
-		},
-		{
-			name:            "Interior Design",
-			path:            "/interior-design",
-			number:          "01",
-			nextName:        "Architecture Design",
-			nextPath:        "/architecture-design",
-			workHeading:     "Interior project index",
 			usesDefaultWork: false,
 		},
 		{
@@ -542,8 +534,8 @@ func TestDisciplinePageRoutes(t *testing.T) {
 	}
 }
 
-// TestDisciplinePageTemplateUsesData renders every thin page wrapper with the
-// same sentinel values.
+// TestDisciplinePageTemplateUsesData renders both shared-shell page wrappers
+// with the same sentinel values.
 //
 // Exercising all cache keys proves each wrapper delegates to the shared partial
 // and reads DisciplinePage instead of hard-coding its production route body.
@@ -558,7 +550,6 @@ func TestDisciplinePageTemplateUsesData(t *testing.T) {
 
 	pageNames := []string{
 		"products.html",
-		"interior-design.html",
 		"architecture-design.html",
 	}
 

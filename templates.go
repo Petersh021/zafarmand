@@ -288,22 +288,38 @@ type productDetailData struct {
 	Cover *productCoverPageData
 }
 
-// interiorProjectListingData describes the Interior Design portfolio section.
+// interiorProjectListingData describes the Interior Design showcase section.
 //
 // The pointer is optional on pageData because only /interior-design uses this
-// contract. Section copy stays beside the ordered published projection so the
-// handler passes one coherent portfolio value to the template.
+// contract. Published records remain the primary source; ReferenceItems provide
+// the four approved concept previews only while that public projection is empty.
 type interiorProjectListingData struct {
-	// Eyebrow is the short interface label displayed above the section heading.
-	Eyebrow string
-	// Heading names the project index and labels the shared work section.
+	// Heading labels the reference-aligned project section.
 	Heading string
-	// Introduction is fixed explanatory copy above the published project index.
-	Introduction string
-	// EmptyMessage is shown when Items is nil or empty.
-	EmptyMessage string
 	// Items contains published previews in their database portfolio order.
 	Items []interiorProjectPreviewData
+	// ReferenceItems contains non-interactive checked-in concept previews used
+	// only until an administrator publishes database-backed portfolio records.
+	ReferenceItems []interiorReferenceProjectPreviewData
+}
+
+// interiorReferenceProjectPreviewData describes one approved local concept
+// preview shown when the public Interior catalogue has no published records.
+//
+// It intentionally has no Path: reference cards must not promise detail pages
+// that do not yet exist in PostgreSQL.
+type interiorReferenceProjectPreviewData struct {
+	// Title is the project name supplied by the approved page concept.
+	Title string
+	// Typology is the short category displayed below Title.
+	Typology string
+	// ImagePath is an application-owned path under /static/images.
+	ImagePath string
+	// Width and Height reserve the optimized asset's intrinsic dimensions.
+	Width  int
+	Height int
+	// AltText describes the interior photograph without repeating its title.
+	AltText string
 }
 
 // interiorProjectPreviewData is the public presentation shape for one
