@@ -113,6 +113,18 @@
 	pointer-events: auto;
 }
 
+/*
+ * The two photographic discipline landings expose more of their hero image
+ * through the rail. This route-scoped override changes only the surface;
+ * dimensions, menu items, layout, and disclosure behavior stay shared.
+ */
+body[data-current-path="/architecture-design"] .site-reference-menu__panel,
+body[data-current-path="/products"] .site-reference-menu__panel {
+	background: rgba(19, 17, 14, 0.58);
+	backdrop-filter: blur(0.2rem);
+	-webkit-backdrop-filter: blur(0.2rem);
+}
+
 .site-reference-menu:not([open]) .site-reference-menu__close,
 .site-reference-menu:not([open]) .site-reference-menu__panel {
 	display: none;
@@ -258,8 +270,20 @@
 	}
 }
 
+/* Stronger contrast preferences restore the more protective shared surface. */
+@media (prefers-contrast: more) {
+	body[data-current-path="/architecture-design"] .site-reference-menu__panel,
+	body[data-current-path="/products"] .site-reference-menu__panel {
+		background: rgba(19, 17, 14, 0.82);
+		backdrop-filter: blur(0.42rem);
+		-webkit-backdrop-filter: blur(0.42rem);
+	}
+}
+
 @media (forced-colors: active) {
-	.site-reference-menu__panel {
+	.site-reference-menu__panel,
+	body[data-current-path="/architecture-design"] .site-reference-menu__panel,
+	body[data-current-path="/products"] .site-reference-menu__panel {
 		border-color: CanvasText;
 		background: Canvas;
 		color: CanvasText;

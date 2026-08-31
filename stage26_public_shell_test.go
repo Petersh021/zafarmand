@@ -175,6 +175,25 @@ func TestStage26PublicShellPublishesOnlyUsableNavigation(t *testing.T) {
 			)
 		}
 	}
+	productsHeaderLink := extractElementByMarker(
+		t,
+		disciplineNavigation,
+		`href="/products"`,
+		"a",
+	)
+	normalizedProductsHeaderLink := strings.Join(
+		strings.Fields(productsHeaderLink),
+		" ",
+	)
+	if !strings.HasSuffix(
+		normalizedProductsHeaderLink,
+		"> Products </a>",
+	) {
+		t.Errorf(
+			"landing header Product discipline label is not plural: %q",
+			normalizedProductsHeaderLink,
+		)
+	}
 
 	// The reference rail is persistent page navigation, not a second modal.
 	// Keeping modal semantics exclusive to the compact shared drawer avoids

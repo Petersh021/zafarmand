@@ -223,6 +223,24 @@ func TestSharedReferenceMenuStylesMatchApprovedGeometry(t *testing.T) {
 	if strings.Contains(stylesheet, "data-home-reference-menu") {
 		t.Error("shared reference rail reuses the Home-only JavaScript hook")
 	}
+
+	// Only the two photographic discipline landings reveal more of their hero
+	// through the shared rail. The default surface remains unchanged for detail
+	// pages and standalone routes that need its stronger contrast.
+	for _, selector := range []string{
+		`body[data-current-path="/architecture-design"] .site-reference-menu__panel`,
+		`body[data-current-path="/products"] .site-reference-menu__panel`,
+	} {
+		if !strings.Contains(stylesheet, selector) {
+			t.Errorf("stylesheet omits photographic transparency selector %q", selector)
+		}
+	}
+	if !strings.Contains(stylesheet, "background: rgba(19, 17, 14, 0.58);") {
+		t.Error("photographic reference rails do not use the lighter surface")
+	}
+	if !strings.Contains(stylesheet, "@media (prefers-contrast: more)") {
+		t.Error("photographic reference rails omit their stronger contrast fallback")
+	}
 }
 
 func referenceMenuOpeningHasAttribute(opening string, attribute string) bool {
