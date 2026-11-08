@@ -75,7 +75,8 @@ func TestParseProgramCommand(t *testing.T) {
 				"owner",
 			},
 			expected: programCommand{
-				Name: programCommandAdmin,
+				Name:        programCommandAdmin,
+				AdminAction: adminActionCreateUser,
 				AdminCreateUser: adminCreateUserCommand{
 					Email: "owner@example.com",
 					Role:  adminRoleOwner,
@@ -93,10 +94,27 @@ func TestParseProgramCommand(t *testing.T) {
 				"editor@example.com",
 			},
 			expected: programCommand{
-				Name: programCommandAdmin,
+				Name:        programCommandAdmin,
+				AdminAction: adminActionCreateUser,
 				AdminCreateUser: adminCreateUserCommand{
 					Email: "editor@example.com",
 					Role:  adminRoleEditor,
+				},
+			},
+		},
+		{
+			name: "reset administrator password",
+			args: []string{
+				"admin",
+				"reset-password",
+				"--email",
+				" Owner@Example.COM ",
+			},
+			expected: programCommand{
+				Name:        programCommandAdmin,
+				AdminAction: adminActionResetPassword,
+				AdminResetPassword: adminResetPasswordCommand{
+					Email: "owner@example.com",
 				},
 			},
 		},

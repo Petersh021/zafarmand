@@ -1,0 +1,549 @@
+/* Zafarmand optical vault: warm stone and bronze replace the source's cyan. */
+.admin-body--login {
+	--vault-accent: #c9aa7b;
+	--vault-accent-bright: #e4c99f;
+	--vault-success: #8fc8a5;
+	--vault-error: #dc8b82;
+	--vault-text: #eee9df;
+	--vault-muted: #979188;
+	position: relative;
+	isolation: isolate;
+	background: #070706;
+	color: var(--vault-text);
+}
+
+.admin-body--login::before,
+.admin-body--login::after {
+	position: fixed;
+	inset: 0;
+	z-index: -2;
+	content: "";
+	pointer-events: none;
+}
+
+.admin-body--login::before {
+	background:
+		radial-gradient(circle at 58% 40%, rgba(201, 170, 123, 0.14), transparent 35%),
+		linear-gradient(90deg, rgba(6, 6, 5, 0.94), rgba(7, 7, 6, 0.58), rgba(7, 7, 6, 0.88)),
+		linear-gradient(rgba(5, 5, 4, 0.26), rgba(5, 5, 4, 0.84)),
+		url("/static/images/architecture-design/architecture-hero.jpg") center / cover no-repeat;
+	filter: saturate(0.55) contrast(1.08);
+}
+
+.admin-body--login::after {
+	z-index: -1;
+	background-image:
+		linear-gradient(rgba(238, 233, 223, 0.025) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(238, 233, 223, 0.025) 1px, transparent 1px);
+	background-size: 2.5rem 2.5rem;
+	mask-image: radial-gradient(circle, #000, transparent 78%);
+}
+
+.admin-body--login .admin-header {
+	display: none;
+}
+
+.admin-body--login .admin-brand__studio {
+	font-size: 1.08rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.admin-sr-only {
+	position: absolute !important;
+	width: 1px !important;
+	height: 1px !important;
+	padding: 0 !important;
+	margin: -1px !important;
+	overflow: hidden !important;
+	clip: rect(0, 0, 0, 0) !important;
+	white-space: nowrap !important;
+	border: 0 !important;
+}
+
+.admin-vault {
+	display: grid;
+	place-items: center;
+	width: 100%;
+	min-height: 100vh;
+	min-height: 100svh;
+	padding: 1rem;
+	perspective: 75rem;
+}
+
+.admin-vault__card {
+	--vault-rotate-x: 0deg;
+	--vault-rotate-y: 0deg;
+	--vault-glare-x: 50%;
+	--vault-glare-y: 20%;
+	position: relative;
+	width: min(100%, 25.625rem);
+	padding: 1.35rem 1.5rem 1.2rem;
+	overflow: hidden;
+	border: 1px solid rgba(238, 233, 223, 0.1);
+	border-radius: 1.625rem;
+	background: linear-gradient(145deg, rgba(201, 170, 123, 0.06), transparent 34%), rgba(12, 12, 11, 0.84);
+	box-shadow: 0 2.25rem 5.5rem rgba(0, 0, 0, 0.58), 0 0 3.5rem rgba(201, 170, 123, 0.06);
+	color: var(--vault-text);
+	transform: rotateX(var(--vault-rotate-x)) rotateY(var(--vault-rotate-y));
+	transform-style: preserve-3d;
+	transition: transform 120ms ease-out;
+	backdrop-filter: blur(2.25rem) saturate(145%);
+	will-change: transform;
+}
+
+/*
+ * Pointer parallax uses a small class-like data state instead of writing an
+ * inline style. That keeps the interaction compatible with the admin page's
+ * strict `style-src 'self'` policy.
+ */
+.admin-vault__card[data-vault-tilt="nw"] { --vault-rotate-x: 4.5deg; --vault-rotate-y: -4.5deg; --vault-glare-x: 18%; --vault-glare-y: 18%; }
+.admin-vault__card[data-vault-tilt="nc"] { --vault-rotate-x: 4.5deg; --vault-rotate-y: 0deg; --vault-glare-x: 50%; --vault-glare-y: 18%; }
+.admin-vault__card[data-vault-tilt="ne"] { --vault-rotate-x: 4.5deg; --vault-rotate-y: 4.5deg; --vault-glare-x: 82%; --vault-glare-y: 18%; }
+.admin-vault__card[data-vault-tilt="cw"] { --vault-rotate-x: 0deg; --vault-rotate-y: -4.5deg; --vault-glare-x: 18%; --vault-glare-y: 50%; }
+.admin-vault__card[data-vault-tilt="ce"] { --vault-rotate-x: 0deg; --vault-rotate-y: 4.5deg; --vault-glare-x: 82%; --vault-glare-y: 50%; }
+.admin-vault__card[data-vault-tilt="sw"] { --vault-rotate-x: -4.5deg; --vault-rotate-y: -4.5deg; --vault-glare-x: 18%; --vault-glare-y: 82%; }
+.admin-vault__card[data-vault-tilt="sc"] { --vault-rotate-x: -4.5deg; --vault-rotate-y: 0deg; --vault-glare-x: 50%; --vault-glare-y: 82%; }
+.admin-vault__card[data-vault-tilt="se"] { --vault-rotate-x: -4.5deg; --vault-rotate-y: 4.5deg; --vault-glare-x: 82%; --vault-glare-y: 82%; }
+
+.admin-vault__card::before,
+.admin-vault__card::after {
+	position: absolute;
+	inset: 0;
+	content: "";
+	pointer-events: none;
+}
+
+.admin-vault__card::before {
+	z-index: 5;
+	border: 1px solid transparent;
+	border-radius: inherit;
+	background: linear-gradient(135deg, rgba(255,255,255,.45), var(--vault-accent), transparent 34%, transparent 70%, #72583e) border-box;
+	mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
+	mask-composite: exclude;
+}
+
+.admin-vault__card::after {
+	z-index: 4;
+	background: radial-gradient(28rem circle at var(--vault-glare-x) var(--vault-glare-y), rgba(255,255,255,.075), transparent 38%);
+}
+
+.admin-vault__topbar,
+.admin-otp__footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.admin-vault__controls {
+	display: flex;
+	align-items: center;
+	gap: .45rem;
+}
+
+.admin-vault__serial {
+	display: inline-flex;
+	align-items: center;
+	gap: .5rem;
+	padding: .35rem .65rem;
+	border: 1px solid rgba(238,233,223,.1);
+	border-radius: 999px;
+	color: var(--vault-muted);
+	font: 600 .625rem/1.4 Consolas, monospace;
+	letter-spacing: .14em;
+	text-transform: uppercase;
+}
+
+.admin-vault__serial > span {
+	width: .34rem;
+	height: .34rem;
+	border-radius: 50%;
+	background: var(--vault-accent);
+	box-shadow: 0 0 .75rem var(--vault-accent);
+}
+
+.admin-vault__sound,
+.admin-vault__theme {
+	display: grid;
+	place-items: center;
+	width: 1.75rem;
+	height: 1.75rem;
+	padding: 0;
+	border: 1px solid rgba(238,233,223,.14);
+	border-radius: 50%;
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+}
+
+.admin-vault__theme > span {
+	display: block;
+	width: .58rem;
+	height: .58rem;
+	border-radius: 50%;
+	background: var(--vault-accent);
+	box-shadow: 0 0 .55rem var(--vault-accent);
+}
+
+.admin-vault[data-vault-theme="stone"] {
+	--vault-accent: #aeb6b4;
+	--vault-accent-bright: #e4e8e6;
+}
+
+.admin-vault[data-vault-theme="clay"] {
+	--vault-accent: #b87966;
+	--vault-accent-bright: #e4b19e;
+}
+
+.admin-vault__sound-bars {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	height: .75rem;
+}
+
+.admin-vault__sound-bars span {
+	width: 1px;
+	height: 35%;
+	background: var(--vault-muted);
+}
+
+.admin-vault__sound-bars span:nth-child(2) { height: 80%; }
+.admin-vault__sound[aria-pressed="true"] { border-color: var(--vault-accent); box-shadow: 0 0 1rem rgba(201,170,123,.2); }
+.admin-vault__sound[aria-pressed="true"] span { background: var(--vault-accent-bright); }
+
+.admin-vault__header {
+	margin-top: 1.45rem;
+	text-align: center;
+}
+
+.admin-vault__header .admin-eyebrow {
+	margin: 0 0 .4rem;
+	color: var(--vault-accent);
+	font: 600 .59rem/1.4 Consolas, monospace;
+	letter-spacing: .21em;
+	text-transform: uppercase;
+}
+
+.admin-vault__header h1 {
+	margin: 0;
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: 1.36rem;
+	font-weight: 600;
+	letter-spacing: -.025em;
+}
+
+.admin-vault__header > p:last-child {
+	max-width: 21rem;
+	margin: .55rem auto 0;
+	color: var(--vault-muted);
+	font-size: .76rem;
+}
+
+.admin-auth-methods {
+	display: none;
+	grid-template-columns: repeat(3, 1fr);
+	gap: .25rem;
+	margin-top: 1.15rem;
+	padding: .22rem;
+	border: 1px solid rgba(238,233,223,.08);
+	border-radius: .75rem;
+	background: rgba(0,0,0,.22);
+}
+
+.admin-login--enhanced .admin-auth-methods { display: grid; }
+.admin-auth-panel[hidden] { display: none !important; }
+
+.admin-auth-methods__tab {
+	min-width: 0;
+	min-height: 2.05rem;
+	padding: .4rem .25rem;
+	border: 0;
+	border-radius: .55rem;
+	background: transparent;
+	color: #625e57;
+	font: 700 .54rem/1.2 Consolas, monospace;
+	letter-spacing: .09em;
+	text-transform: uppercase;
+	cursor: pointer;
+}
+
+.admin-auth-methods__tab[aria-selected="true"] {
+	background: rgba(201,170,123,.12);
+	box-shadow: inset 0 0 0 1px rgba(201,170,123,.2);
+	color: var(--vault-accent-bright);
+}
+
+.admin-auth-methods__tab:disabled {
+	opacity: .36;
+	cursor: not-allowed;
+}
+
+.admin-auth-panel--otp { padding-top: .85rem; }
+.admin-login__aperture,
+.admin-iris { width: 11rem; height: 11rem; margin: 0 auto; }
+.admin-iris svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.admin-iris__halo { fill: rgba(201,170,123,.03); stroke: rgba(201,170,123,.16); }
+.admin-iris__dial { fill: rgba(0,0,0,.28); stroke: rgba(238,233,223,.14); }
+.admin-iris__ticks { fill: none; stroke: rgba(201,170,123,.35); stroke-width: 2; stroke-dasharray: 1 15; }
+
+.admin-iris__blades {
+	transform: rotate(var(--admin-iris-rotation));
+	transform-box: fill-box;
+	transform-origin: center;
+	transition: transform .35s cubic-bezier(.2,.8,.2,1);
+}
+
+.admin-login[data-otp-length="0"] { --admin-iris-rotation: 0deg; --admin-iris-well: 13px; }
+.admin-login[data-otp-length="1"] { --admin-iris-rotation: 8deg; --admin-iris-well: 15px; }
+.admin-login[data-otp-length="2"] { --admin-iris-rotation: 16deg; --admin-iris-well: 17px; }
+.admin-login[data-otp-length="3"] { --admin-iris-rotation: 24deg; --admin-iris-well: 19px; }
+.admin-login[data-otp-length="4"] { --admin-iris-rotation: 34deg; --admin-iris-well: 21px; }
+.admin-vault.is-success { --admin-iris-rotation: 0deg; }
+
+.admin-iris__blade { fill: url("#admin-iris-blade"); stroke: rgba(238,233,223,.08); }
+.admin-iris__well {
+	r: var(--admin-iris-well, 13px);
+	fill: url("#admin-iris-lens");
+	stroke: var(--vault-accent);
+	filter: drop-shadow(0 0 .65rem rgba(201,170,123,.4));
+	transition: r .22s ease, fill .22s ease, stroke .22s ease;
+}
+
+.admin-iris__connectors path {
+	fill: none;
+	stroke: var(--vault-accent);
+	stroke-dasharray: 96;
+	stroke-dashoffset: 96;
+	opacity: .7;
+	transition: stroke-dashoffset .25s ease;
+}
+
+.admin-iris__connectors path.is-filled { stroke-dashoffset: 0; }
+.admin-iris__node circle { fill: #0b0a09; stroke: rgba(238,233,223,.16); transition: .2s ease; }
+.admin-iris__node text { fill: #625e57; font: 700 .58rem Consolas, monospace; }
+.admin-iris__node.is-filled circle { stroke: var(--vault-accent-bright); filter: drop-shadow(0 0 .35rem var(--vault-accent)); }
+.admin-iris__node.is-filled text { fill: var(--vault-accent-bright); }
+
+.admin-iris__success,
+.admin-iris__error {
+	fill: none;
+	stroke-width: 2;
+	stroke-linecap: round;
+	opacity: 0;
+	transition: opacity .25s .1s;
+}
+
+.admin-iris__success { stroke: var(--vault-success); }
+.admin-iris__error { stroke: var(--vault-error); }
+.admin-iris__scan { stroke: var(--vault-accent-bright); filter: drop-shadow(0 0 .3rem var(--vault-accent)); opacity: 0; }
+
+.admin-otp__telemetry,
+.admin-otp__spec {
+	color: #625e57;
+	font: 600 .55rem/1.4 Consolas, monospace;
+	letter-spacing: .16em;
+	text-align: center;
+	text-transform: uppercase;
+}
+
+.admin-otp__telemetry { min-height: 1rem; margin: -.1rem 0 .6rem; }
+.admin-otp__spec { margin: .55rem 0 0; font-size: .48rem; opacity: .7; }
+.admin-otp-request,
+.admin-otp { display: grid; gap: .75rem; }
+
+.admin-otp-request {
+	position: absolute;
+	inset: 12.4rem 1.5rem auto;
+	z-index: 8;
+	padding: 1rem;
+	border: 1px solid rgba(201,170,123,.25);
+	border-radius: .9rem;
+	background: rgba(10,9,8,.97);
+	box-shadow: 0 1.4rem 4rem rgba(0,0,0,.72);
+	backdrop-filter: blur(1.5rem);
+}
+
+.admin-otp-request[hidden] { display: none; }
+
+.admin-otp-request__close {
+	justify-self: center;
+	padding: .25rem;
+	border: 0;
+	background: transparent;
+	color: var(--vault-muted);
+	font: 600 .58rem/1.4 Consolas, monospace;
+	letter-spacing: .08em;
+	cursor: pointer;
+}
+
+.admin-otp-request .admin-form__field { gap: .35rem; }
+.admin-otp-request .admin-form__field label { color: var(--vault-muted); font: 700 .59rem/1.4 Consolas, monospace; letter-spacing: .11em; text-transform: uppercase; }
+.admin-otp-request .admin-form__field input {
+	min-height: 3rem;
+	border-color: rgba(238,233,223,.14);
+	border-radius: .7rem;
+	background: rgba(255,255,255,.03);
+	color: var(--vault-text);
+	caret-color: var(--vault-accent);
+}
+
+.admin-otp__entry { position: relative; width: fit-content; margin: auto; }
+
+.admin-otp__native {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	width: 100%;
+	height: 100%;
+	border: 0;
+	background: transparent;
+	color: transparent;
+	caret-color: transparent;
+	opacity: .01;
+	cursor: text;
+}
+
+.admin-otp__slots { display: grid; grid-template-columns: repeat(4, 3.5rem); gap: .625rem; border-radius: .85rem; }
+.admin-otp__slot {
+	position: relative;
+	display: grid;
+	place-items: center;
+	width: 3.5rem;
+	height: 3.75rem;
+	border: 1px solid rgba(238,233,223,.13);
+	border-radius: .75rem;
+	background: linear-gradient(145deg, rgba(255,255,255,.04), transparent), rgba(2,2,2,.24);
+	font: 600 1.5rem/1 Consolas, monospace;
+	transition: .18s ease;
+}
+
+.admin-otp__slot.is-filled { border-color: rgba(238,233,223,.32); }
+.admin-otp__slot.is-active { border-color: var(--vault-accent); box-shadow: 0 0 1rem rgba(201,170,123,.18); transform: translateY(-2px); }
+
+.otp-has-focus .admin-otp__slot.is-active:not(.is-filled)::after {
+	width: 1.5px;
+	height: 1.25rem;
+	background: var(--vault-accent-bright);
+	box-shadow: 0 0 .45rem var(--vault-accent);
+	content: "";
+	animation: vault-caret 1s cubic-bezier(.4,0,.6,1) infinite;
+}
+
+.admin-otp__native:focus-visible + .admin-otp__slots { outline: 3px solid var(--vault-accent); outline-offset: 4px; }
+
+.admin-otp__submit,
+.admin-google-button {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	width: 100%;
+	min-height: 2.85rem;
+	padding: .7rem 1rem;
+	border: 1px solid rgba(201,170,123,.28);
+	border-radius: .75rem;
+	background: rgba(201,170,123,.07);
+	color: var(--vault-muted);
+	font: 700 .67rem/1.2 Consolas, monospace;
+	letter-spacing: .14em;
+	text-transform: uppercase;
+	cursor: pointer;
+}
+
+.admin-login[data-otp-length="4"] .admin-otp__submit,
+.admin-google-button { border-color: var(--vault-accent); background: var(--vault-accent); color: #17130e; }
+.admin-otp__submit:disabled { cursor: wait; opacity: 1; }
+.admin-otp__footer { justify-content: center; gap: .35rem; margin-top: .7rem; color: #625e57; font-size: .66rem; }
+.admin-otp__footer button { padding: .2rem; border: 0; background: transparent; color: var(--vault-accent); font: inherit; cursor: pointer; }
+.admin-otp__footer button:disabled { color: #625e57; cursor: default; }
+
+.admin-auth-panel--password { padding-top: .1rem; }
+.admin-auth-panel--password .admin-form { margin-top: 1.2rem; }
+.admin-auth-panel--password .admin-form__field input { border-color: rgba(238,233,223,.14); border-radius: .7rem; background: rgba(255,255,255,.03); color: var(--vault-text); }
+.admin-auth-panel--password .admin-button { border-color: var(--vault-accent); border-radius: .75rem; background: var(--vault-accent); color: #17130e; }
+.admin-auth-panel--password .admin-alert { margin-top: 1rem; border-width: 1px; border-radius: .7rem; color: #f4d8d1; }
+
+.admin-auth-panel--google { display: grid; justify-items: center; gap: .9rem; padding: 1.8rem 0 .8rem; text-align: center; }
+.admin-auth-panel--google form { width: 100%; }
+.admin-google-mark { display: grid; place-items: center; width: 4rem; height: 4rem; border: 1px solid var(--vault-accent); border-radius: 50%; color: var(--vault-accent-bright); font: 1.7rem Georgia, serif; }
+.admin-auth-panel--google p { max-width: 19rem; margin: 0; color: var(--vault-muted); font-size: .76rem; }
+.admin-google-button { justify-content: center; }
+.admin-google-button > span { display: grid; place-items: center; width: 1.2rem; height: 1.2rem; border: 1px solid; border-radius: 50%; }
+.admin-google-button.is-unavailable { background: transparent; color: var(--vault-muted); }
+
+.admin-vault .admin-login__notice { justify-content: center; margin: .9rem 0 0; color: #777169; font: 600 .5rem/1.4 Consolas, monospace; letter-spacing: .1em; text-align: center; }
+.admin-vault .admin-login__notice > span { width: .3rem; height: .3rem; background: var(--vault-accent); }
+
+.admin-vault.is-verifying .admin-iris svg { animation: vault-decrypt 1.05s cubic-bezier(.65,0,.35,1); }
+.admin-vault.is-verifying .admin-iris__scan { animation: vault-scan .75s .15s cubic-bezier(.65,0,.35,1) both; }
+.admin-vault.is-success .admin-iris__well { fill: rgba(143,200,165,.22); stroke: var(--vault-success); }
+.admin-vault.is-success .admin-iris__success { opacity: 1; }
+.admin-vault.is-success .admin-iris__connectors path { stroke: var(--vault-success); }
+.admin-vault.is-success .admin-otp__slot { border-color: var(--vault-success); box-shadow: 0 0 1rem rgba(143,200,165,.2); }
+.admin-vault.is-success .admin-otp__submit { border-color: var(--vault-success); background: var(--vault-success); color: #08120c; }
+.admin-vault.is-error .admin-iris__well { fill: rgba(220,139,130,.2); stroke: var(--vault-error); }
+.admin-vault.is-error .admin-iris__error { opacity: 1; }
+.admin-vault.is-error .admin-iris__connectors path { stroke: var(--vault-error); }
+.admin-vault.is-error .admin-otp__slot { border-color: var(--vault-error); box-shadow: 0 0 1rem rgba(220,139,130,.18); }
+.admin-vault.is-error .admin-otp__submit { border-color: var(--vault-error); background: var(--vault-error); color: #190807; }
+
+.admin-vault__card.is-shaking { animation: vault-shake .42s linear; }
+.admin-vault button:focus-visible { outline: 3px solid var(--vault-accent-bright); outline-offset: 3px; }
+
+@keyframes vault-caret { 0%,45% { opacity: 1; } 55%,100% { opacity: 0; } }
+@keyframes vault-decrypt { to { transform: rotate(360deg); } }
+@keyframes vault-scan { 0% { opacity:0; transform:translateY(-1rem); } 20%,80% { opacity:1; } 100% { opacity:0; transform:translateY(4.8rem); } }
+@keyframes vault-shake { 0%,100% { translate:0; } 20%,60% { translate:-.5rem; } 40%,80% { translate:.5rem; } }
+
+@media (max-width: 36rem) {
+	.admin-vault { align-content: start; padding: .75rem; }
+	.admin-vault__card { padding: 1.05rem 1rem; border-radius: 1.35rem; }
+	.admin-vault__header { margin-top: 1.05rem; }
+	.admin-login__aperture, .admin-iris { width: 9.4rem; height: 9.4rem; }
+	.admin-otp__slots { grid-template-columns: repeat(4, 3rem); gap: .45rem; }
+	.admin-otp__slot { width: 3rem; height: 3.25rem; font-size: 1.25rem; }
+	.admin-auth-methods__tab { font-size: .5rem; }
+	.admin-otp__spec { display: none; }
+}
+
+@media (max-height: 48rem) and (min-width: 36.01rem) {
+	.admin-vault { align-content: start; padding-top: .65rem; }
+	.admin-vault__card { padding-block: 1rem; }
+	.admin-vault__header { margin-top: .7rem; }
+	.admin-login__aperture, .admin-iris { width: 9rem; height: 9rem; }
+	.admin-vault .admin-login__notice, .admin-otp__spec { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.admin-vault__card,
+	.admin-vault__card.is-shaking,
+	.admin-iris svg,
+	.admin-iris__scan,
+	.admin-iris__blades,
+	.admin-otp__slot { animation: none !important; transition: none !important; transform: none !important; }
+}
+
+@media (forced-colors: active) {
+	.admin-body--login::before,
+	.admin-body--login::after,
+	.admin-vault__card::before,
+	.admin-vault__card::after { display: none; }
+	.admin-vault__card,
+	.admin-auth-methods,
+	.admin-otp__slot,
+	.admin-otp__submit,
+	.admin-google-button { border: 1px solid CanvasText; background: Canvas; color: CanvasText; box-shadow: none; }
+	.admin-auth-methods__tab[aria-selected="true"] { background: Highlight; color: HighlightText; }
+}
+
+/*
+ * Before JavaScript initializes the optional method switcher, the ordinary
+ * password POST is the complete CSP-safe and no-script authentication path.
+ */
+.admin-login:not(.admin-login--enhanced) .admin-auth-methods,
+.admin-login:not(.admin-login--enhanced) .admin-auth-panel--otp,
+.admin-login:not(.admin-login--enhanced) .admin-auth-panel--google {
+	display: none !important;
+}

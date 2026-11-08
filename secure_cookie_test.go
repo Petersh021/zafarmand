@@ -121,6 +121,7 @@ func TestCookieSecurityUsesOnlyTrustedHTTPSState(t *testing.T) {
 				"test-session-token",
 				"test-csrf-token",
 				time.Now().UTC().Add(adminSessionLifetime),
+				http.SameSiteStrictMode,
 			)
 			assertSecureCookieNames(
 				t,

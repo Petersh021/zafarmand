@@ -33,6 +33,10 @@ const (
 	// migrationIntegrationPasswordHash is deliberately an inert test verifier,
 	// not a usable password or production credential.
 	migrationIntegrationPasswordHash = "integration-hash-not-a-credential"
+	// The OIDC fixture uses the provider's stable issuer/subject identity rather
+	// than an email address, matching the repository's durable lookup contract.
+	migrationIntegrationOIDCIssuer  = "https://accounts.google.com"
+	migrationIntegrationOIDCSubject = "migration-integration-subject"
 )
 
 // TestMigrationRunnerPostgresCycle exercises behavior that mocks cannot prove:
@@ -87,13 +91,13 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 
 	// A fresh database exposes the complete embedded history in order without
 	// claiming that any schema stage has already been applied.
-	assertMigrationIntegrationStatus(t, runner, false, false, false, false, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, false, false, false, false, false, false, false, false, false, false, false)
 
 	applied, err := runner.Up(t.Context())
 	if err != nil {
 		t.Fatalf("apply embedded migrations: %v", err)
 	}
-	if len(applied) != 10 ||
+	if len(applied) != 11 ||
 		applied[0].Version != 1 ||
 		applied[1].Version != 2 ||
 		applied[2].Version != 3 ||
@@ -103,10 +107,11 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		applied[6].Version != 7 ||
 		applied[7].Version != 8 ||
 		applied[8].Version != 9 ||
-		applied[9].Version != 10 {
-		t.Fatalf("applied migrations: got %#v, want versions 1 through 10", applied)
+		applied[9].Version != 10 ||
+		applied[10].Version != 11 {
+		t.Fatalf("applied migrations: got %#v, want versions 1 through 11", applied)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, true, true, true)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
 	assertMigrationIntegrationTableExists(
 		t,
@@ -122,6 +127,24 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", true)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", true)
+	assertMigrationIntegrationTableExists(
+		t,
+		database,
+		"admin_email_otp_rate_limits",
+		true,
+	)
+	assertMigrationIntegrationTableExists(
+		t,
+		database,
+		"admin_email_otp_challenges",
+		true,
+	)
+	assertMigrationIntegrationTableExists(
+		t,
+		database,
+		"admin_oidc_identities",
+		true,
+	)
 	assertMigrationIntegrationTableExists(t, database, "products", true)
 	assertMigrationIntegrationTableExists(t, database, "product_cover_images", true)
 	assertMigrationIntegrationTableExists(t, database, "interior_projects", true)
@@ -169,6 +192,18 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	assertMigrationIntegrationIndexExists(
 		t,
 		database,
+		"admin_email_otp_challenges_outstanding_user_idx",
+		true,
+	)
+	assertMigrationIntegrationIndexExists(
+		t,
+		database,
+		"admin_email_otp_challenges_expires_at_idx",
+		true,
+	)
+	assertMigrationIntegrationIndexExists(
+		t,
+		database,
 		"products_published_order_idx",
 		true,
 	)
@@ -204,6 +239,24 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		t,
 		database,
 		"architecture_project_cover_images",
+		0,
+	)
+	assertMigrationIntegrationTableRowCount(
+		t,
+		database,
+		"admin_email_otp_rate_limits",
+		0,
+	)
+	assertMigrationIntegrationTableRowCount(
+		t,
+		database,
+		"admin_email_otp_challenges",
+		0,
+	)
+	assertMigrationIntegrationTableRowCount(
+		t,
+		database,
+		"admin_oidc_identities",
 		0,
 	)
 
@@ -250,6 +303,20 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		"owner",
 		0x33,
 		0x44,
+	)
+	insertMigrationIntegrationAlternativeAuthentication(
+		t,
+		database,
+		adminUserID,
+		0x45,
+		0x46,
+	)
+	assertMigrationIntegrationAlternativeAuthentication(
+		t,
+		database,
+		adminUserID,
+		0x45,
+		0x46,
 	)
 	productID := insertMigrationIntegrationProduct(
 		t,
@@ -328,16 +395,67 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		architectureProjectID,
 	)
 
+	// Migration 000011 rollback removes only the alternative-authentication
+	// children and their indexes. The administrator, session, inquiry, and
+	// content records created by earlier migrations remain intact.
+	rolledBack, err := runner.Down(t.Context())
+	if err != nil {
+		t.Fatalf("roll back alternative-authentication migration: %v", err)
+	}
+	if rolledBack == nil || rolledBack.Version != 11 {
+		t.Fatalf("rolled-back migration: got %#v, want version 11", rolledBack)
+	}
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, true, true, false)
+	assertMigrationIntegrationTableExists(
+		t,
+		database,
+		"admin_email_otp_rate_limits",
+		false,
+	)
+	assertMigrationIntegrationTableExists(
+		t,
+		database,
+		"admin_email_otp_challenges",
+		false,
+	)
+	assertMigrationIntegrationTableExists(
+		t,
+		database,
+		"admin_oidc_identities",
+		false,
+	)
+	assertMigrationIntegrationIndexExists(
+		t,
+		database,
+		"admin_email_otp_challenges_outstanding_user_idx",
+		false,
+	)
+	assertMigrationIntegrationIndexExists(
+		t,
+		database,
+		"admin_email_otp_challenges_expires_at_idx",
+		false,
+	)
+	assertMigrationIntegrationAdminAccess(
+		t,
+		database,
+		adminUserID,
+		"owner@example.test",
+		"owner",
+		0x33,
+		0x44,
+	)
+
 	// Stage 25 rollback removes only digest tombstones and the archived-inquiry
 	// index. Inquiry rows and every earlier content boundary remain intact.
-	rolledBack, err := runner.Down(t.Context())
+	rolledBack, err = runner.Down(t.Context())
 	if err != nil {
 		t.Fatalf("roll back Stage 25 retention migration: %v", err)
 	}
 	if rolledBack == nil || rolledBack.Version != 10 {
 		t.Fatalf("rolled-back migration: got %#v, want version 10", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, true, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, true, false, false)
 	assertMigrationIntegrationTableExists(
 		t,
 		database,
@@ -364,7 +482,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 9 {
 		t.Fatalf("rolled-back migration: got %#v, want version 9", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "homepage_content", false)
 	assertMigrationIntegrationTableExists(t, database, "homepage_hero_images", false)
 	assertMigrationIntegrationTableExists(t, database, "contact_content", false)
@@ -395,7 +513,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 8 {
 		t.Fatalf("rolled-back migration: got %#v, want version 8", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "architecture_projects", false)
 	assertMigrationIntegrationTableExists(
 		t,
@@ -428,7 +546,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 7 {
 		t.Fatalf("rolled-back migration: got %#v, want version 7", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "interior_projects", false)
 	assertMigrationIntegrationTableExists(
 		t,
@@ -474,7 +592,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 6 {
 		t.Fatalf("rolled-back migration: got %#v, want version 6", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "products", true)
 	assertMigrationIntegrationTableExists(t, database, "product_cover_images", false)
 	assertMigrationIntegrationColumnExists(t, database, "products", "description", false)
@@ -508,7 +626,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 5 {
 		t.Fatalf("rolled-back migration: got %#v, want version 5", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, false, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "products", true)
 	assertMigrationIntegrationColumnExists(t, database, "products", "version", false)
 	assertMigrationIntegrationIndexExists(
@@ -527,7 +645,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 4 {
 		t.Fatalf("rolled-back migration: got %#v, want version 4", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, false, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, false, false, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "products", false)
 	assertMigrationIntegrationIndexExists(
 		t,
@@ -558,7 +676,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 3 {
 		t.Fatalf("rolled-back migration: got %#v, want version 3", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, false, false, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, false, false, false, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", false)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", false)
@@ -607,7 +725,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 2 {
 		t.Fatalf("rolled-back migration: got %#v, want version 2", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, false, false, false, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, false, false, false, false, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
 	assertMigrationIntegrationColumnExists(
 		t,
@@ -632,14 +750,14 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	)
 
 	// Reapplying with version 000001 still present plans versions 000002 through
-	// 000010 in order. The key backfill preserves inquiry contact data, while the
+	// 000011 in order. The key backfill preserves inquiry contact data, while the
 	// recreated admin and discipline tables return empty and the two global
 	// content singletons return to their non-personal seed values.
 	applied, err = runner.Up(t.Context())
 	if err != nil {
-		t.Fatalf("reapply migrations 2 through 10: %v", err)
+		t.Fatalf("reapply migrations 2 through 11: %v", err)
 	}
-	if len(applied) != 9 ||
+	if len(applied) != 10 ||
 		applied[0].Version != 2 ||
 		applied[1].Version != 3 ||
 		applied[2].Version != 4 ||
@@ -648,10 +766,11 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		applied[5].Version != 7 ||
 		applied[6].Version != 8 ||
 		applied[7].Version != 9 ||
-		applied[8].Version != 10 {
-		t.Fatalf("reapplied migrations: got %#v, want versions 2 through 10", applied)
+		applied[8].Version != 10 ||
+		applied[9].Version != 11 {
+		t.Fatalf("reapplied migrations: got %#v, want versions 2 through 11", applied)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, true, true, true)
 	assertMigrationIntegrationTableExists(
 		t,
 		database,
@@ -681,6 +800,54 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	)
 	assertMigrationIntegrationTableRowCount(t, database, "admin_users", 0)
 	assertMigrationIntegrationTableRowCount(t, database, "admin_sessions", 0)
+	assertMigrationIntegrationTableExists(
+		t,
+		database,
+		"admin_email_otp_rate_limits",
+		true,
+	)
+	assertMigrationIntegrationTableExists(
+		t,
+		database,
+		"admin_email_otp_challenges",
+		true,
+	)
+	assertMigrationIntegrationTableExists(
+		t,
+		database,
+		"admin_oidc_identities",
+		true,
+	)
+	assertMigrationIntegrationIndexExists(
+		t,
+		database,
+		"admin_email_otp_challenges_outstanding_user_idx",
+		true,
+	)
+	assertMigrationIntegrationIndexExists(
+		t,
+		database,
+		"admin_email_otp_challenges_expires_at_idx",
+		true,
+	)
+	assertMigrationIntegrationTableRowCount(
+		t,
+		database,
+		"admin_email_otp_rate_limits",
+		0,
+	)
+	assertMigrationIntegrationTableRowCount(
+		t,
+		database,
+		"admin_email_otp_challenges",
+		0,
+	)
+	assertMigrationIntegrationTableRowCount(
+		t,
+		database,
+		"admin_oidc_identities",
+		0,
+	)
 	assertMigrationIntegrationTableExists(t, database, "products", true)
 	assertMigrationIntegrationIndexExists(
 		t,
@@ -773,22 +940,82 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		0x55,
 		0x66,
 	)
+	insertMigrationIntegrationAlternativeAuthentication(
+		t,
+		database,
+		reappliedAdminUserID,
+		0x77,
+		0x88,
+	)
+	assertMigrationIntegrationAlternativeAuthentication(
+		t,
+		database,
+		reappliedAdminUserID,
+		0x77,
+		0x88,
+	)
 	deleteMigrationIntegrationAdminUser(
 		t,
 		database,
 		reappliedAdminUserID,
 	)
 	assertMigrationIntegrationTableRowCount(t, database, "admin_sessions", 0)
+	assertMigrationIntegrationTableRowCount(
+		t,
+		database,
+		"admin_email_otp_rate_limits",
+		0,
+	)
+	assertMigrationIntegrationTableRowCount(
+		t,
+		database,
+		"admin_email_otp_challenges",
+		0,
+	)
+	assertMigrationIntegrationTableRowCount(
+		t,
+		database,
+		"admin_oidc_identities",
+		0,
+	)
 
-	// A synthetic version 000011 fails after executing DDL. PostgreSQL must roll
-	// back that DDL while retaining all ten applied embedded versions.
+	// A synthetic version 000012 fails after executing DDL. PostgreSQL must roll
+	// back that DDL while retaining all eleven applied embedded versions.
 	assertMigrationIntegrationAtomicFailure(t, database, catalog)
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, true, true, true)
 
-	// Ten explicit rollback calls prove the runner reverses the catalog one
-	// migration at a time: retention support, global site content, Architecture projects/cover,
-	// Interior projects/cover, Product content/cover, Product revision, Products,
-	// admin access, inquiry key, then inquiries.
+	// Eleven explicit rollback calls prove the runner reverses the catalog one
+	// migration at a time: alternative authentication, retention support, global
+	// site content, Architecture projects/cover, Interior projects/cover, Product
+	// content/cover, Product revision, Products, admin access, inquiry key, then
+	// inquiries.
+	rolledBack, err = runner.Down(t.Context())
+	if err != nil {
+		t.Fatalf("roll back alternative-authentication migration before full rollback: %v", err)
+	}
+	if rolledBack == nil || rolledBack.Version != 11 {
+		t.Fatalf("rolled-back migration: got %#v, want version 11", rolledBack)
+	}
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, true, true, false)
+	assertMigrationIntegrationTableExists(
+		t,
+		database,
+		"admin_email_otp_rate_limits",
+		false,
+	)
+	assertMigrationIntegrationTableExists(
+		t,
+		database,
+		"admin_email_otp_challenges",
+		false,
+	)
+	assertMigrationIntegrationTableExists(
+		t,
+		database,
+		"admin_oidc_identities",
+		false,
+	)
+
 	rolledBack, err = runner.Down(t.Context())
 	if err != nil {
 		t.Fatalf("roll back Stage 25 migration before full rollback: %v", err)
@@ -796,7 +1023,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 10 {
 		t.Fatalf("rolled-back migration: got %#v, want version 10", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, true, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, true, false, false)
 	assertMigrationIntegrationTableExists(
 		t,
 		database,
@@ -811,7 +1038,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 9 {
 		t.Fatalf("rolled-back migration: got %#v, want version 9", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "homepage_content", false)
 	assertMigrationIntegrationTableExists(t, database, "homepage_hero_images", false)
 	assertMigrationIntegrationTableExists(t, database, "contact_content", false)
@@ -823,7 +1050,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 8 {
 		t.Fatalf("rolled-back migration: got %#v, want version 8", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "architecture_projects", false)
 	assertMigrationIntegrationTableExists(
 		t,
@@ -846,7 +1073,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 7 {
 		t.Fatalf("rolled-back migration: got %#v, want version 7", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "interior_projects", false)
 	assertMigrationIntegrationTableExists(
 		t,
@@ -864,7 +1091,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 6 {
 		t.Fatalf("rolled-back migration: got %#v, want version 6", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "product_cover_images", false)
 	assertMigrationIntegrationColumnExists(t, database, "products", "description", false)
 	assertMigrationIntegrationColumnExists(t, database, "products", "version", true)
@@ -876,7 +1103,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 5 {
 		t.Fatalf("rolled-back migration: got %#v, want version 5", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, false, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "products", true)
 	assertMigrationIntegrationColumnExists(t, database, "products", "version", false)
 
@@ -887,7 +1114,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 4 {
 		t.Fatalf("rolled-back migration: got %#v, want version 4", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, false, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, false, false, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "products", false)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", true)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", true)
@@ -900,7 +1127,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 3 {
 		t.Fatalf("rolled-back migration: got %#v, want version 3", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, false, false, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, true, false, false, false, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "admin_sessions", false)
 	assertMigrationIntegrationTableExists(t, database, "admin_users", false)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
@@ -912,7 +1139,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if rolledBack == nil || rolledBack.Version != 2 {
 		t.Fatalf("rolled-back migration: got %#v, want version 2", rolledBack)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, false, false, false, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, true, false, false, false, false, false, false, false, false, false, false)
 	assertMigrationIntegrationTableExists(t, database, "inquiries", true)
 
 	rolledBack, err = runner.Down(t.Context())
@@ -923,7 +1150,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		t.Fatalf("rolled-back migration: got %#v, want version 1", rolledBack)
 	}
 	assertMigrationIntegrationTableExists(t, database, "inquiries", false)
-	assertMigrationIntegrationStatus(t, runner, false, false, false, false, false, false, false, false, false, false)
+	assertMigrationIntegrationStatus(t, runner, false, false, false, false, false, false, false, false, false, false, false)
 
 	if _, err := runner.Down(t.Context()); !errors.Is(err, errNoAppliedMigrations) {
 		t.Fatalf("empty rollback: got %v, want no applied migrations", err)
@@ -935,7 +1162,7 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reapply embedded migrations after full rollback: %v", err)
 	}
-	if len(applied) != 10 ||
+	if len(applied) != 11 ||
 		applied[0].Version != 1 ||
 		applied[1].Version != 2 ||
 		applied[2].Version != 3 ||
@@ -945,10 +1172,11 @@ func TestMigrationRunnerPostgresCycle(t *testing.T) {
 		applied[6].Version != 7 ||
 		applied[7].Version != 8 ||
 		applied[8].Version != 9 ||
-		applied[9].Version != 10 {
-		t.Fatalf("reapplied migrations: got %#v, want versions 1 through 10", applied)
+		applied[9].Version != 10 ||
+		applied[10].Version != 11 {
+		t.Fatalf("reapplied migrations: got %#v, want versions 1 through 11", applied)
 	}
-	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, true, true)
+	assertMigrationIntegrationStatus(t, runner, true, true, true, true, true, true, true, true, true, true, true)
 }
 
 // loadMigrationIntegrationConfig requires two explicit environment values and
@@ -1005,6 +1233,9 @@ func requireMigrationIntegrationSchemaEmpty(
 	var inquiryTombstonesExist bool
 	var adminUsersExist bool
 	var adminSessionsExist bool
+	var adminEmailOTPRateLimitsExist bool
+	var adminEmailOTPChallengesExist bool
+	var adminOIDCIdentitiesExist bool
 	var productsExist bool
 	var productCoversExist bool
 	var interiorProjectsExist bool
@@ -1025,6 +1256,9 @@ func requireMigrationIntegrationSchemaEmpty(
     to_regclass('public.inquiry_submission_tombstones') IS NOT NULL,
     to_regclass('public.admin_users') IS NOT NULL,
     to_regclass('public.admin_sessions') IS NOT NULL,
+    to_regclass('public.admin_email_otp_rate_limits') IS NOT NULL,
+    to_regclass('public.admin_email_otp_challenges') IS NOT NULL,
+    to_regclass('public.admin_oidc_identities') IS NOT NULL,
     to_regclass('public.products') IS NOT NULL,
     to_regclass('public.product_cover_images') IS NOT NULL,
     to_regclass('public.interior_projects') IS NOT NULL,
@@ -1043,6 +1277,9 @@ func requireMigrationIntegrationSchemaEmpty(
 		&inquiryTombstonesExist,
 		&adminUsersExist,
 		&adminSessionsExist,
+		&adminEmailOTPRateLimitsExist,
+		&adminEmailOTPChallengesExist,
+		&adminOIDCIdentitiesExist,
 		&productsExist,
 		&productCoversExist,
 		&interiorProjectsExist,
@@ -1065,6 +1302,9 @@ func requireMigrationIntegrationSchemaEmpty(
 		inquiryTombstonesExist ||
 		adminUsersExist ||
 		adminSessionsExist ||
+		adminEmailOTPRateLimitsExist ||
+		adminEmailOTPChallengesExist ||
+		adminOIDCIdentitiesExist ||
 		productsExist ||
 		productCoversExist ||
 		interiorProjectsExist ||
@@ -1109,6 +1349,9 @@ func cleanupMigrationIntegrationSchema(t *testing.T, database *sql.DB) {
 
 	for _, statement := range []string{
 		"DROP TABLE IF EXISTS public.stage13_atomicity_probe",
+		"DROP TABLE IF EXISTS public.admin_oidc_identities",
+		"DROP TABLE IF EXISTS public.admin_email_otp_challenges",
+		"DROP TABLE IF EXISTS public.admin_email_otp_rate_limits",
 		"DROP TABLE IF EXISTS public.inquiry_submission_tombstones",
 		"DROP TABLE IF EXISTS public.homepage_hero_images",
 		"DROP TABLE IF EXISTS public.contact_content",
@@ -1298,6 +1541,12 @@ func assertMigrationIntegrationTableRowCount(
 		query = "SELECT COUNT(*) FROM public.admin_users"
 	case "admin_sessions":
 		query = "SELECT COUNT(*) FROM public.admin_sessions"
+	case "admin_email_otp_rate_limits":
+		query = "SELECT COUNT(*) FROM public.admin_email_otp_rate_limits"
+	case "admin_email_otp_challenges":
+		query = "SELECT COUNT(*) FROM public.admin_email_otp_challenges"
+	case "admin_oidc_identities":
+		query = "SELECT COUNT(*) FROM public.admin_oidc_identities"
 	case "products":
 		query = "SELECT COUNT(*) FROM public.products"
 	case "product_cover_images":
@@ -3117,6 +3366,244 @@ WHERE user_id = $1`,
 	}
 }
 
+// insertMigrationIntegrationAlternativeAuthentication creates the three
+// migration-000011 child records for one administrator. Only bounded counters,
+// deterministic digests, and the provider's immutable issuer/subject pair
+// cross the database boundary; no raw one-time code or mutable provider email
+// is persisted.
+func insertMigrationIntegrationAlternativeAuthentication(
+	t *testing.T,
+	database *sql.DB,
+	userID int64,
+	challengeByte byte,
+	codeMACByte byte,
+) {
+	t.Helper()
+
+	challengeHash := make([]byte, 32)
+	codeMAC := make([]byte, 32)
+	for index := range challengeHash {
+		challengeHash[index] = challengeByte
+		codeMAC[index] = codeMACByte
+	}
+	if _, err := database.ExecContext(
+		t.Context(),
+		`INSERT INTO public.admin_email_otp_rate_limits (
+    user_id,
+    failed_attempt_count,
+    request_count,
+    last_requested_at
+) VALUES ($1, 1, 1, CURRENT_TIMESTAMP)`,
+		userID,
+	); err != nil {
+		t.Fatal("insert migration integration email OTP rate limit")
+	}
+
+	if _, err := database.ExecContext(
+		t.Context(),
+		`INSERT INTO public.admin_email_otp_challenges (
+    challenge_hash,
+    user_id,
+    code_mac,
+    expires_at
+) VALUES ($1, $2, $3, CURRENT_TIMESTAMP + INTERVAL '1 hour')`,
+		challengeHash,
+		userID,
+		codeMAC,
+	); err != nil {
+		t.Fatal("insert migration integration email OTP challenge")
+	}
+
+	if _, err := database.ExecContext(
+		t.Context(),
+		`INSERT INTO public.admin_oidc_identities (issuer, subject, user_id)
+VALUES ($1, $2, $3)`,
+		migrationIntegrationOIDCIssuer,
+		migrationIntegrationOIDCSubject,
+		userID,
+	); err != nil {
+		t.Fatal("insert migration integration OIDC identity")
+	}
+}
+
+// assertMigrationIntegrationAlternativeAuthentication proves all three child
+// records retain their exact durable identifiers, bounded counters, safe digest
+// widths, defaults, and ordered timestamps across the real PostgreSQL boundary.
+func assertMigrationIntegrationAlternativeAuthentication(
+	t *testing.T,
+	database *sql.DB,
+	userID int64,
+	challengeByte byte,
+	codeMACByte byte,
+) {
+	t.Helper()
+
+	expectedChallengeHash := make([]byte, 32)
+	expectedCodeMAC := make([]byte, 32)
+	for index := range expectedChallengeHash {
+		expectedChallengeHash[index] = challengeByte
+		expectedCodeMAC[index] = codeMACByte
+	}
+
+	var rateLimitUserID int64
+	var windowStartedAt time.Time
+	var failedAttemptCount int
+	var requestCount int
+	var lastRequestedAt sql.NullTime
+	var rateLimitUpdatedAt time.Time
+	if err := database.QueryRowContext(
+		t.Context(),
+		`SELECT
+    user_id,
+    window_started_at,
+    failed_attempt_count,
+    request_count,
+    last_requested_at,
+    updated_at
+FROM public.admin_email_otp_rate_limits
+WHERE user_id = $1`,
+		userID,
+	).Scan(
+		&rateLimitUserID,
+		&windowStartedAt,
+		&failedAttemptCount,
+		&requestCount,
+		&lastRequestedAt,
+		&rateLimitUpdatedAt,
+	); err != nil {
+		t.Fatal("read migration integration email OTP rate limit")
+	}
+	if rateLimitUserID != userID ||
+		windowStartedAt.IsZero() ||
+		failedAttemptCount != 1 ||
+		requestCount != 1 ||
+		!lastRequestedAt.Valid ||
+		lastRequestedAt.Time.Before(windowStartedAt) ||
+		rateLimitUpdatedAt.Before(windowStartedAt) {
+		t.Error("stored migration integration email OTP rate limit violates expected values or defaults")
+	}
+	_, err := database.ExecContext(
+		t.Context(),
+		"INSERT INTO public.admin_email_otp_rate_limits (user_id) VALUES ($1)",
+		userID,
+	)
+	assertPostgresConstraintError(
+		t,
+		err,
+		postgresUniqueViolationCode,
+		"admin_email_otp_rate_limits_pkey",
+		"",
+	)
+
+	for _, test := range []struct {
+		name       string
+		assignment string
+		constraint string
+	}{
+		{
+			name: "failed attempts above limit", assignment: "failed_attempt_count = 11",
+			constraint: "admin_email_otp_rate_limits_failed_attempt_count_supported",
+		},
+		{
+			name: "requests above limit", assignment: "request_count = 7",
+			constraint: "admin_email_otp_rate_limits_request_count_supported",
+		},
+		{
+			name: "request before window", assignment: "last_requested_at = window_started_at - INTERVAL '1 second'",
+			constraint: "admin_email_otp_rate_limits_request_order",
+		},
+		{
+			name: "update before window", assignment: "updated_at = window_started_at - INTERVAL '1 second'",
+			constraint: "admin_email_otp_rate_limits_updated_order",
+		},
+	} {
+		t.Run("email OTP rate limit "+test.name, func(t *testing.T) {
+			_, err := database.ExecContext(
+				t.Context(),
+				"UPDATE public.admin_email_otp_rate_limits SET "+test.assignment+" WHERE user_id = $1",
+				userID,
+			)
+			assertPostgresConstraintError(
+				t,
+				err,
+				postgresCheckViolationCode,
+				test.constraint,
+				"",
+			)
+		})
+	}
+
+	var challengeHash []byte
+	var challengeUserID int64
+	var codeMAC []byte
+	var attemptCount int
+	var createdAt time.Time
+	var expiresAt time.Time
+	var consumedAt sql.NullTime
+	if err := database.QueryRowContext(
+		t.Context(),
+		`SELECT
+    challenge_hash,
+    user_id,
+    code_mac,
+    attempt_count,
+    created_at,
+    expires_at,
+    consumed_at
+FROM public.admin_email_otp_challenges
+WHERE user_id = $1`,
+		userID,
+	).Scan(
+		&challengeHash,
+		&challengeUserID,
+		&codeMAC,
+		&attemptCount,
+		&createdAt,
+		&expiresAt,
+		&consumedAt,
+	); err != nil {
+		t.Fatal("read migration integration email OTP challenge")
+	}
+	if !bytes.Equal(challengeHash, expectedChallengeHash) ||
+		challengeUserID != userID ||
+		!bytes.Equal(codeMAC, expectedCodeMAC) ||
+		attemptCount != 0 ||
+		createdAt.IsZero() ||
+		!expiresAt.After(createdAt) ||
+		consumedAt.Valid {
+		t.Error("stored migration integration email OTP challenge violates expected values or defaults")
+	}
+
+	var issuer string
+	var subject string
+	var identityUserID int64
+	var identityCreatedAt time.Time
+	var lastAuthenticatedAt time.Time
+	if err := database.QueryRowContext(
+		t.Context(),
+		`SELECT issuer, subject, user_id, created_at, last_authenticated_at
+FROM public.admin_oidc_identities
+WHERE issuer = $1 AND subject = $2`,
+		migrationIntegrationOIDCIssuer,
+		migrationIntegrationOIDCSubject,
+	).Scan(
+		&issuer,
+		&subject,
+		&identityUserID,
+		&identityCreatedAt,
+		&lastAuthenticatedAt,
+	); err != nil {
+		t.Fatal("read migration integration OIDC identity")
+	}
+	if issuer != migrationIntegrationOIDCIssuer ||
+		subject != migrationIntegrationOIDCSubject ||
+		identityUserID != userID ||
+		identityCreatedAt.IsZero() ||
+		lastAuthenticatedAt.Before(identityCreatedAt) {
+		t.Error("stored migration integration OIDC identity violates expected values or defaults")
+	}
+}
+
 // deleteMigrationIntegrationAdminUser removes one exact fixture identity and
 // verifies PostgreSQL matched it. The caller separately proves the dependent
 // session disappeared through ON DELETE CASCADE.
@@ -3297,10 +3784,10 @@ func assertMigrationIntegrationAtomicFailure(
 	t.Helper()
 
 	failingMigration := migrationDefinition{
-		// Versions 000001 through 000010 are the real embedded history. The probe
+		// Versions 000001 through 000011 are the real embedded history. The probe
 		// therefore uses the next contiguous version instead of colliding with the
-		// Stage 25 definition during catalog validation.
-		Version: 11,
+		// alternative-authentication definition during catalog validation.
+		Version: 12,
 		Name:    "prove_atomicity",
 		UpSQL: `CREATE TABLE public.stage13_atomicity_probe (id bigint);
 SELECT * FROM public.stage13_intentionally_missing_table;`,
@@ -3342,7 +3829,7 @@ SELECT * FROM public.stage13_intentionally_missing_table;`,
 	).Scan(&ledgerRows); err != nil {
 		t.Fatal("count migration integration ledger rows")
 	}
-	if ledgerRows != 10 {
-		t.Errorf("ledger rows after failed migration: got %d, want 10", ledgerRows)
+	if ledgerRows != 11 {
+		t.Errorf("ledger rows after failed migration: got %d, want 11", ledgerRows)
 	}
 }

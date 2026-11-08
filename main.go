@@ -1,5 +1,5 @@
 // Package main assembles the Zafarmand web application and its explicit
-// PostgreSQL migration, administrator-bootstrap, and offline maintenance
+// PostgreSQL migration, administrator-operator, and offline maintenance
 // commands.
 //
 // The executable is intentionally small: routing, request handling, and
@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"io"
 	"log"
@@ -46,7 +47,7 @@ const (
 //
 // It validates process arguments before selecting one of four isolated paths:
 // the ordinary HTTP server, an operator-requested migration action, the
-// environment-protected administrator bootstrap, or offline retention work.
+// environment-protected administrator operation, or offline retention work.
 // Fatal logging stays at this outer boundary so lower-level functions can
 // return testable errors without deciding how the process exits.
 func main() {
@@ -88,13 +89,27 @@ func main() {
 		return
 	}
 	if command.Name == programCommandAdmin {
-		if err := executeAdminCreateUserCommand(
-			ctx,
-			command.AdminCreateUser,
-			os.LookupEnv,
-			os.Stdout,
-		); err != nil {
-			log.Fatal(err)
+		switch command.AdminAction {
+		case adminActionCreateUser:
+			if err := executeAdminCreateUserCommand(
+				ctx,
+				command.AdminCreateUser,
+				os.LookupEnv,
+				os.Stdout,
+			); err != nil {
+				log.Fatal(err)
+			}
+		case adminActionResetPassword:
+			if err := executeAdminResetPasswordCommand(
+				ctx,
+				command.AdminResetPassword,
+				os.LookupEnv,
+				os.Stdout,
+			); err != nil {
+				log.Fatal(err)
+			}
+		default:
+			log.Fatal("unsupported admin action")
 		}
 
 		return
@@ -133,6 +148,14 @@ func runServer(
 	lookup environmentLookup,
 ) error {
 	operationalConfig, err := loadOperationalConfig(lookup)
+	if err != nil {
+		return err
+	}
+	adminOTPConfig, adminOTPEnabled, err := loadOptionalAdminOTPConfig(lookup)
+	if err != nil {
+		return err
+	}
+	adminOIDCConfig, adminOIDCEnabled, err := loadOptionalAdminOIDCConfig(lookup)
 	if err != nil {
 		return err
 	}
@@ -182,9 +205,83 @@ func runServer(
 	if err != nil {
 		return err
 	}
+	// Password-free methods project only ID/email/role from active users. They do
+	// not receive the password hash owned by the established admin repository.
+	adminAccounts, err := newPostgresAdminAccountRepository(database)
+	if err != nil {
+		return err
+	}
 	adminProducts, err := newPostgresAdminProductReader(database)
 	if err != nil {
 		return err
+	}
+
+	var adminOTP *adminOTPService
+	if adminOTPEnabled {
+		otpChallenges, err := newPostgresAdminEmailOTPRepository(database)
+		if err != nil {
+			return err
+		}
+		mailer, err := newSMTPAdminOTPMailer(adminOTPConfig.smtp)
+		if err != nil {
+			return err
+		}
+		dispatcher, err := newQueuedAdminOTPDispatcher(ctx, mailer)
+		if err != nil {
+			return err
+		}
+		adminOTP, err = newAdminOTPService(
+			adminAccounts,
+			otpChallenges,
+			dispatcher,
+			adminOTPConfig.key[:],
+			rand.Reader,
+			time.Now,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	var adminOIDC *adminOIDCRuntime
+	if adminOIDCEnabled {
+		identities, err := newPostgresAdminOIDCIdentityRepository(database)
+		if err != nil {
+			return err
+		}
+		sealer, err := newAdminOIDCTransactionSealer(
+			adminOIDCConfig.cookieKey,
+			rand.Reader,
+		)
+		if err != nil {
+			return err
+		}
+		adapter, err := newGoogleAdminOIDCAdapter(ctx, adminOIDCConfig)
+		if err != nil {
+			return err
+		}
+		resolver, err := newAdminOIDCExistingAdminResolver(
+			adminAccounts,
+			identities,
+		)
+		if err != nil {
+			return err
+		}
+		callback, err := newAdminOIDCCallbackService(
+			adminOIDCConfig,
+			sealer,
+			adapter,
+			adapter,
+			resolver,
+		)
+		if err != nil {
+			return err
+		}
+		adminOIDC = &adminOIDCRuntime{
+			config:   adminOIDCConfig,
+			sealer:   sealer,
+			callback: callback,
+		}
 	}
 	adminProductWrites, err := newPostgresAdminProductWriter(database)
 	if err != nil {
@@ -255,6 +352,8 @@ func runServer(
 	if err != nil {
 		return err
 	}
+	app.adminOTP = adminOTP
+	app.adminOIDC = adminOIDC
 
 	operationalHandler, err := newOperationalHTTPHandler(
 		app.routes(),
@@ -287,6 +386,12 @@ func runServer(
 		listener.Addr().String(),
 		"external_https",
 		operationalConfig.externalHTTPS,
+		// These booleans expose feature readiness without logging mail or
+		// provider credentials, administrator addresses, or other secrets.
+		"admin_email_otp_enabled",
+		adminOTPEnabled,
+		"admin_google_oidc_enabled",
+		adminOIDCEnabled,
 	)
 
 	// A buffered channel lets Serve publish its terminal result without waiting

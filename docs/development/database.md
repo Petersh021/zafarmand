@@ -37,6 +37,10 @@ retention index. Its separate maintenance credential, offline purge commands,
 and backup/restore safeguards are documented in the [retention and recovery
 guide](retention.md); HTTP deployment and readiness are documented in the
 [operations runbook](operations.md).
+Migration 11 adds durable email-OTP rate budgets, short-lived challenges, and
+Google OIDC identity bindings. All reference existing `admin_users`; none
+creates an administrator account. The complete trust and configuration contract is in
+the [administrator access guide](admin-access.md).
 
 The boundary is intentional:
 
@@ -53,6 +57,10 @@ The boundary is intentional:
   offline maintenance command, never an HTTP repository.
 - The private login stores one-way password verifiers and only digests of the
   browser's session and CSRF secrets.
+- Email OTP storage contains only bounded per-user counters, a
+  challenge-selector digest, and a keyed code MAC. Google authentication stores
+  only its verified issuer/subject binding; access and refresh tokens are not
+  persisted.
 - Authenticated owners and editors can read bounded inquiry pages through a
   separate repository; the list does not select email, message, or submission
   key data.
@@ -122,8 +130,9 @@ connection strings, commands, and exit behavior.
 
 ## Supplying `DATABASE_URL` safely
 
-Migration commands, administrator bootstrap, and the public server each read
-one required environment variable named `DATABASE_URL`. Define the hidden-prompt
+Migration commands, administrator bootstrap/password reset, and the public
+server each read one required environment variable named `DATABASE_URL`. Define
+the hidden-prompt
 `Set-SecretProcessVariable` helper from
 [`admin-access.md`](admin-access.md#creating-the-first-administrator-safely),
 then set it only for the current PowerShell process:
@@ -190,6 +199,12 @@ GRANT SELECT (submission_key_hash)
     TO chosen_runtime_role;
 ```
 
+Migration 11 additionally requires narrow `SELECT`, `INSERT`, and `UPDATE`
+access on `public.admin_email_otp_rate_limits`,
+`public.admin_email_otp_challenges`, and `public.admin_oidc_identities`. It does
+not require `DELETE`; rate windows, failed attempts, challenge consumption, and
+last-login timestamps are represented by bounded updates.
+
 The Contact writer also takes PostgreSQL's transaction-scoped shared advisory
 lock. Built-in function execution is normally available through `PUBLIC`; a
 deployment that has revoked it must use the narrow function grants in
@@ -203,10 +218,14 @@ outside public handlers. Inquiry, Product, Interior-project,
 Architecture-project, and administrator identity sequences need only the access
 required by their existing writers; Stage 24 adds no sequence. The separate
 administrator bootstrap process additionally needs `INSERT` on
-`public.admin_users`, but neither runtime
-should own the schema or receive migration privileges. Keep role creation and
-credentials outside this repository and follow the deployment provider's
-role-management documentation.
+`public.admin_users`. The offline password-reset process instead needs narrow
+read access to identify one administrator, column-level `UPDATE` on
+`public.admin_users.password_hash` and `updated_at`, and column-level `UPDATE`
+on `public.admin_sessions.revoked_at`. Stop every server instance while that
+short-lived reset credential is in use. Neither operator process nor the HTTP
+runtime should own the schema or receive migration privileges. Keep role
+creation and credentials outside this repository and follow the deployment
+provider's role-management documentation.
 
 The Stage 25 maintenance role is separate from both schema owner and runtime.
 It alone receives the narrow live-data deletion grants documented in

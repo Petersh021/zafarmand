@@ -38,7 +38,8 @@ func TestPostgresAdminInquiryStatusUpdaterIntegration(t *testing.T) {
 	// key introduced by migration 1. Applying the complete catalog proves its
 	// focused inquiry mutation remains compatible with the independent Product,
 	// Interior, Architecture, and Site-content tables, revisions, and media
-	// storage and retention support introduced by versions 000004-000010.
+	// storage, retention, and alternative-auth support introduced by versions
+	// 000004-000011.
 	applyRepositoryIntegrationMigrations(t, database)
 
 	var migrationCount int
@@ -50,9 +51,9 @@ FROM public.schema_migrations`,
 	).Scan(&migrationCount, &newestMigration); err != nil {
 		t.Fatal("inspect synthetic status integration migration state")
 	}
-	if migrationCount != 10 || newestMigration != 10 {
+	if migrationCount != 11 || newestMigration != 11 {
 		t.Fatalf(
-			"migration state: got count=%d newest=%d, want 10/10",
+			"migration state: got count=%d newest=%d, want 11/11",
 			migrationCount,
 			newestMigration,
 		)

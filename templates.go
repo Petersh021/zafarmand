@@ -88,9 +88,20 @@ type application struct {
 	// deliberately expensive verifier. A channel gives acquisition a nonblocking
 	// select and requires no client identifier or unbounded per-account map.
 	adminLoginPasswordWork chan struct{}
+	// adminLoginAlternativeWork bounds OTP and OIDC request concurrency without
+	// retaining a client address or attacker-controlled identity in memory.
+	adminLoginAlternativeWork chan struct{}
 	// adminEntropy supplies independently random login, session, and CSRF tokens.
 	// Production uses crypto/rand.Reader; the field is replaceable only in tests.
 	adminEntropy io.Reader
+	// adminOTP is nil when no complete SMTP/HMAC deployment configuration was
+	// supplied. When present, it resolves only existing active administrators and
+	// creates the same local session boundary as password authentication.
+	adminOTP *adminOTPService
+	// adminOIDC is nil when Google sign-in is not configured. It holds the sealed
+	// browser transaction and verified authorization-code callback services, never
+	// provider access or refresh tokens.
+	adminOIDC *adminOIDCRuntime
 	// now centralizes absolute session and cookie times and permits deterministic
 	// expiry tests without changing the system clock.
 	now func() time.Time
@@ -813,6 +824,10 @@ func newApplication(
 		adminLoginPasswordWork: make(
 			chan struct{},
 			adminLoginPasswordWorkLimit,
+		),
+		adminLoginAlternativeWork: make(
+			chan struct{},
+			adminLoginAlternativeWorkLimit,
 		),
 		adminEntropy: rand.Reader,
 		now:          time.Now,

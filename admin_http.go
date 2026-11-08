@@ -45,12 +45,21 @@ const (
 	// work. The nonblocking guard protects the process from CPU amplification
 	// without retaining client addresses or attacker-controlled account keys.
 	adminLoginPasswordWorkLimit = 2
+	// adminLoginAlternativeWorkLimit bounds concurrent OTP database work and
+	// Google provider exchanges. Per-account persistence and the trusted edge
+	// provide rate limits; this process guard prevents concurrency amplification.
+	adminLoginAlternativeWorkLimit = 8
 	// adminLoginRetryAfterSeconds gives a saturated client one neutral retry hint.
 	// It is deliberately independent of account state and carries no identifier.
 	adminLoginRetryAfterSeconds = 1
 	// adminDummyPassword is not an account credential. It exists only to produce
 	// one startup-validated verifier for account-neutral missing-user logins.
 	adminDummyPassword = "zafarmand dummy administrator credential"
+	// adminContentSecurityPolicy keeps authenticated administration forms on the
+	// application origin. The anonymous login variant adds only Google's pinned
+	// authorization origin because Chromium applies form-action to redirects.
+	adminContentSecurityPolicy      = "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+	adminLoginContentSecurityPolicy = "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'self' https://accounts.google.com; frame-ancestors 'none'"
 )
 
 // Stable HTTP-layer errors describe only local dependency failures. Random
@@ -71,6 +80,11 @@ var (
 	errAdminDummyPasswordHashFailed = errors.New(
 		"create application: dummy admin password hash failed",
 	)
+	// errAdminSessionIssueFailed keeps random-source and repository details out
+	// of every authentication method's response and log message.
+	errAdminSessionIssueFailed = errors.New(
+		"issue administrator session failed",
+	)
 )
 
 // adminPageData is the typed presentation contract shared by every private
@@ -85,6 +99,19 @@ type adminPageData struct {
 	Email string
 	// AuthenticationFailed selects the single account-neutral error message.
 	AuthenticationFailed bool
+	// LoginMethod selects one trusted progressively enhanced panel. It is always
+	// one of otp, password, or google and never copied directly from a template.
+	LoginMethod string
+	// OTPEnabled and GoogleEnabled expose configuration state without exposing
+	// provider credentials or transport details.
+	OTPEnabled    bool
+	GoogleEnabled bool
+	// OTPRequested advances the optical UI after an account-neutral request.
+	OTPRequested bool
+	// OTPAuthenticationFailed and GoogleAuthenticationFailed select generic,
+	// method-specific messages without disclosing local account existence.
+	OTPAuthenticationFailed    bool
+	GoogleAuthenticationFailed bool
 	// NavigationPath selects one trusted active item in the shared admin nav.
 	NavigationPath string
 	// Identity contains the minimal authenticated display fields, or nil on login.
@@ -189,15 +216,9 @@ func (app *application) adminLoginPageHandler(
 		return
 	}
 
-	app.renderAdmin(
-		w,
-		http.StatusOK,
-		"login.html",
-		adminPageData{
-			Title:          "Sign in",
-			LoginCSRFToken: csrfToken,
-		},
-	)
+	data := app.adminLoginPresentation(r.URL.Query().Get("method"))
+	data.LoginCSRFToken = csrfToken
+	app.renderAdmin(w, http.StatusOK, "login.html", data)
 }
 
 // adminLoginHandler validates one strict form and always performs a password
@@ -301,42 +322,12 @@ func (app *application) adminLoginHandler(
 		return
 	}
 
-	sessionToken, sessionHash, err := generateAdminToken(app.adminEntropy)
-	if err != nil {
-		log.Printf("could not create admin session token")
-		http.Error(
-			w,
-			"service temporarily unavailable",
-			http.StatusServiceUnavailable,
-		)
-
-		return
-	}
-	csrfToken, csrfHash, err := generateAdminToken(app.adminEntropy)
-	if err != nil {
-		log.Printf("could not create admin session CSRF token")
-		http.Error(
-			w,
-			"service temporarily unavailable",
-			http.StatusServiceUnavailable,
-		)
-
-		return
-	}
-
-	expiresAt := app.now().UTC().Add(adminSessionLifetime)
-	ctx, cancel := context.WithTimeout(r.Context(), adminRepositoryTimeout)
-	err = app.admins.CreateSession(
-		ctx,
-		adminSession{
-			TokenHash:     sessionHash,
-			UserID:        user.ID,
-			CSRFTokenHash: csrfHash,
-			ExpiresAt:     expiresAt,
-		},
-	)
-	cancel()
-	if err != nil {
+	if err := app.issueAdminSession(
+		w,
+		r,
+		user.ID,
+		http.SameSiteStrictMode,
+	); err != nil {
 		log.Printf("admin login session creation failed")
 		http.Error(
 			w,
@@ -347,15 +338,63 @@ func (app *application) adminLoginHandler(
 		return
 	}
 
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+}
+
+// issueAdminSession is the single browser-session boundary shared by password,
+// OTP, and OIDC authentication. Callers must finish their method-specific
+// verification before invoking it; this helper creates no identity itself. A
+// caller selects Strict for same-site methods or Lax for an OIDC return that
+// must survive one safe top-level cross-site navigation.
+func (app *application) issueAdminSession(
+	w http.ResponseWriter,
+	r *http.Request,
+	userID int64,
+	sameSite http.SameSite,
+) error {
+	if app == nil || app.admins == nil || app.adminEntropy == nil ||
+		app.now == nil || userID < 1 ||
+		(sameSite != http.SameSiteStrictMode &&
+			sameSite != http.SameSiteLaxMode) {
+		return errAdminSessionIssueFailed
+	}
+
+	sessionToken, sessionHash, err := generateAdminToken(app.adminEntropy)
+	if err != nil {
+		return errAdminSessionIssueFailed
+	}
+	csrfToken, csrfHash, err := generateAdminToken(app.adminEntropy)
+	if err != nil {
+		return errAdminSessionIssueFailed
+	}
+
+	expiresAt := app.now().UTC().Add(adminSessionLifetime)
+	ctx, cancel := context.WithTimeout(r.Context(), adminRepositoryTimeout)
+	err = app.admins.CreateSession(
+		ctx,
+		adminSession{
+			TokenHash:     sessionHash,
+			UserID:        userID,
+			CSRFTokenHash: csrfHash,
+			ExpiresAt:     expiresAt,
+		},
+	)
+	cancel()
+	if err != nil {
+		return errAdminSessionIssueFailed
+	}
+
 	setAdminSessionCookies(
 		w,
 		r,
 		sessionToken,
 		csrfToken,
 		expiresAt,
+		sameSite,
 	)
 	clearAdminLoginCSRFCookie(w, r)
-	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+
+	return nil
 }
 
 // beginAdminLoginPasswordWork reserves one bounded password-work permit
@@ -399,17 +438,11 @@ func (app *application) renderAdminLoginFailure(
 		return
 	}
 
-	app.renderAdmin(
-		w,
-		http.StatusUnauthorized,
-		"login.html",
-		adminPageData{
-			Title:                "Sign in",
-			LoginCSRFToken:       csrfToken,
-			Email:                email,
-			AuthenticationFailed: true,
-		},
-	)
+	data := app.adminLoginPresentation("password")
+	data.LoginCSRFToken = csrfToken
+	data.Email = email
+	data.AuthenticationFailed = true
+	app.renderAdmin(w, http.StatusUnauthorized, "login.html", data)
 }
 
 // requireAdmin authenticates both browser-held tokens before calling a private
@@ -729,6 +762,7 @@ func setAdminSessionCookies(
 	sessionToken string,
 	csrfToken string,
 	expiresAt time.Time,
+	sameSite http.SameSite,
 ) {
 	// MaxAge is a relative browser lifetime, while Expires is the matching
 	// absolute server decision. Avoid time.Until here so tests and handlers use
@@ -750,7 +784,7 @@ func setAdminSessionCookies(
 		cookie.MaxAge = maxAge
 		cookie.HttpOnly = true
 		cookie.Secure = requestUsesSecureCookies(r)
-		cookie.SameSite = http.SameSiteStrictMode
+		cookie.SameSite = sameSite
 		http.SetCookie(w, cookie)
 	}
 }
@@ -932,7 +966,7 @@ func adminSecurityHeaders(next http.Handler) http.Handler {
 			headers.Set("Cache-Control", "no-store")
 			headers.Set(
 				"Content-Security-Policy",
-				"default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+				adminContentSecurityPolicyForPath(r.URL.Path),
 			)
 			headers.Set("Cross-Origin-Opener-Policy", "same-origin")
 			headers.Set("Cross-Origin-Resource-Policy", "same-origin")
@@ -945,4 +979,15 @@ func adminSecurityHeaders(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// adminContentSecurityPolicyForPath permits the one external Google
+// authorization hop only from anonymous login documents. Authenticated admin
+// pages retain a same-origin-only form boundary.
+func adminContentSecurityPolicyForPath(path string) string {
+	if path == "/admin/login" || strings.HasPrefix(path, "/admin/login/") {
+		return adminLoginContentSecurityPolicy
+	}
+
+	return adminContentSecurityPolicy
 }

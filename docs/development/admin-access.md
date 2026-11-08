@@ -72,7 +72,7 @@ go run . migrate up
 go run . migrate status
 ```
 
-The current Stage 25 application reports versions 1 through 10 applied.
+The current application reports versions 1 through 11 applied.
 Migrations 4–6 build Product storage, editing, rich content, and its one-cover
 relation as described in [products.md](products.md) and
 [admin-products.md](admin-products.md). Migration 7 independently creates the
@@ -83,13 +83,16 @@ unseeded Architecture-project and one-cover relations described in
 Homepage, Homepage-hero, and Contact relations described in
 [site-content.md](site-content.md). Migration 10 adds the digest-only inquiry
 replay tombstones and archived-retention index described in
-[retention.md](retention.md). Do not edit an applied migration; add a new
-version for a later schema correction.
+[retention.md](retention.md). Migration 11 adds durable OTP request/failure
+budgets, short-lived administrator email OTP challenges, and Google OIDC
+identity bindings. Do not edit an
+applied migration; add a new version for a later schema correction.
 
 `go run . migrate down --confirm` reverses only the newest applied version. On
-the complete current catalog, the first rollback removes migration 10's replay
-tombstones and archived-retention index, weakening protection against stale
-Contact replays. The next rollback removes migration 9's Homepage hero,
+the complete current catalog, the first rollback removes migration 11's OTP
+rate budgets, challenges, and Google identity bindings. The next rollback removes migration
+10's replay tombstones and archived-retention index, weakening protection
+against stale Contact replays. The following rollback removes migration 9's Homepage hero,
 Contact, and Homepage relations, permanently deleting their managed rows. Later
 rollbacks remove the Architecture, Interior, and Product changes before one can
 remove the Stage 15 session and user tables and destroy administrator access
@@ -148,6 +151,9 @@ function Set-SecretProcessVariable {
         if ($valuePointer -ne [IntPtr]::Zero) {
             [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($valuePointer)
         }
+        if ($null -ne $secureValue) {
+            $secureValue.Dispose()
+        }
     }
 }
 
@@ -185,6 +191,57 @@ The command prints only `Administrator account created.` on success. It does
 not echo the email, role, plaintext password, hash, or database URL. Running it
 again for the same normalized address fails without creating a duplicate.
 
+## Resetting a forgotten administrator password safely
+
+An existing administrator password cannot be recovered because PostgreSQL
+stores only its one-way verifier. The offline reset command replaces that
+verifier for one active account:
+
+```text
+go run . admin reset-password --email <email>
+```
+
+Stop every running web-server instance before the reset and leave them stopped
+until the command finishes. The command atomically changes the password and
+revokes every unrevoked browser session present at that time. Running it while
+a server still accepts logins could allow a request that verified the old
+password immediately before the reset to create a session after the revocation
+sweep.
+
+The new password comes only from `ZAFARMAND_ADMIN_NEW_PASSWORD`; it is never a
+command argument. Use a short-lived password-reset database role rather than
+the HTTP runtime role. After defining `Set-SecretProcessVariable` above, run the
+complete operation in one PowerShell window:
+
+```powershell
+$adminEmail = $null
+try {
+    Set-SecretProcessVariable `
+        -Name 'DATABASE_URL' `
+        -Prompt 'Enter the PostgreSQL URL for the password-reset role'
+    Set-SecretProcessVariable `
+        -Name 'ZAFARMAND_ADMIN_NEW_PASSWORD' `
+        -Prompt 'Enter a new administrator password (15 to 128 characters)'
+
+    # Enter the ordinary mailbox form, for example name@example.com. A
+    # Markdown escape such as name\@example.com is not a valid login address.
+    $adminEmail = Read-Host 'Enter the administrator email to reset'
+    go run . admin reset-password --email $adminEmail
+}
+finally {
+    Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+    Remove-Item Env:ZAFARMAND_ADMIN_NEW_PASSWORD -ErrorAction SilentlyContinue
+    Remove-Variable adminEmail -ErrorAction SilentlyContinue
+}
+```
+
+Success prints only `Administrator password reset; existing sessions revoked.`
+An absent or inactive account and a database failure share one generic error.
+The reset preserves the account's email, role, active state, OTP limits, and
+Google identity binding; it is password recovery, not a complete response to a
+compromised email or Google account. Restart the server with its separate
+runtime `DATABASE_URL` only after the reset command has exited.
+
 ## Routes and expected behavior
 
 Stage 15 adds these real server-rendered routes:
@@ -194,6 +251,198 @@ GET  /admin/login   render the anonymous login form
 POST /admin/login   validate credentials and create a session
 GET  /admin         render the protected dashboard shell
 POST /admin/logout  revoke the session and clear its cookies
+```
+
+The redesigned login always presents OTP, email/password, and Google as one
+consistent visual system. OTP and Google network actions become operational
+only when their complete environment configuration is present:
+
+```text
+POST /admin/login/otp/request          request a four-digit email code
+POST /admin/login/otp/verify           verify and consume the email code
+POST /admin/login/google               start Google OpenID Connect
+GET  /admin/login/google/callback      finish Google OpenID Connect
+```
+
+OTP requests deliberately return the same response for unknown, inactive, and
+active addresses. A code expires after five minutes, is consumed once, permits
+at most five failed attempts, and cannot be replaced for 24 seconds. A durable
+24-hour per-user budget permits at most six issued challenges and ten failed
+guesses across replacements. PostgreSQL stores only a keyed MAC of the code
+and a digest of the opaque browser selector; neither plaintext value is stored.
+The browser selector is carried in a freshly encrypted and authenticated
+cookie envelope, so a neutral resend can preserve a valid selector without
+exposing account state through the cookie value. Delivery uses a bounded queue
+and SMTP with STARTTLS.
+
+Google sign-in never creates an administrator. A first successful assertion
+may link only to an already-existing active administrator whose normalized
+email exactly matches Google's verified email claim. Later logins use the
+verified Google issuer and immutable subject binding. The flow uses state,
+nonce, PKCE, an authenticated encrypted transaction cookie, and the existing
+local session implementation. Configure Google's exact callback URI as
+`/admin/login/google/callback` on the public origin.
+
+Administrator creation and customer registration are deliberately separate
+boundaries. The bootstrap command creates only the first administrator. A
+future authenticated, owner-only administrator-management page will create
+later administrators with first name, family name, email, and an explicit
+`owner` or `editor` role. A verified Google address or an OTP request never
+creates an administrator automatically. Customer accounts used to purchase
+Products will use their own pages, persistence, and authorization rules.
+
+## Configure Google sign-in and email codes locally
+
+Google authentication must not become an open administrator-registration
+route. Create the first owner with the bootstrap command in
+[Creating the first administrator safely](#creating-the-first-administrator-safely),
+using the exact email address of the Google account. The first successful
+Google sign-in then links that verified account automatically. The same active
+administrator email is eligible to receive an email verification code.
+
+Apply the complete migration catalog before enabling either method:
+
+```powershell
+go run . migrate up
+go run . migrate status
+```
+
+In Google Cloud, configure the Google Auth Platform branding and audience. For
+an External app in Testing, add the administrator Google address as a test
+user. Create an OAuth client of type **Web application** and add this exact
+local authorized redirect URI:
+
+```text
+http://127.0.0.1:8080/admin/login/google/callback
+```
+
+Google compares the scheme, host, port, path, and trailing slash exactly. A
+deployed site must instead register its exact HTTPS callback. Keep the client
+secret outside the repository.
+
+The following helper creates a canonical 32-byte base64url secret directly in
+the current PowerShell process without printing it:
+
+```powershell
+function Set-RandomBase64UrlProcessVariable {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    $bytes = New-Object byte[] 32
+    $generator = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $generator.GetBytes($bytes)
+        $value = [Convert]::ToBase64String($bytes).TrimEnd('=')
+        $value = $value.Replace('+', '-').Replace('/', '_')
+        [Environment]::SetEnvironmentVariable(
+            $Name,
+            $value,
+            [EnvironmentVariableTarget]::Process
+        )
+    }
+    finally {
+        [Array]::Clear($bytes, 0, $bytes.Length)
+        $generator.Dispose()
+    }
+}
+```
+
+After defining `Set-SecretProcessVariable` from the earlier bootstrap section,
+set the Google values in the same PowerShell window that will run the server:
+
+```powershell
+Set-SecretProcessVariable `
+    -Name 'ZAFARMAND_GOOGLE_OIDC_CLIENT_ID' `
+    -Prompt 'Enter the Google web client ID'
+Set-SecretProcessVariable `
+    -Name 'ZAFARMAND_GOOGLE_OIDC_CLIENT_SECRET' `
+    -Prompt 'Enter the Google web client secret'
+$env:ZAFARMAND_GOOGLE_OIDC_REDIRECT_URL = `
+    'http://127.0.0.1:8080/admin/login/google/callback'
+Set-RandomBase64UrlProcessVariable `
+    -Name 'ZAFARMAND_GOOGLE_OIDC_COOKIE_KEY'
+```
+
+For Gmail SMTP delivery, enable two-step verification on the sending Google
+account and create an app password specifically for this server. Use that app
+password—not the normal Google account password—with the TLS submission
+endpoint:
+
+```powershell
+Set-RandomBase64UrlProcessVariable `
+    -Name 'ZAFARMAND_ADMIN_OTP_HMAC_KEY'
+$env:ZAFARMAND_SMTP_ADDRESS = 'smtp.gmail.com:587'
+$env:ZAFARMAND_SMTP_HOST = 'smtp.gmail.com'
+$env:ZAFARMAND_SMTP_USERNAME = 'administrator@example.com'
+Set-SecretProcessVariable `
+    -Name 'ZAFARMAND_SMTP_PASSWORD' `
+    -Prompt 'Enter the Google app password for SMTP'
+$env:ZAFARMAND_SMTP_FROM = `
+    'Zafarmand Studio <administrator@example.com>'
+```
+
+Replace both example addresses with the actual sending mailbox. Start the
+server from that same PowerShell process, visit `/admin/login`, and test Google
+and Email code separately. The code email contains a branded HTML version and
+a complete text-only alternative; both show the same four ASCII digits and a
+five-minute expiry.
+
+The administrator must enter the exact address stored in `admin_users`, for
+example `administrator@example.com`. Do not type the Markdown escape form
+`administrator\@example.com`; the backslash is part of the submitted value and
+therefore cannot match the account. Requests for unknown, inactive, or invalid
+addresses intentionally show the same neutral response but do not send mail.
+
+On startup, the `server_listening` JSON log includes the safe boolean field
+`admin_email_otp_enabled`. It must be `true` before the Email code action can
+send mail. If it is `false`, set all six OTP/SMTP variables in the same
+PowerShell window and restart `go run .`. If it is `true` but no message arrives,
+look for `administrator OTP email delivery failed stage=...`. Its fixed stage is
+one of `connect`, `tls`, `authenticate`, `sender`, `recipient`, `message`, or
+`unknown`; no provider response or secret is logged. Check the spam folder,
+confirm that the SMTP username and From mailbox are the same Gmail account, and
+confirm that `ZAFARMAND_SMTP_PASSWORD` contains a current Google app password
+rather than the normal account password.
+
+You can check presence without printing any secret values:
+
+```powershell
+$otpNames = @(
+    'ZAFARMAND_ADMIN_OTP_HMAC_KEY',
+    'ZAFARMAND_SMTP_ADDRESS',
+    'ZAFARMAND_SMTP_HOST',
+    'ZAFARMAND_SMTP_USERNAME',
+    'ZAFARMAND_SMTP_PASSWORD',
+    'ZAFARMAND_SMTP_FROM'
+)
+
+$otpNames | ForEach-Object {
+    $value = [Environment]::GetEnvironmentVariable(
+        $_,
+        [EnvironmentVariableTarget]::Process
+    )
+    [pscustomobject]@{
+        Name  = $_
+        IsSet = -not [string]::IsNullOrEmpty($value)
+    }
+}
+```
+
+Remove the process secrets after testing or close the PowerShell window:
+
+```powershell
+Remove-Item Env:ZAFARMAND_GOOGLE_OIDC_CLIENT_ID -ErrorAction SilentlyContinue
+Remove-Item Env:ZAFARMAND_GOOGLE_OIDC_CLIENT_SECRET -ErrorAction SilentlyContinue
+Remove-Item Env:ZAFARMAND_GOOGLE_OIDC_REDIRECT_URL -ErrorAction SilentlyContinue
+Remove-Item Env:ZAFARMAND_GOOGLE_OIDC_COOKIE_KEY -ErrorAction SilentlyContinue
+Remove-Item Env:ZAFARMAND_ADMIN_OTP_HMAC_KEY -ErrorAction SilentlyContinue
+Remove-Item Env:ZAFARMAND_SMTP_ADDRESS -ErrorAction SilentlyContinue
+Remove-Item Env:ZAFARMAND_SMTP_HOST -ErrorAction SilentlyContinue
+Remove-Item Env:ZAFARMAND_SMTP_USERNAME -ErrorAction SilentlyContinue
+Remove-Item Env:ZAFARMAND_SMTP_PASSWORD -ErrorAction SilentlyContinue
+Remove-Item Env:ZAFARMAND_SMTP_FROM -ErrorAction SilentlyContinue
 ```
 
 Stages 16 and 17 separately add these authenticated and explicitly authorized
@@ -346,9 +595,14 @@ separately size-bounded, accept only their exact expected fields/parts, and
 reject unsupported content types, codings, or duplicated values.
 
 Administrator cookies are host-only because no `Domain` is set. They use
-`HttpOnly`, `SameSite=Strict`, bounded `Expires`/`Max-Age`, and narrow paths:
-the login CSRF cookie is scoped to `/admin/login`, while session cookies are
-scoped to `/admin`. JavaScript is not required to read them.
+`HttpOnly`, bounded `Expires`/`Max-Age`, and narrow paths: the login CSRF cookie
+is scoped to `/admin/login`, the OTP selector is scoped to `/admin/login/otp`,
+the Google transaction cookie is scoped to its callback, and session cookies
+are scoped to `/admin`. Password- and OTP-established sessions use
+`SameSite=Strict`. Google-established sessions use `SameSite=Lax` so their two
+cookies survive the provider's safe top-level GET return; Lax still excludes
+cross-site POSTs, and every mutation independently requires the session-bound
+CSRF value. JavaScript is not permitted to read these authentication cookies.
 
 The session and request-forgery boundaries follow the concepts in OWASP's
 [Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
@@ -360,8 +614,11 @@ All `/admin` responses, including router-generated errors, receive a private
 security-header policy:
 
 - `Cache-Control: no-store` keeps authenticated pages out of browser caches.
-- Content Security Policy allows same-origin styles, images, and forms while
-  denying all other default resources, framing, and base-URL changes.
+- Content Security Policy allows only same-origin styles, scripts, connections,
+  images, and forms while denying all other default resources, framing, and
+  base-URL changes. Anonymous login routes add only Google's pinned
+  authorization origin to `form-action`, permitting the reviewed OIDC redirect.
+  The animated login uses no inline script or style.
 - `X-Frame-Options: DENY` and CSP `frame-ancestors 'none'` resist clickjacking.
 - `Referrer-Policy: no-referrer` avoids sending admin paths as referrers.
 - `X-Content-Type-Options: nosniff`, same-origin opener/resource policies, and
@@ -412,6 +669,11 @@ Use separate credentials for these responsibilities:
   generated-ID sequence when an operator runs `admin create-user`. It does not
   need schema-alteration rights. Remove or disable this access when bootstrap
   is finished.
+- A separate short-lived password-reset role can select the target
+  administrator ID, update only `admin_users.password_hash` and `updated_at`,
+  and update only `admin_sessions.revoked_at`. It does not need to create,
+  delete, reactivate, or change the role or email of an administrator. Stop all
+  server instances while using this credential, then remove or disable it.
 - The server runtime role needs `INSERT` and `SELECT` on inquiries: Stage 14
   inserts and checks an idempotent replay, while Stage 16 reads protected list
   and detail fields. Stage 17 additionally needs column-level `UPDATE` on only
@@ -430,8 +692,11 @@ Use separate credentials for these responsibilities:
   [site-content.md](site-content.md). Protected readers need
   timestamps while public readers select smaller Published-only projections.
   The runtime also needs read access to
-  active admin users (including the verifier needed for login) and narrow
-  insert/select/update access for admin sessions. Logout updates `revoked_at`;
+  active admin users (including the verifier needed for login), narrow
+  insert/select/update access for admin sessions, and narrow
+  select/insert/update access for the OTP rate-limit, challenge, and
+  OIDC-identity tables.
+  Logout updates `revoked_at`;
   it does not require table deletion. Stage 25 additionally needs column-level
   `SELECT` on `version`, `name`, and `checksum` in
   `public.schema_migrations` for readiness, plus `SELECT` on
@@ -449,7 +714,7 @@ deployment.
 
 ## Manual verification without exposing secrets
 
-After the current migrations through version 10 are applied and a placeholder
+After the current migrations through version 11 are applied and a placeholder
 test administrator has been created locally, start the server in the same
 process environment that contains the runtime `DATABASE_URL`:
 
@@ -477,9 +742,11 @@ Then verify in a private browser window:
    Follow [site-content.md](site-content.md) for fictional Homepage, Contact,
    feature, SEO, hero, and stale-form checks.
 4. In browser developer tools, inspect cookie **names and attributes only**.
-   Confirm `HttpOnly`, `SameSite=Strict`, expiry, and paths; do not copy, log,
-   screenshot, or paste cookie values. `Secure` is expected to be absent only
-   for the local HTTP case described above.
+   Confirm `HttpOnly`, expiry, and paths. Password/OTP session cookies must be
+   `SameSite=Strict`; Google session cookies and the Google transaction cookie
+   must be `SameSite=Lax`. Do not copy, log, screenshot, or paste cookie values.
+   `Secure` is expected to be absent only for the local HTTP case described
+   above.
 5. Inspect the `/admin` response headers and confirm the no-store, CSP,
    anti-framing, referrer, MIME, opener/resource, and permissions policies.
 6. Use the page's logout button. It should POST, redirect to `/admin/login`, and
@@ -504,6 +771,7 @@ longer being used:
 ```powershell
 Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
 Remove-Item Env:ZAFARMAND_ADMIN_PASSWORD -ErrorAction SilentlyContinue
+Remove-Item Env:ZAFARMAND_ADMIN_NEW_PASSWORD -ErrorAction SilentlyContinue
 ```
 
 The eight-hour expiry path is covered deterministically by automated tests. Do

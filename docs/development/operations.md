@@ -39,6 +39,25 @@ The server reads these values at startup:
 | `ZAFARMAND_REQUIRE_DATABASE_TLS` | No | Exact `true` or `false`; production should use `true`. When true, every pgx target and fallback must use TLS. |
 | `ZAFARMAND_HTTP_ADDRESS` | No | Explicit host and numeric port. Defaults to `127.0.0.1:8080`. |
 | `ZAFARMAND_EXTERNAL_HTTPS` | No | Exact `true` or `false`. Set `true` only when every public request passes through the reviewed HTTPS edge. |
+| `ZAFARMAND_ADMIN_OTP_HMAC_KEY` | No* | Canonical unpadded base64url encoding of exactly 32 random bytes. Authenticates short email codes before storage. |
+| `ZAFARMAND_SMTP_ADDRESS` | No* | SMTP submission address in `host:port` form, normally port 587. |
+| `ZAFARMAND_SMTP_HOST` | No* | TLS server name expected from the SMTP certificate. |
+| `ZAFARMAND_SMTP_USERNAME` | No* | SMTP authentication username. |
+| `ZAFARMAND_SMTP_PASSWORD` | No* | SMTP authentication secret. |
+| `ZAFARMAND_SMTP_FROM` | No* | Valid sender mailbox for administrator codes. |
+| `ZAFARMAND_GOOGLE_OIDC_CLIENT_ID` | No* | Confidential Google OAuth client ID. |
+| `ZAFARMAND_GOOGLE_OIDC_CLIENT_SECRET` | No* | Confidential Google OAuth client secret. |
+| `ZAFARMAND_GOOGLE_OIDC_REDIRECT_URL` | No* | Exact HTTPS callback URL, or an explicit loopback HTTP URL for local development, ending in `/admin/login/google/callback`. |
+| `ZAFARMAND_GOOGLE_OIDC_COOKIE_KEY` | No* | Canonical unpadded base64url encoding of exactly 32 random bytes for encrypted login transactions. |
+
+`No*` means the method is optional, but its entire group is all-or-nothing.
+Leaving every OTP variable absent disables OTP delivery/verification; leaving
+every Google variable absent disables the Google redirect/callback. Their login
+views remain available as explicit design previews rather than disappearing or
+silently changing the default page. Any partial or malformed group fails
+startup. Password sign-in remains available in either case. Store every key,
+password, and client secret
+in the deployment secret manager, never in source or a checked-in `.env` file.
 
 An omitted or false `ZAFARMAND_EXTERNAL_HTTPS` permits only a loopback HTTP
 listener. A wildcard or any host other than `localhost` or a loopback IP fails
@@ -81,7 +100,7 @@ reverse proxy or platform edge. That edge must:
 3. forward only to a non-public or firewall-restricted application listener;
 4. replace, rather than append to, forwarding headers supplied by clients;
 5. impose request, connection, and per-client rate limits, especially for
-   `POST /admin/login` and `POST /contact`;
+   every `/admin/login` POST and `POST /contact`;
 6. restrict `/health/live` and `/health/ready` to trusted platform probes and
    rate-limit them outside the process; and
 7. preserve the application response's security and cache-control headers.

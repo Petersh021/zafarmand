@@ -462,8 +462,8 @@ func TestEmbeddedMigrationCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load embedded migration catalog: %v", err)
 	}
-	if len(catalog) != 10 {
-		t.Fatalf("embedded catalog length: got %d, want 10", len(catalog))
+	if len(catalog) != 11 {
+		t.Fatalf("embedded catalog length: got %d, want 11", len(catalog))
 	}
 
 	initialDefinition := catalog[0]
@@ -1568,5 +1568,87 @@ ALTER TABLE public.products
 		strings.Contains(upperRetentionDownSQL, "IF EXISTS") ||
 		strings.Contains(upperRetentionDownSQL, "DROP TABLE PUBLIC.INQUIRIES") {
 		t.Error("retention down SQL contains a broad or unrelated drop")
+	}
+
+	alternativeAuthDefinition := catalog[10]
+	if alternativeAuthDefinition.Version != 11 ||
+		alternativeAuthDefinition.Name != "add_admin_alternative_authentication" {
+		t.Errorf(
+			"embedded migration identity: got %06d_%s",
+			alternativeAuthDefinition.Version,
+			alternativeAuthDefinition.Name,
+		)
+	}
+	for _, expectedSQL := range []string{
+		"CREATE TABLE public.admin_email_otp_rate_limits",
+		"CONSTRAINT admin_email_otp_rate_limits_user_id_foreign",
+		"CHECK (failed_attempt_count BETWEEN 0 AND 10)",
+		"CHECK (request_count BETWEEN 0 AND 6)",
+		"CREATE TABLE public.admin_email_otp_challenges",
+		"challenge_hash bytea PRIMARY KEY",
+		"code_mac bytea NOT NULL",
+		"attempt_count smallint NOT NULL DEFAULT 0",
+		"CONSTRAINT admin_email_otp_challenges_user_id_foreign",
+		"REFERENCES public.admin_users (id)",
+		"ON DELETE CASCADE",
+		"CHECK (octet_length(challenge_hash) = 32)",
+		"CHECK (octet_length(code_mac) = 32)",
+		"CHECK (attempt_count BETWEEN 0 AND 5)",
+		"CHECK (expires_at > created_at)",
+		"CHECK (consumed_at IS NULL OR consumed_at >= created_at)",
+		"CREATE UNIQUE INDEX admin_email_otp_challenges_outstanding_user_idx",
+		"WHERE consumed_at IS NULL",
+		"CREATE INDEX admin_email_otp_challenges_expires_at_idx",
+		"CREATE TABLE public.admin_oidc_identities",
+		"CONSTRAINT admin_oidc_identities_pkey",
+		"PRIMARY KEY (issuer, subject)",
+		"CONSTRAINT admin_oidc_identities_user_issuer_unique",
+		"UNIQUE (user_id, issuer)",
+		"CHECK (char_length(issuer) BETWEEN 1 AND 255)",
+		"CHECK (char_length(subject) BETWEEN 1 AND 255)",
+		"CHECK (last_authenticated_at >= created_at)",
+	} {
+		if !strings.Contains(alternativeAuthDefinition.UpSQL, expectedSQL) {
+			t.Errorf("alternative-auth up SQL does not contain %q", expectedSQL)
+		}
+	}
+	upperAlternativeAuthUpSQL := strings.ToUpper(
+		alternativeAuthDefinition.UpSQL,
+	)
+	for _, forbiddenSQL := range []string{
+		"PASSWORD_HASH",
+		"ACCESS_TOKEN",
+		"REFRESH_TOKEN",
+		"ID_TOKEN",
+		"INSERT INTO PUBLIC.ADMIN_USERS",
+		"CREATE EXTENSION",
+	} {
+		if strings.Contains(upperAlternativeAuthUpSQL, forbiddenSQL) {
+			t.Errorf("alternative-auth up SQL contains forbidden %q", forbiddenSQL)
+		}
+	}
+	orderedAlternativeAuthDownSQL := []string{
+		"DROP TABLE public.admin_oidc_identities;",
+		"DROP TABLE public.admin_email_otp_challenges;",
+		"DROP TABLE public.admin_email_otp_rate_limits;",
+	}
+	previousPosition = -1
+	for _, expectedSQL := range orderedAlternativeAuthDownSQL {
+		position := strings.Index(alternativeAuthDefinition.DownSQL, expectedSQL)
+		if position < 0 || position <= previousPosition {
+			t.Errorf(
+				"alternative-auth down SQL is missing or misorders %q",
+				expectedSQL,
+			)
+		}
+		previousPosition = position
+	}
+	upperAlternativeAuthDownSQL := strings.ToUpper(
+		alternativeAuthDefinition.DownSQL,
+	)
+	if strings.Contains(upperAlternativeAuthDownSQL, "CASCADE") ||
+		strings.Contains(upperAlternativeAuthDownSQL, "IF EXISTS") ||
+		strings.Contains(upperAlternativeAuthDownSQL, "DROP TABLE PUBLIC.ADMIN_USERS") {
+		t.Error("alternative-auth down SQL contains a broad or parent drop")
 	}
 }

@@ -1,79 +1,427 @@
 {{/*
-The login page receives no session identity and never displays a password,
-database error, or account-existence result. Its hidden value completes the
-anonymous double-submit CSRF boundary established by the GET handler.
+The password form preserves the existing server contract and is the visible
+no-script fallback. JavaScript progressively reveals the optical-code and
+Google methods; neither preview can bypass the server's established login
+handler or anonymous double-submit CSRF boundary.
 */}}
+{{/*
+The optical-vault presentation is page-scoped so authenticated workspaces do
+not download its SVG states, OTP slots, or animation rules.
+*/}}
+{{define "admin-head"}}
+{{/* The optical login skin is self-hosted so the strict style CSP remains intact. */}}
+<link rel="stylesheet" href="/static/css/admin-login.css?v=2">
+{{end}}
+
 {{define "admin-content"}}
-<main class="admin-login" id="admin-main-content">
+<main
+	class="admin-login admin-vault"
+	id="admin-main-content"
+	data-admin-login
+	data-default-method="{{.LoginMethod}}"
+	data-otp-requested="{{if .OTPRequested}}true{{else}}false{{end}}"
+	data-otp-enabled="{{if .OTPEnabled}}true{{else}}false{{end}}"
+	data-google-enabled="{{if .GoogleEnabled}}true{{else}}false{{end}}"
+	data-otp-request-endpoint="{{if .OTPEnabled}}/admin/login/otp/request{{end}}"
+	data-otp-verify-endpoint="{{if .OTPEnabled}}/admin/login/otp/verify{{end}}"
+	data-otp-resend-endpoint="{{if .OTPEnabled}}/admin/login/otp/request{{end}}"
+>
 	<section
-		class="admin-login__panel"
+		class="admin-login__panel admin-vault__card"
 		aria-labelledby="admin-login-title"
 	>
-		<header class="admin-login__header">
-			<p class="admin-eyebrow">Restricted access</p>
+		{{/* The top controls mirror the reference instrument without loading a library. */}}
+		<div class="admin-vault__topbar">
+			<span
+				class="admin-vault__serial"
+			>
+				<span aria-hidden="true"></span>
+				ZAFARMAND STUDIO
+			</span>
 
-			<h1 id="admin-login-title">Studio administration</h1>
+			<div class="admin-vault__controls">
+				<button
+					class="admin-vault__sound"
+					type="button"
+					data-admin-sound
+					aria-label="Enable interface sounds"
+					aria-pressed="false"
+				>
+					<span class="admin-vault__sound-bars" aria-hidden="true">
+						<span></span>
+						<span></span>
+						<span></span>
+					</span>
+				</button>
 
-			<p>
-				Sign in with an active Zafarmand administrator account.
+				<button
+					class="admin-vault__theme"
+					type="button"
+					data-admin-theme
+					aria-label="Change color theme"
+				>
+					<span aria-hidden="true"></span>
+				</button>
+			</div>
+		</div>
+
+		<header class="admin-login__header admin-vault__header">
+			<p class="admin-eyebrow" data-admin-login-eyebrow>
+				{{if eq .LoginMethod "password"}}Administrator sign-in{{else if eq .LoginMethod "google"}}Google sign-in{{else}}Email verification{{end}}
+			</p>
+
+			<h1 id="admin-login-title">
+				<span data-admin-login-title>{{if eq .LoginMethod "password"}}Administration{{else if eq .LoginMethod "google"}}Sign in with Google{{else}}Verify your email{{end}}</span>
+				<span class="admin-sr-only"> &mdash; Studio administration</span>
+			</h1>
+
+			<p data-admin-login-description>
+				{{if eq .LoginMethod "password"}}Sign in with your email address and password.{{else if eq .LoginMethod "google"}}Use the Google account that matches your Zafarmand administrator email.{{else}}Enter the four-digit verification code sent to your email.{{end}}
 			</p>
 		</header>
 
 		{{/*
-		The same generic message covers unknown email addresses, inactive users,
-		and incorrect passwords. This prevents the interface from confirming which
-		administrator identities exist.
+		Method controls become visible only after JavaScript has made their panels
+		interactive. Arrow, Home, and End keys follow the ARIA tabs pattern.
 		*/}}
-		{{if .AuthenticationFailed}}
 		<div
-			class="admin-alert"
-			id="admin-login-response"
-			role="alert"
-			tabindex="-1"
+			class="admin-auth-methods"
+			role="tablist"
+			aria-label="Sign-in method"
+			data-admin-method-tabs
 		>
-			<p>Email or password is incorrect.</p>
-		</div>
-		{{end}}
-
-		<form class="admin-form" action="/admin/login" method="post">
-			<input
-				type="hidden"
-				name="csrf_token"
-				value="{{.LoginCSRFToken}}"
+			<button
+				class="admin-auth-methods__tab"
+				type="button"
+				role="tab"
+				id="admin-method-otp"
+				aria-controls="admin-panel-otp"
+				aria-selected="{{if eq .LoginMethod "otp"}}true{{else}}false{{end}}"
+				{{if ne .LoginMethod "otp"}}tabindex="-1"{{end}}
+				data-admin-method="otp"
 			>
-
-			<div class="admin-form__field">
-				<label for="admin-email">Email address</label>
-
-				<input
-					id="admin-email"
-					name="email"
-					type="email"
-					value="{{.Email}}"
-					autocomplete="username"
-					inputmode="email"
-					maxlength="254"
-					required
-				>
-			</div>
-
-			<div class="admin-form__field">
-				<label for="admin-password">Password</label>
-
-				<input
-					id="admin-password"
-					name="password"
-					type="password"
-					autocomplete="current-password"
-					maxlength="128"
-					required
-				>
-			</div>
-
-			<button class="admin-button" type="submit">
-				Sign in
+				Email code
 			</button>
-		</form>
+
+			<button
+				class="admin-auth-methods__tab"
+				type="button"
+				role="tab"
+				id="admin-method-password"
+				aria-controls="admin-panel-password"
+				aria-selected="{{if eq .LoginMethod "password"}}true{{else}}false{{end}}"
+				{{if ne .LoginMethod "password"}}tabindex="-1"{{end}}
+				data-admin-method="password"
+			>
+				Email &amp; password
+			</button>
+
+			<button
+				class="admin-auth-methods__tab"
+				type="button"
+				role="tab"
+				id="admin-method-google"
+				aria-controls="admin-panel-google"
+				aria-selected="{{if eq .LoginMethod "google"}}true{{else}}false{{end}}"
+				{{if ne .LoginMethod "google"}}tabindex="-1"{{end}}
+				data-admin-method="google"
+			>
+				Google
+			</button>
+		</div>
+
+		{{/*
+		The OTP panel recreates the reel's four-node optical instrument. Its data
+		attributes connect progressive animation to the real request/verify routes.
+		No code is accepted locally and only a server response may grant access.
+		*/}}
+		<div
+			class="admin-auth-panel admin-auth-panel--otp"
+			id="admin-panel-otp"
+			role="tabpanel"
+			aria-labelledby="admin-method-otp"
+			{{if ne .LoginMethod "otp"}}hidden{{end}}
+			data-admin-panel="otp"
+		>
+			<div class="admin-login__aperture" aria-hidden="true">
+				<div class="admin-iris">
+				<svg viewBox="0 0 176 176" focusable="false">
+					<defs>
+						<radialGradient id="admin-iris-lens" cx="38%" cy="32%">
+							<stop offset="0" stop-color="#d9bd91" stop-opacity=".48"></stop>
+							<stop offset=".42" stop-color="#5d4931" stop-opacity=".34"></stop>
+							<stop offset="1" stop-color="#090807"></stop>
+						</radialGradient>
+						<linearGradient id="admin-iris-blade" x1="0" y1="0" x2="1" y2="1">
+							<stop offset="0" stop-color="#ddd2c0" stop-opacity=".17"></stop>
+							<stop offset="1" stop-color="#070706" stop-opacity=".88"></stop>
+						</linearGradient>
+					</defs>
+
+					<circle class="admin-iris__halo" cx="88" cy="88" r="77"></circle>
+					<circle class="admin-iris__dial" cx="88" cy="88" r="68"></circle>
+					<circle class="admin-iris__ticks" cx="88" cy="88" r="61"></circle>
+
+					<g class="admin-iris__connectors">
+						<path data-admin-connector d="M88 20 156 88"></path>
+						<path data-admin-connector d="M156 88 88 156"></path>
+						<path data-admin-connector d="M88 156 20 88"></path>
+						<path data-admin-connector d="M20 88 88 20"></path>
+					</g>
+
+					<g class="admin-iris__blades">
+						<path class="admin-iris__blade" d="M88 88 47 43A62 62 0 0 1 88 26Z"></path>
+						<path class="admin-iris__blade" d="M88 88 47 43A62 62 0 0 1 88 26Z" transform="rotate(60 88 88)"></path>
+						<path class="admin-iris__blade" d="M88 88 47 43A62 62 0 0 1 88 26Z" transform="rotate(120 88 88)"></path>
+						<path class="admin-iris__blade" d="M88 88 47 43A62 62 0 0 1 88 26Z" transform="rotate(180 88 88)"></path>
+						<path class="admin-iris__blade" d="M88 88 47 43A62 62 0 0 1 88 26Z" transform="rotate(240 88 88)"></path>
+						<path class="admin-iris__blade" d="M88 88 47 43A62 62 0 0 1 88 26Z" transform="rotate(300 88 88)"></path>
+					</g>
+
+					<circle class="admin-iris__well" cx="88" cy="88" r="13"></circle>
+					<path class="admin-iris__success" d="m80 88 5 5 11-12"></path>
+					<path class="admin-iris__error" d="m82 82 12 12m0-12L82 94"></path>
+
+					<g class="admin-iris__node" data-admin-node transform="translate(88 20)">
+						<circle r="11"></circle>
+						<text data-admin-node-value text-anchor="middle" dy="3.5">1</text>
+					</g>
+					<g class="admin-iris__node" data-admin-node transform="translate(156 88)">
+						<circle r="11"></circle>
+						<text data-admin-node-value text-anchor="middle" dy="3.5">2</text>
+					</g>
+					<g class="admin-iris__node" data-admin-node transform="translate(88 156)">
+						<circle r="11"></circle>
+						<text data-admin-node-value text-anchor="middle" dy="3.5">3</text>
+					</g>
+					<g class="admin-iris__node" data-admin-node transform="translate(20 88)">
+						<circle r="11"></circle>
+						<text data-admin-node-value text-anchor="middle" dy="3.5">4</text>
+					</g>
+
+					<line class="admin-iris__scan" x1="35" y1="54" x2="141" y2="54"></line>
+				</svg>
+				</div>
+			</div>
+
+			<p class="admin-otp__telemetry" data-admin-telemetry aria-hidden="true">
+				{{if .OTPRequested}}Code sent{{else}}Awaiting code{{end}}
+			</p>
+
+			{{/* Token delivery opens only on request, leaving the reference instrument intact. */}}
+			<form
+				class="admin-otp-request"
+				action="/admin/login/otp/request"
+				method="post"
+				data-admin-otp-request
+				hidden
+			>
+				<input type="hidden" name="csrf_token" value="{{.LoginCSRFToken}}">
+
+				<div class="admin-form__field">
+					<label for="admin-otp-email">Email address</label>
+					<input
+						id="admin-otp-email"
+						name="email"
+						type="email"
+						value="{{.Email}}"
+						autocomplete="username"
+						inputmode="email"
+						maxlength="254"
+						required
+					>
+				</div>
+
+				<button class="admin-otp__submit" type="submit" data-admin-otp-request-submit>
+					<span>Send verification code</span>
+					<span aria-hidden="true">&rarr;</span>
+				</button>
+
+				<button class="admin-otp-request__close" type="button" data-admin-close-request>
+					Back to code entry
+				</button>
+			</form>
+
+			{{if .OTPAuthenticationFailed}}
+			<div class="admin-alert" role="alert" data-admin-otp-error>
+				<p>Verification code is invalid or expired.</p>
+			</div>
+			{{end}}
+
+			<form
+				class="admin-otp"
+				action="/admin/login/otp/verify"
+				method="post"
+				data-admin-otp-form
+				novalidate
+			>
+				<input
+					type="hidden"
+					name="csrf_token"
+					value="{{.LoginCSRFToken}}"
+				>
+
+				<label class="admin-sr-only" for="admin-otp-code">
+					Four-digit verification code
+				</label>
+
+				<div class="admin-otp__entry">
+					<input
+						class="admin-otp__native"
+						id="admin-otp-code"
+						name="otp_code"
+						type="text"
+						inputmode="numeric"
+						autocomplete="one-time-code"
+						pattern="[0-9]*"
+						maxlength="4"
+						aria-describedby="admin-otp-guidance admin-otp-status"
+						data-admin-otp-input
+					>
+
+					<div class="admin-otp__slots" aria-hidden="true" data-admin-otp-slots>
+						<span class="admin-otp__slot" data-admin-otp-slot><span></span></span>
+						<span class="admin-otp__slot" data-admin-otp-slot><span></span></span>
+						<span class="admin-otp__slot" data-admin-otp-slot><span></span></span>
+						<span class="admin-otp__slot" data-admin-otp-slot><span></span></span>
+					</div>
+				</div>
+
+				<p class="admin-sr-only" id="admin-otp-guidance">
+					Enter four digits. The server must verify the code before an
+					administrator session can be created.
+				</p>
+
+				<button class="admin-otp__submit" type="submit" data-admin-otp-submit>
+					<span data-admin-otp-submit-label>Enter 4 digits</span>
+					<span aria-hidden="true" data-admin-otp-submit-icon>&rarr;</span>
+				</button>
+			</form>
+
+			<div class="admin-otp__footer" data-admin-otp-footer>
+				<span data-admin-otp-footer-copy>{{if .OTPRequested}}Didn&rsquo;t receive the code?{{else}}Need a verification code?{{end}}</span>
+				<button type="button" data-admin-open-request {{if .OTPRequested}}hidden{{end}}>
+					Send code
+				</button>
+				<button type="button" data-admin-resend {{if not .OTPRequested}}hidden{{end}} disabled>
+					Resend (<span data-admin-resend-count>24</span>s)
+				</button>
+			</div>
+
+			<p class="admin-otp__spec" aria-hidden="true">
+				Secure administrator access
+			</p>
+		</div>
+
+		{{/* The established POST fields and CSRF value remain byte-for-byte compatible. */}}
+		<div
+			class="admin-auth-panel admin-auth-panel--password"
+			id="admin-panel-password"
+			role="tabpanel"
+			aria-labelledby="admin-method-password"
+			data-admin-panel="password"
+		>
+			{{if .AuthenticationFailed}}
+			<div
+				class="admin-alert"
+				id="admin-login-response"
+				role="alert"
+				tabindex="-1"
+			>
+				<p>Email or password is incorrect.</p>
+			</div>
+			{{end}}
+
+			<form class="admin-form" action="/admin/login" method="post">
+				<input
+					type="hidden"
+					name="csrf_token"
+					value="{{.LoginCSRFToken}}"
+				>
+
+				<div class="admin-form__field">
+					<div class="admin-form__label-line">
+						<label for="admin-email">Email address</label>
+					</div>
+
+					<input
+						id="admin-email"
+						name="email"
+						type="email"
+						value="{{.Email}}"
+						autocomplete="username"
+						inputmode="email"
+						maxlength="254"
+						required
+					>
+				</div>
+
+				<div class="admin-form__field">
+					<div class="admin-form__label-line">
+						<label for="admin-password">Password</label>
+					</div>
+
+					<input
+						id="admin-password"
+						name="password"
+						type="password"
+						autocomplete="current-password"
+						maxlength="128"
+						required
+					>
+				</div>
+
+				<button class="admin-button" type="submit">
+					<span>Sign in</span>
+					<span aria-hidden="true">&rarr;</span>
+				</button>
+			</form>
+		</div>
+
+		{{/* The same panel remains an honest preview until OIDC is configured. */}}
+		<div
+			class="admin-auth-panel admin-auth-panel--google"
+			id="admin-panel-google"
+			role="tabpanel"
+			aria-labelledby="admin-method-google"
+			{{if ne .LoginMethod "google"}}hidden{{end}}
+			data-admin-panel="google"
+		>
+			{{if .GoogleAuthenticationFailed}}
+			<div class="admin-alert" role="alert">
+				<p>Google sign-in could not be completed.</p>
+			</div>
+			{{end}}
+
+			<div class="admin-google-mark" aria-hidden="true">G</div>
+			<p>
+				Your Google account must use the same verified email as an active
+				Zafarmand administrator.
+			</p>
+
+			<form action="/admin/login/google" method="post" data-admin-google-form>
+				<input type="hidden" name="csrf_token" value="{{.LoginCSRFToken}}">
+
+				<button class="admin-google-button" type="submit">
+					<span aria-hidden="true">G</span>
+					Continue with Google
+				</button>
+			</form>
+		</div>
+
+		<p
+			class="admin-vault__live-status admin-sr-only"
+			id="admin-otp-status"
+			role="status"
+			aria-live="polite"
+			aria-atomic="true"
+			data-admin-live-status
+		></p>
+
+		<p class="admin-login__notice">
+			<span aria-hidden="true"></span>
+			Authorized studio administrators only.
+		</p>
 	</section>
 </main>
 {{end}}

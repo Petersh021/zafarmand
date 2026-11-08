@@ -101,6 +101,26 @@ func (app *application) routes() http.Handler {
 		"POST /admin/login",
 		app.adminLoginHandler,
 	)
+	// Email-code authentication uses a separate request and verification route so
+	// the four-digit secret never shares the password parser or appears in a URL.
+	mux.HandleFunc(
+		"POST /admin/login/otp/request",
+		app.adminOTPRequestHandler,
+	)
+	mux.HandleFunc(
+		"POST /admin/login/otp/verify",
+		app.adminOTPVerifyHandler,
+	)
+	// Google sign-in starts with a CSRF-protected local POST and returns through
+	// one exact callback registered with the provider.
+	mux.HandleFunc(
+		"POST /admin/login/google",
+		app.adminGoogleLoginHandler,
+	)
+	mux.HandleFunc(
+		"GET /admin/login/google/callback",
+		app.adminGoogleCallbackHandler,
+	)
 	mux.Handle(
 		"GET /admin",
 		app.requireAdmin(http.HandlerFunc(app.adminDashboardHandler)),

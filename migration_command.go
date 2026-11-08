@@ -14,8 +14,12 @@ const (
 	programCommandServe = "serve"
 	// programCommandMigrate identifies the explicit PostgreSQL schema mode.
 	programCommandMigrate = "migrate"
-	// programCommandAdmin identifies one explicit administrator-bootstrap mode.
+	// programCommandAdmin identifies one explicit administrator-operator mode.
 	programCommandAdmin = "admin"
+	// adminActionCreateUser selects the one-time administrator bootstrap write.
+	adminActionCreateUser = "create-user"
+	// adminActionResetPassword selects an operator-initiated credential rotation.
+	adminActionResetPassword = "reset-password"
 	// programCommandMaintenance identifies offline privacy and retention work.
 	programCommandMaintenance = "maintenance"
 	// migrationActionUp applies every validated pending migration.
@@ -28,7 +32,7 @@ const (
 	// reach the migration runner.
 	migrationDownConfirmation = "--confirm"
 	// programUsage is returned for every unsupported command shape.
-	programUsage = "usage: go run . [migrate [up|status|down --confirm] | admin create-user --email <email> --role <owner|editor> | maintenance retention <status|apply> ... | maintenance purge-inquiry ...]"
+	programUsage = "usage: go run . [migrate [up|status|down --confirm] | admin <create-user --email <email> --role <owner|editor> | reset-password --email <email>> | maintenance retention <status|apply> ... | maintenance purge-inquiry ...]"
 )
 
 // Migration command errors identify confirmation and dependency boundaries
@@ -47,13 +51,17 @@ var (
 
 // programCommand is the validated instruction selected from process arguments.
 type programCommand struct {
-	// Name selects the server, migration, administrator-bootstrap, or offline
+	// Name selects the server, migration, administrator-operator, or offline
 	// retention-maintenance mode.
 	Name string
 	// MigrationAction is populated only when Name is programCommandMigrate.
 	MigrationAction string
+	// AdminAction selects one validated administrator operator command.
+	AdminAction string
 	// AdminCreateUser is populated only for the strict admin create-user mode.
 	AdminCreateUser adminCreateUserCommand
+	// AdminResetPassword is populated only for the strict reset-password mode.
+	AdminResetPassword adminResetPasswordCommand
 	// Maintenance is populated only for a validated offline maintenance mode.
 	Maintenance maintenanceCommand
 }
@@ -70,22 +78,42 @@ func parseProgramCommand(args []string) (programCommand, error) {
 		return programCommand{Name: programCommandServe}, nil
 	}
 	if args[0] == programCommandAdmin {
-		if len(args) < 2 || args[1] != "create-user" {
+		if len(args) < 2 {
 			return programCommand{}, fmt.Errorf(
 				"unknown admin command; %s",
 				programUsage,
 			)
 		}
 
-		createUser, err := parseAdminCreateUserCommand(args[2:])
-		if err != nil {
-			return programCommand{}, err
-		}
+		switch args[1] {
+		case adminActionCreateUser:
+			createUser, err := parseAdminCreateUserCommand(args[2:])
+			if err != nil {
+				return programCommand{}, err
+			}
 
-		return programCommand{
-			Name:            programCommandAdmin,
-			AdminCreateUser: createUser,
-		}, nil
+			return programCommand{
+				Name:            programCommandAdmin,
+				AdminAction:     adminActionCreateUser,
+				AdminCreateUser: createUser,
+			}, nil
+		case adminActionResetPassword:
+			resetPassword, err := parseAdminResetPasswordCommand(args[2:])
+			if err != nil {
+				return programCommand{}, err
+			}
+
+			return programCommand{
+				Name:               programCommandAdmin,
+				AdminAction:        adminActionResetPassword,
+				AdminResetPassword: resetPassword,
+			}, nil
+		default:
+			return programCommand{}, fmt.Errorf(
+				"unknown admin command; %s",
+				programUsage,
+			)
+		}
 	}
 	if args[0] == programCommandMaintenance {
 		maintenance, err := parseMaintenanceCommand(args[1:])

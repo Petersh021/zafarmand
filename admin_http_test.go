@@ -216,12 +216,23 @@ func adminHTTPHiddenValue(
 func assertAdminHTTPSecurityHeaders(
 	t *testing.T,
 	headers http.Header,
+	contentSecurityPolicies ...string,
 ) {
 	t.Helper()
+	contentSecurityPolicy := adminContentSecurityPolicy
+	if len(contentSecurityPolicies) > 1 {
+		t.Fatalf(
+			"content security policy expectations: got %d, want at most one",
+			len(contentSecurityPolicies),
+		)
+	}
+	if len(contentSecurityPolicies) == 1 {
+		contentSecurityPolicy = contentSecurityPolicies[0]
+	}
 
 	expected := map[string]string{
 		"Cache-Control":                "no-store",
-		"Content-Security-Policy":      "default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+		"Content-Security-Policy":      contentSecurityPolicy,
 		"Cross-Origin-Opener-Policy":   "same-origin",
 		"Cross-Origin-Resource-Policy": "same-origin",
 		"Permissions-Policy":           "camera=(), microphone=(), geolocation=()",
@@ -249,8 +260,16 @@ func assertAdminHTTPCookieSecurity(
 	cookie *http.Cookie,
 	path string,
 	secure bool,
+	sameSites ...http.SameSite,
 ) {
 	t.Helper()
+	sameSite := http.SameSiteStrictMode
+	if len(sameSites) > 1 {
+		t.Fatalf("SameSite expectations: got %d, want at most one", len(sameSites))
+	}
+	if len(sameSites) == 1 {
+		sameSite = sameSites[0]
+	}
 
 	if cookie.Path != path {
 		t.Errorf("cookie %q path: got %q, want %q", cookie.Name, cookie.Path, path)
@@ -266,11 +285,12 @@ func assertAdminHTTPCookieSecurity(
 			secure,
 		)
 	}
-	if cookie.SameSite != http.SameSiteStrictMode {
+	if cookie.SameSite != sameSite {
 		t.Errorf(
-			"cookie %q SameSite: got %v, want Strict",
+			"cookie %q SameSite: got %v, want %v",
 			cookie.Name,
 			cookie.SameSite,
+			sameSite,
 		)
 	}
 }
@@ -310,7 +330,11 @@ func TestAdminLoginPage(t *testing.T) {
 					http.StatusOK,
 				)
 			}
-			assertAdminHTTPSecurityHeaders(t, response.Header)
+			assertAdminHTTPSecurityHeaders(
+				t,
+				response.Header,
+				adminLoginContentSecurityPolicy,
+			)
 			if contentType := response.Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
 				t.Errorf("Content-Type: got %q", contentType)
 			}
@@ -342,10 +366,19 @@ func TestAdminLoginPage(t *testing.T) {
 			}
 
 			for _, expected := range []string{
-				"Studio administration",
+				`class="admin-body admin-body--login"`,
+				"ZAFARMAND STUDIO",
+				"Email verification",
+				"Email code",
+				"Email &amp; password",
+				"Administration",
+				`class="admin-login__aperture"`,
+				"Sign in",
 				`action="/admin/login"`,
 				`type="password"`,
 				`/static/css/admin.css`,
+				`/static/css/admin-login.css`,
+				`/static/js/admin-login.js`,
 				`name="robots" content="noindex, nofollow, noarchive"`,
 			} {
 				if !strings.Contains(body, expected) {
@@ -357,6 +390,13 @@ func TestAdminLoginPage(t *testing.T) {
 				"/static/css/navigation.css",
 				"/static/js/main.js",
 				adminSessionCookieName,
+				"ZF-400",
+				"Aperture protocol",
+				"Administrator email",
+				">01</span>",
+				">02</span>",
+				`<style`,
+				`style=`,
 			} {
 				if strings.Contains(body, forbidden) {
 					t.Errorf("login HTML exposes public/session value %q", forbidden)
@@ -410,7 +450,11 @@ func TestAdminRoutesRejectUnsupportedMethods(t *testing.T) {
 			) {
 				t.Errorf("Allow: got %q", response.Header.Get("Allow"))
 			}
-			assertAdminHTTPSecurityHeaders(t, response.Header)
+			assertAdminHTTPSecurityHeaders(
+				t,
+				response.Header,
+				adminContentSecurityPolicyForPath(test.path),
+			)
 		})
 	}
 }
@@ -542,7 +586,11 @@ func TestAdminLoginRejectsMalformedForms(t *testing.T) {
 					test.expectedStatus,
 				)
 			}
-			assertAdminHTTPSecurityHeaders(t, response.Header)
+			assertAdminHTTPSecurityHeaders(
+				t,
+				response.Header,
+				adminLoginContentSecurityPolicy,
+			)
 			if len(repository.createdSessions) != 0 {
 				t.Error("malformed login created an administrator session")
 			}
@@ -625,7 +673,11 @@ func TestAdminLoginRejectsMissingOrInvalidCSRF(t *testing.T) {
 					http.StatusForbidden,
 				)
 			}
-			assertAdminHTTPSecurityHeaders(t, response.Header)
+			assertAdminHTTPSecurityHeaders(
+				t,
+				response.Header,
+				adminLoginContentSecurityPolicy,
+			)
 			if len(repository.createdSessions) != 0 {
 				t.Error("CSRF failure created an administrator session")
 			}
@@ -817,7 +869,11 @@ func TestAdminLoginSuccess(t *testing.T) {
 			if location := response.Header.Get("Location"); location != "/admin" {
 				t.Errorf("Location: got %q, want /admin", location)
 			}
-			assertAdminHTTPSecurityHeaders(t, response.Header)
+			assertAdminHTTPSecurityHeaders(
+				t,
+				response.Header,
+				adminLoginContentSecurityPolicy,
+			)
 
 			sessionCookie := adminHTTPResponseCookie(
 				t,
@@ -1217,6 +1273,7 @@ func TestAdminDashboardRendersAuthenticatedIdentity(t *testing.T) {
 				"/static/css/navigation.css",
 				"/static/js/main.js",
 				"site-drawer",
+				"admin-body--login",
 			} {
 				if strings.Contains(body, forbidden) {
 					t.Errorf("dashboard HTML exposes public/private value %q", forbidden)
@@ -1252,7 +1309,11 @@ func TestAdminLogoutRevokesSessionAndClearsCookies(t *testing.T) {
 	if location := response.Header.Get("Location"); location != "/admin/login" {
 		t.Errorf("Location: got %q, want /admin/login", location)
 	}
-	assertAdminHTTPSecurityHeaders(t, response.Header)
+	assertAdminHTTPSecurityHeaders(
+		t,
+		response.Header,
+		adminContentSecurityPolicyForPath(request.URL.Path),
+	)
 	if len(fixture.repository.revokedHashes) != 1 ||
 		!bytes.Equal(
 			fixture.repository.revokedHashes[0],
@@ -1424,7 +1485,11 @@ func assertAdminHTTPServiceUnavailable(
 			recorder.Body.String(),
 		)
 	}
-	assertAdminHTTPSecurityHeaders(t, response.Header)
+	assertAdminHTTPSecurityHeaders(
+		t,
+		response.Header,
+		adminContentSecurityPolicyForPath(request.URL.Path),
+	)
 	body := recorder.Body.String()
 	if !strings.Contains(body, "service temporarily unavailable") {
 		t.Error("repository failure lacks generic service-unavailable text")
@@ -1883,7 +1948,11 @@ func TestAdminGeneratedErrorsRetainSecurityHeaders(t *testing.T) {
 					test.expectedStatus,
 				)
 			}
-			assertAdminHTTPSecurityHeaders(t, response.Header)
+			assertAdminHTTPSecurityHeaders(
+				t,
+				response.Header,
+				adminContentSecurityPolicyForPath(test.path),
+			)
 		})
 	}
 }

@@ -26,9 +26,17 @@ from the response sent to the browser.
 
 	{{/* One isolated stylesheet keeps admin rules out of the public website. */}}
 	<link rel="stylesheet" href="/static/css/admin.css">
+
+	{{/* Route templates may add tightly scoped presentation without widening every admin bundle. */}}
+	{{block "admin-head" .}}{{end}}
 </head>
 
-<body class="admin-body">
+{{/*
+The login CSRF value explicitly selects the anonymous full-viewport
+composition, while authenticated workspaces retain the established
+operational shell. The modifier remains server-rendered without JavaScript.
+*/}}
+<body class="admin-body{{if .LoginCSRFToken}} admin-body--login{{end}}">
 	<a class="admin-skip-link" href="#admin-main-content">
 		Skip to admin content
 	</a>
@@ -159,6 +167,15 @@ from the response sent to the browser.
 	*/}}
 	{{block "admin-content" .}}
 	<main id="admin-main-content"></main>
+	{{end}}
+
+	{{/*
+	The login controller is isolated from authenticated workspaces. Loading it
+	only when the anonymous CSRF value exists keeps every other admin page
+	server-rendered and prevents an unnecessary script request.
+	*/}}
+	{{if .LoginCSRFToken}}
+	<script src="/static/js/admin-login.js?v=2" defer></script>
 	{{end}}
 </body>
 </html>

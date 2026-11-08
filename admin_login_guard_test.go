@@ -114,7 +114,11 @@ func TestAdminLoginPasswordWorkGuardRejectsWithoutQueueing(t *testing.T) {
 	if retryAfter := response.Header.Get("Retry-After"); retryAfter != "1" {
 		t.Errorf("Retry-After: got %q, want 1", retryAfter)
 	}
-	assertAdminHTTPSecurityHeaders(t, response.Header)
+	assertAdminHTTPSecurityHeaders(
+		t,
+		response.Header,
+		adminLoginContentSecurityPolicy,
+	)
 	if passwords.verifyCalls != baselineVerifyCalls {
 		t.Error("saturated login performed password verification")
 	}
