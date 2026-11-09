@@ -118,6 +118,9 @@ type adminPageData struct {
 	Identity *adminIdentityPageData
 	// SessionCSRFToken is rendered only into authenticated mutation forms.
 	SessionCSRFToken string
+	// ReferenceWorkspace contains trusted, read-only demonstration data for
+	// Architectural operations modules that are not connected to a persistence backend.
+	ReferenceWorkspace *adminReferenceWorkspacePageData
 	// InquiryList contains only the read-only inbox presentation contract.
 	InquiryList *adminInquiryListPageData
 	// InquiryDetail contains one protected inquiry presentation contract.
@@ -556,9 +559,10 @@ func requireAdminRoles(
 	}
 }
 
-// adminDashboardHandler renders the authenticated overview. It links to the
-// Product, Interior-project, and inquiry workflows without querying those
-// tables merely to show counts or other dashboard metrics.
+// adminDashboardHandler renders the authenticated overview. Real links reach
+// the connected publishing and inquiry workflows; preview commerce
+// figures remain explicitly labelled demonstration content and trigger no
+// repository reads.
 func (app *application) adminDashboardHandler(
 	w http.ResponseWriter,
 	r *http.Request,

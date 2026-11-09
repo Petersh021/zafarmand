@@ -1,0 +1,293 @@
+{{/*
+Reference workspaces reproduce the requested dashboard's information density while
+keeping unsupported business systems honest. Every value comes from a trusted,
+compile-time preview definition; controls mutate browser-only demonstration
+state and never imply that illustrative revenue or messages are live data.
+*/}}
+{{define "admin-head"}}
+<link rel="stylesheet" href="/static/css/admin-reference.css?v=1">
+{{end}}
+
+{{define "admin-scripts"}}
+<script src="/static/js/admin-reference.js?v=1" defer></script>
+{{end}}
+
+{{define "admin-content"}}
+<main
+	class="admin-reference admin-reference--{{.ReferenceWorkspace.Kind}}"
+	id="admin-main-content"
+>
+	<header class="admin-reference__header">
+		<div>
+			<p class="admin-reference__eyebrow">
+				<span class="admin-reference__preview-dot" aria-hidden="true"></span>
+				{{.ReferenceWorkspace.Eyebrow}}
+			</p>
+
+			<h1>{{.ReferenceWorkspace.Title}}</h1>
+
+			<p class="admin-reference__summary">
+				{{.ReferenceWorkspace.Summary}}
+			</p>
+		</div>
+
+		<p class="admin-reference__preview-badge">
+			<span aria-hidden="true">&#9671;</span>
+			Preview data
+		</p>
+	</header>
+
+	<aside class="admin-reference__notice" aria-label="Preview workspace notice">
+		<strong>Demonstration workspace</strong>
+		<span>{{.ReferenceWorkspace.Notice}}</span>
+	</aside>
+
+	{{if .ReferenceWorkspace.Tabs}}
+	<div class="admin-reference__views" role="tablist" aria-label="Preview workspace views">
+		<ul role="presentation">
+			{{range $index, $tab := .ReferenceWorkspace.Tabs}}
+			<li{{if eq $index 0}} class="admin-reference__view--active"{{end}}>
+				<button
+					type="button"
+					id="reference-tab-{{$index}}"
+					role="tab"
+					aria-selected="{{if eq $index 0}}true{{else}}false{{end}}"
+					aria-controls="reference-view-panel"
+					tabindex="{{if eq $index 0}}0{{else}}-1{{end}}"
+					data-reference-tab
+					data-reference-tab-index="{{$index}}"
+				>{{$tab}}</button>
+			</li>
+			{{end}}
+		</ul>
+	</div>
+	{{end}}
+
+	<div id="reference-view-panel" role="tabpanel" aria-labelledby="reference-tab-0" data-reference-view-panel>
+
+	{{if .ReferenceWorkspace.Metrics}}
+	<section class="admin-reference__metrics" aria-label="Illustrative summary metrics">
+		{{range .ReferenceWorkspace.Metrics}}
+		<article class="admin-reference__metric admin-reference__metric--{{.Tone}}">
+			<p>{{.Label}}</p>
+			<strong>{{.Value}}</strong>
+			<span>{{.Delta}}</span>
+		</article>
+		{{end}}
+	</section>
+	{{end}}
+
+	<div class="admin-reference__primary-grid">
+		{{if .ReferenceWorkspace.ChartBars}}
+		<section class="admin-reference__chart-panel" aria-labelledby="reference-chart-title">
+			<div class="admin-reference__panel-heading">
+				<div>
+					<p>Illustrative trend</p>
+					<h2 id="reference-chart-title">{{.ReferenceWorkspace.ChartLabel}}</h2>
+				</div>
+				<span>Demo series</span>
+			</div>
+
+			<div class="admin-reference__chart" role="img" aria-label="Illustrative bar chart; values are not live business data">
+				{{range .ReferenceWorkspace.ChartBars}}
+				<div class="admin-reference__chart-column">
+					<span
+						class="admin-reference__chart-bar admin-reference__chart-bar--{{.Level}} admin-reference__chart-bar--{{.Tone}}"
+						aria-hidden="true"
+					></span>
+					<small>{{.Label}}</small>
+				</div>
+				{{end}}
+			</div>
+		</section>
+		{{end}}
+
+		{{if .ReferenceWorkspace.Cards}}
+		<section class="admin-reference__card-panel" aria-labelledby="reference-cards-title">
+			<div class="admin-reference__panel-heading">
+				<div>
+					<p>Workspace signals</p>
+					<h2 id="reference-cards-title">At a glance</h2>
+				</div>
+			</div>
+
+			<div class="admin-reference__cards">
+				{{range $index, $card := .ReferenceWorkspace.Cards}}
+				<article class="admin-reference__card admin-reference__card--{{$card.Tone}}" data-reference-card-index="{{$index}}">
+					<span class="admin-reference__card-mark" aria-hidden="true"></span>
+					<div>
+						<h3>{{$card.Title}}</h3>
+						<p>{{$card.Description}}</p>
+						<small>{{$card.Meta}}</small>
+					</div>
+				</article>
+				{{end}}
+			</div>
+		</section>
+		{{end}}
+	</div>
+
+	{{if .ReferenceWorkspace.Rows}}
+	<section class="admin-reference__table-panel" aria-labelledby="reference-records-title">
+		<div class="admin-reference__panel-heading">
+			<div>
+				<p>Read-only preview</p>
+				<h2 id="reference-records-title">Recent records</h2>
+			</div>
+			<span><b data-reference-active-view>{{if .ReferenceWorkspace.Tabs}}{{index .ReferenceWorkspace.Tabs 0}}{{else}}All{{end}}</b> &middot; <b data-reference-result-count>{{len .ReferenceWorkspace.Rows}}</b> sample items</span>
+		</div>
+
+		<div class="admin-reference__toolbar">
+			<label><span>Search records</span><input type="search" autocomplete="off" placeholder="Search this preview" data-reference-search></label>
+			<label><span>Sort</span><select data-reference-sort><option value="original">Recommended</option><option value="item">Item A–Z</option><option value="value">Value</option><option value="status">Status</option></select></label>
+			<button type="button" data-reference-export>Export visible CSV</button>
+			<button type="button" data-reference-reset>Reset view</button>
+		</div>
+
+		<div class="admin-reference__table-scroll">
+			<table>
+				<thead>
+					<tr>
+						<th scope="col">Item</th>
+						<th scope="col">Detail</th>
+						<th scope="col">Value</th>
+						<th scope="col">Status</th>
+					</tr>
+				</thead>
+				<tbody data-reference-table-body>
+					{{range $index, $row := .ReferenceWorkspace.Rows}}
+					<tr data-reference-row-index="{{$index}}">
+						<th scope="row">{{$row.Primary}}</th>
+						<td>{{$row.Secondary}}</td>
+						<td>{{$row.Value}}</td>
+						<td>
+							<span class="admin-reference__status admin-reference__status--{{$row.Tone}}">
+								{{$row.Status}}
+							</span>
+						</td>
+					</tr>
+					{{end}}
+				</tbody>
+			</table>
+		</div>
+	</section>
+	{{end}}
+
+	{{/*
+	Each preview module exposes the concrete controls shown in the reference
+	dashboard. They remain browser-only and use the common external controller;
+	no form below has a server action and no preview state is posted to Go.
+	*/}}
+	{{if eq .ReferenceWorkspace.Kind "analytics"}}
+	<section class="admin-reference__module-console" aria-labelledby="analytics-tools-title" data-reference-module="analytics">
+		<header><div><p>Analysis controls</p><h2 id="analytics-tools-title">Explore the sample series</h2></div><span data-analytics-period-label>Last 30 days</span></header>
+		<div class="admin-reference__control-row">
+			<label><span>Metric</span><select data-analytics-metric><option value="sales">Sales</option><option value="visitors">Visitors</option><option value="conversion">Conversion</option><option value="average-order">Average order</option></select></label>
+			<div class="admin-reference__segmented" aria-label="Analytics date range"><button type="button" aria-pressed="true" data-analytics-range="30d">30 days</button><button type="button" aria-pressed="false" data-analytics-range="90d">90 days</button><button type="button" aria-pressed="false" data-analytics-range="12m">12 months</button></div>
+			<button type="button" data-reference-action="email-report">Email report preview</button>
+		</div>
+	</section>
+	{{end}}
+
+	{{if eq .ReferenceWorkspace.Kind "customers"}}
+	<section class="admin-reference__module-console" aria-labelledby="customer-tools-title" data-reference-module="customers">
+		<header><div><p>Customer tools</p><h2 id="customer-tools-title">Profiles, segments, and reviews</h2></div><span><b data-customer-visible>3</b> profiles</span></header>
+		<div class="admin-reference__control-row"><label><span>Segment</span><select data-customer-segment><option value="all">All profiles</option><option value="recent">Recent buyers</option><option value="studio">Studio clients</option><option value="review">Needs review</option></select></label><button type="button" data-reference-action="new-segment">Create sample segment</button></div>
+		<div class="admin-reference__mini-grid" data-customer-grid>
+			<article data-customer-card data-segment="recent"><p>Recent buyer</p><h3>Nora Ellis</h3><span>3 orders &middot; $1,240 lifetime</span><button type="button" data-reference-action="profile" data-reference-label="Nora Ellis">Open profile</button></article>
+			<article data-customer-card data-segment="studio"><p>Studio client</p><h3>Emil Hart</h3><span>1 architecture project</span><button type="button" data-reference-action="profile" data-reference-label="Emil Hart">Open profile</button></article>
+			<article data-customer-card data-segment="review"><p>Review queue</p><h3>Mina Stone</h3><span>Incomplete contact details</span><button type="button" data-reference-action="review-profile" data-reference-label="Mina Stone">Mark reviewed</button></article>
+		</div>
+	</section>
+	{{end}}
+
+	{{if eq .ReferenceWorkspace.Kind "finances"}}
+	<section class="admin-reference__module-console" aria-labelledby="finance-tools-title" data-reference-module="finances">
+		<header><div><p>Financial statements</p><h2 id="finance-tools-title">Period and export controls</h2></div><span data-finance-period-label>November 2026</span></header>
+		<div class="admin-reference__control-row"><label><span>Statement period</span><select data-finance-period><option value="november">November 2026</option><option value="october">October 2026</option><option value="quarter">Q4 2026</option><option value="year">2026 year to date</option></select></label><button type="button" data-reference-action="finance-export">Export statement CSV</button><button type="button" data-reference-action="new-expense">Add sample expense</button></div>
+	</section>
+	{{end}}
+
+	{{if eq .ReferenceWorkspace.Kind "invoices"}}
+	<section class="admin-reference__module-console" aria-labelledby="invoice-tools-title" data-reference-module="invoices">
+		<header><div><p>Invoice actions</p><h2 id="invoice-tools-title">Document queue</h2></div><button type="button" data-reference-action="new-invoice">+ New sample invoice</button></header>
+		<div class="admin-reference__document-list">
+			<article data-invoice-card data-invoice-status="open"><div><p>INV-2042</p><h3>Atelier North</h3><span>$2,400 &middot; due 18 Nov</span></div><span class="admin-reference__status admin-reference__status--amber" data-invoice-status-label>Open</span><button type="button" data-reference-action="invoice-detail" data-reference-label="INV-2042">Details</button></article>
+			<article data-invoice-card data-invoice-status="overdue"><div><p>INV-2041</p><h3>Field House</h3><span>$1,250 &middot; overdue 6 days</span></div><span class="admin-reference__status admin-reference__status--red" data-invoice-status-label>Overdue</span><button type="button" data-reference-action="invoice-detail" data-reference-label="INV-2041">Details</button></article>
+			<article data-invoice-card data-invoice-status="paid"><div><p>INV-2040</p><h3>Noor Studio</h3><span>$3,100 &middot; paid 02 Nov</span></div><span class="admin-reference__status admin-reference__status--green" data-invoice-status-label>Paid</span><button type="button" data-reference-action="invoice-detail" data-reference-label="INV-2040">Details</button></article>
+		</div>
+	</section>
+	{{end}}
+
+	{{if eq .ReferenceWorkspace.Kind "discounts"}}
+	<section class="admin-reference__module-console" aria-labelledby="discount-tools-title" data-reference-module="discounts">
+		<header><div><p>Campaign tools</p><h2 id="discount-tools-title">Codes and schedules</h2></div><button type="button" data-reference-action="new-discount">+ New sample code</button></header>
+		<div class="admin-reference__mini-grid">
+			<article><p>WELCOME10</p><h3>10% welcome</h3><span>84 preview uses</span><button type="button" aria-pressed="true" data-discount-toggle>Active</button></article>
+			<article><p>STUDIO15</p><h3>Studio client</h3><span>Scheduled for 18 Nov</span><button type="button" aria-pressed="false" data-discount-toggle>Activate preview</button></article>
+			<article><p>ARCHIVE20</p><h3>Archive event</h3><span>Expired demonstration code</span><button type="button" aria-pressed="false" data-discount-toggle>Activate preview</button></article>
+		</div>
+	</section>
+	{{end}}
+
+	{{if eq .ReferenceWorkspace.Kind "chats"}}
+	<section class="admin-reference__module-console admin-reference__message-console" aria-labelledby="chat-tools-title" data-reference-module="chats">
+		<header><div><p>Unified inbox</p><h2 id="chat-tools-title">Conversation workspace</h2></div><div class="admin-reference__segmented" aria-label="Conversation status"><button type="button" aria-pressed="true" data-chat-filter="open">Open</button><button type="button" aria-pressed="false" data-chat-filter="closed">Closed</button></div></header>
+		<div class="admin-reference__inbox-layout">
+			<div class="admin-reference__inbox-list"><label><span>Search conversations</span><input type="search" autocomplete="off" placeholder="Name or channel" data-chat-search></label><button type="button" class="is-active" data-chat-thread data-chat-status="open" data-chat-name="Lena Morris"><b>Lena Morris</b><span>Website &middot; Interior question</span></button><button type="button" data-chat-thread data-chat-status="open" data-chat-name="Sample social lead"><b>Sample social lead</b><span>Instagram preview</span></button><button type="button" data-chat-thread data-chat-status="closed" data-chat-name="Sample text lead"><b>Sample text lead</b><span>SMS preview &middot; closed</span></button></div>
+			<div class="admin-reference__conversation"><header><div><p data-chat-channel>Website conversation</p><h3 data-chat-name>Lena Morris</h3></div><button type="button" data-chat-close>Close conversation</button></header><div class="admin-reference__messages" data-chat-messages><p><span>Customer</span>Could you share the material schedule for the interior project?</p><p class="is-studio"><span>Zafarmand preview</span>Of course. This conversation is illustrative and sends nothing externally.</p></div><div class="admin-reference__quick-replies"><button type="button" data-chat-quick="Thank you. We will review this request.">Review request</button><button type="button" data-chat-quick="We can arrange a studio consultation.">Offer consultation</button></div><form data-chat-form><label><span>Browser-only reply</span><textarea rows="3" maxlength="400" required data-chat-reply></textarea></label><button type="submit">Send preview reply</button></form></div>
+		</div>
+	</section>
+	{{end}}
+
+	{{if eq .ReferenceWorkspace.Kind "email"}}
+	<section class="admin-reference__module-console admin-reference__message-console" aria-labelledby="email-tools-title" data-reference-module="email">
+		<header><div><p>Mailbox preview</p><h2 id="email-tools-title">Inbox and drafts</h2></div><button type="button" data-reference-action="compose-email">Compose sample email</button></header>
+		<div class="admin-reference__inbox-layout"><div class="admin-reference__inbox-list"><label><span>Search email</span><input type="search" autocomplete="off" placeholder="Subject or sender" data-email-search></label><button type="button" class="is-active" data-email-message data-email-subject="Project enquiry"><b>Project enquiry</b><span>Ava Stone &middot; 10:42</span></button><button type="button" data-email-message data-email-subject="Materials schedule"><b>Materials schedule</b><span>North Workshop &middot; 09:18</span></button><button type="button" data-email-message data-email-subject="Journal proposal"><b>Journal proposal</b><span>Editorial preview &middot; yesterday</span></button></div><article class="admin-reference__mail-detail"><p>Selected preview message</p><h3 data-email-detail-subject>Project enquiry</h3><span data-email-detail-meta>Ava Stone &middot; architecture services</span><p data-email-detail-copy>This invented message demonstrates the reading layout. No mailbox is connected.</p><div><button type="button" data-reference-action="reply-email">Reply preview</button><button type="button" data-reference-action="flag-email">Flag preview</button></div></article></div>
+	</section>
+	{{end}}
+
+	{{if eq .ReferenceWorkspace.Kind "apps"}}
+	<section class="admin-reference__module-console" aria-labelledby="app-tools-title" data-reference-module="apps">
+		<header><div><p>Integration review</p><h2 id="app-tools-title">Available connections</h2></div><span><b data-app-review-count>0</b> review requests</span></header>
+		<div class="admin-reference__mini-grid"><article><p>Commerce</p><h3>Payment provider</h3><span>Orders, payments, and refunds</span><button type="button" data-app-review>Request review</button></article><article><p>Communication</p><h3>Instagram inbox</h3><span>Social messages and consent</span><button type="button" data-app-review>Request review</button></article><article><p>Analytics</p><h3>Privacy measurement</h3><span>Consent-aware performance signals</span><button type="button" data-app-review>Request review</button></article></div>
+	</section>
+	{{end}}
+
+	{{if eq .ReferenceWorkspace.Kind "settings"}}
+	<section class="admin-reference__module-console" aria-labelledby="settings-tools-title" data-reference-module="settings">
+		<header><div><p>Local preferences</p><h2 id="settings-tools-title">Workspace presentation</h2></div><button type="button" data-settings-reset>Reset preferences</button></header>
+		<div class="admin-reference__settings-grid"><label><span>Density</span><select data-settings-density><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label><label><span>Locale preview</span><select data-settings-locale><option value="en">English</option><option value="fa">Persian (preview)</option></select></label><label class="admin-reference__switch"><input type="checkbox" checked data-settings-motion><span>Interface motion</span></label><label class="admin-reference__switch"><input type="checkbox" data-settings-notifications><span>Preview notifications</span></label></div>
+		<p>These preferences remain in this browser and never change administrator credentials or integrations.</p>
+	</section>
+	{{end}}
+
+	{{if eq .ReferenceWorkspace.Kind "help"}}
+	<section class="admin-reference__module-console" aria-labelledby="help-tools-title" data-reference-module="help">
+		<header><div><p>Knowledge base</p><h2 id="help-tools-title">Guides and local support preview</h2></div><button type="button" data-reference-action="support-ticket">Open sample ticket</button></header>
+		<label class="admin-reference__wide-search"><span>Search help</span><input type="search" autocomplete="off" placeholder="Search guides" data-help-search></label>
+		<div class="admin-reference__faq" data-help-faq><details><summary>How do I publish a project?</summary><p>Open a protected project workspace, create the record, add its cover, then publish the saved revision.</p></details><details><summary>Which login method should I use?</summary><p>Password, email code, and configured Google sign-in all authenticate the same administrator account.</p></details><details><summary>Are preview totals real?</summary><p>No. Commerce modules are explicitly labelled demonstration workspaces and do not alter backend records.</p></details></div>
+	</section>
+	{{end}}
+	</div>
+
+	<dialog class="admin-reference__dialog" data-reference-dialog>
+		<form method="dialog" data-reference-dialog-form>
+			<header><div><p data-reference-dialog-kicker>Browser preview</p><h2 data-reference-dialog-title>Preview action</h2></div><button type="submit" value="cancel" formnovalidate aria-label="Close preview dialog">&times;</button></header>
+			<p data-reference-dialog-copy>No backend record will be changed.</p>
+			<label data-reference-dialog-field><span data-reference-dialog-field-label>Reference</span><input type="text" maxlength="100" required data-reference-dialog-input></label>
+			<menu><button type="button" data-reference-dialog-secondary hidden>Print preview</button><button type="submit" value="cancel" formnovalidate>Cancel</button><button type="submit" value="confirm" data-reference-dialog-confirm>Confirm preview</button></menu>
+		</form>
+	</dialog>
+
+	<div class="admin-reference__toast" role="status" aria-live="polite" data-reference-toast hidden><span data-reference-toast-message></span><button type="button" data-reference-toast-undo hidden>Undo</button></div>
+
+	<footer class="admin-reference__footer">
+		<p>
+			Filters, view switching, and CSV export operate only on trusted preview
+			data in this page. No backend business record is changed.
+		</p>
+	</footer>
+	<p class="admin-visually-hidden" aria-live="polite" data-reference-announcer></p>
+</main>
+{{end}}

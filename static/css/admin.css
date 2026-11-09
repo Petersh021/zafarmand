@@ -29,7 +29,6 @@
 	--admin-sans: Arial, Helvetica, sans-serif;
 }
 
-/* Border-box sizing prevents padded controls from widening the viewport. */
 *,
 *::before,
 *::after {
@@ -62,7 +61,6 @@ a {
 	color: inherit;
 }
 
-/* The keyboard-only skip link becomes visible when it receives focus. */
 .admin-skip-link {
 	position: fixed;
 	top: 0.75rem;
@@ -78,7 +76,6 @@ a {
 	transform: translateY(0);
 }
 
-/* The authenticated header combines identity, primary navigation, and logout. */
 .admin-header {
 	display: grid;
 	grid-template-columns: auto minmax(0, 1fr);
@@ -117,68 +114,12 @@ a {
 	color: rgba(244, 239, 229, 0.65);
 }
 
-/* Workspace elements may wrap without forcing the document wider than it is. */
-.admin-header__workspace,
-.admin-header__session,
 .admin-nav__list {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-}
-
-.admin-header__workspace {
-	justify-content: flex-end;
-	gap: clamp(1rem, 3vw, 3rem);
-	min-width: 0;
-}
-
-.admin-nav__list {
-	gap: 0.35rem;
 	margin: 0;
 	padding: 0;
 	list-style: none;
 }
 
-.admin-nav__link {
-	display: inline-flex;
-	align-items: center;
-	min-height: 2.75rem;
-	padding: 0.65rem 0.8rem;
-	border-bottom: 2px solid transparent;
-	font-size: 0.75rem;
-	font-weight: 700;
-	letter-spacing: 0.08em;
-	text-decoration: none;
-	text-transform: uppercase;
-}
-
-/* The underline and aria-current attribute identify the active workspace. */
-.admin-nav__link--active {
-	border-bottom-color: currentColor;
-}
-
-.admin-header__session {
-	justify-content: flex-end;
-	gap: 1rem;
-	min-width: 0;
-}
-
-.admin-header__identity {
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: flex-end;
-	gap: 0.5rem;
-	min-width: 0;
-	margin: 0;
-	color: rgba(244, 239, 229, 0.72);
-	overflow-wrap: anywhere;
-}
-
-.admin-header__logout {
-	flex: 0 0 auto;
-}
-
-/* Login uses one centered editorial panel and remains usable without scripts. */
 .admin-login {
 	display: grid;
 	place-items: center;
@@ -280,7 +221,6 @@ a {
 	outline-offset: 3px;
 }
 
-/* A darker focus color keeps the same three-pixel outline clear on cream. */
 .admin-login .admin-form__field input:focus,
 .admin-login .admin-button:focus-visible,
 .admin-login .admin-alert:focus,
@@ -305,34 +245,6 @@ a {
 	cursor: pointer;
 }
 
-/* The overview stays sparse and points to focused private workflows. */
-.admin-dashboard {
-	display: grid;
-	grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 0.75fr);
-	gap: clamp(2rem, 7vw, 8rem);
-	max-width: 90rem;
-	margin-inline: auto;
-	padding: clamp(3rem, 9vw, 9rem) var(--admin-gutter);
-}
-
-.admin-dashboard__intro,
-.admin-dashboard__status {
-	min-width: 0;
-}
-
-.admin-dashboard h1 {
-	max-width: 10ch;
-	font-size: clamp(3rem, 8vw, 8rem);
-}
-
-.admin-dashboard__lede {
-	max-width: 38rem;
-	margin: 2rem 0 0;
-	color: rgba(244, 239, 229, 0.72);
-	font-size: clamp(1rem, 1.4vw, 1.25rem);
-}
-
-/* The overview keeps all current tools visible without presenting them as metrics. */
 .admin-dashboard__actions {
 	display: flex;
 	flex-wrap: wrap;
@@ -346,7 +258,6 @@ a {
 	margin-top: 0;
 }
 
-/* Bordered editorial links provide a clear, comfortably sized primary action. */
 .admin-primary-link {
 	display: inline-flex;
 	align-items: center;
@@ -362,7 +273,6 @@ a {
 	text-transform: uppercase;
 }
 
-/* Secondary pagination links retain the same target size without a filled box. */
 .admin-secondary-link {
 	display: inline-flex;
 	align-items: center;
@@ -375,40 +285,11 @@ a {
 	text-transform: uppercase;
 }
 
-.admin-dashboard__status {
-	align-self: end;
-	padding: clamp(1.5rem, 4vw, 2.5rem);
-	background: var(--admin-surface);
-	color: var(--admin-ink);
-}
-
-.admin-dashboard h2 {
-	font-size: clamp(1.8rem, 3vw, 2.8rem);
-}
-
-.admin-access-list {
-	display: grid;
-	margin: 2rem 0 0;
-	border-top: 1px solid var(--admin-rule);
-}
-
-.admin-access-list div {
-	display: grid;
-	grid-template-columns: minmax(7rem, 0.4fr) minmax(0, 0.6fr);
-	gap: 1rem;
-	padding-block: 1rem;
-	border-bottom: 1px solid var(--admin-rule);
-}
-
 .admin-access-list dt,
 .admin-access-list dd {
 	min-width: 0;
 	margin: 0;
 	overflow-wrap: anywhere;
-}
-
-.admin-access-list dt {
-	color: var(--admin-ink-soft);
 }
 
 .admin-text-button {
@@ -422,7 +303,6 @@ a {
 	cursor: pointer;
 }
 
-/* Private record routes share a bounded column and generous reading space. */
 .admin-inquiries,
 .admin-inquiry-detail,
 .admin-products,
@@ -477,7 +357,6 @@ a {
 	margin-top: 1.75rem;
 }
 
-/* Back links keep the hierarchy understandable without browser scripting. */
 .admin-back-link {
 	display: inline-flex;
 	align-items: center;
@@ -491,7 +370,6 @@ a {
 	text-transform: uppercase;
 }
 
-/* The ordered inbox remains meaningful to assistive technology after styling. */
 .admin-inquiry-list {
 	margin: clamp(2.5rem, 6vw, 5rem) 0 0;
 	padding: 0;
@@ -558,11 +436,6 @@ a {
 	flex-wrap: wrap;
 }
 
-/*
-   Managed Product and Interior-project cards retain database editorial order
-   and show only the fields needed to review order and publication state. The
-   ordered list remains meaningful when CSS is unavailable.
-*/
 .admin-product-list {
 	margin: clamp(2.5rem, 6vw, 5rem) 0 0;
 	padding: 0;
@@ -641,7 +514,6 @@ a {
 	word-break: break-word;
 }
 
-/* Every lifecycle state is written in text; color is only supplemental. */
 .admin-product-status {
 	flex: 0 0 auto;
 	margin: 0;
@@ -666,7 +538,6 @@ a {
 	color: rgba(244, 239, 229, 0.68);
 }
 
-/* Status remains textual; color adds emphasis but never carries meaning alone. */
 .admin-inquiry-status {
 	flex: 0 0 auto;
 	margin: 0;
@@ -727,7 +598,6 @@ a {
 	margin-top: 1rem;
 }
 
-/* Detail content uses a light reading surface for long contact information. */
 .admin-inquiry-record {
 	min-width: 0;
 	padding: clamp(1.5rem, 5vw, 4.5rem);
@@ -805,11 +675,6 @@ a {
 	word-break: break-word;
 }
 
-/*
-   Managed record details stay quiet reading surfaces. Editing begins at a
-   separate GET form, so opening or refreshing a Product or Interior project
-   cannot mutate data.
-*/
 .admin-product-record {
 	min-width: 0;
 	padding: clamp(1.5rem, 5vw, 4.5rem);
@@ -880,7 +745,6 @@ a {
 	color: var(--admin-ink-soft);
 }
 
-/* Stored line breaks remain readable without interpreting managed copy as HTML. */
 .admin-product-editorial__description p {
 	max-width: 70ch;
 	margin: 1rem 0 0;
@@ -894,7 +758,6 @@ a {
 	font-size: 1rem;
 }
 
-/* Cover previews use their real ratio within a bounded, no-overflow frame. */
 .admin-product-cover__figure {
 	display: grid;
 	width: min(100%, 48rem);
@@ -927,11 +790,6 @@ a {
 	border-top: 1px solid var(--admin-rule);
 }
 
-/*
-   Product and Interior create/edit pages use native no-JavaScript forms. The
-   bounded cream surface separates editable values from the dark private shell,
-   while every label and error remains adjacent in semantic source order.
-*/
 .admin-product-form,
 .admin-conflict-panel {
 	min-width: 0;
@@ -991,7 +849,6 @@ a {
 	text-transform: none;
 }
 
-/* The cover form's current preview precedes replacement controls in source order. */
 .admin-product-cover-form__current {
 	margin-top: clamp(2rem, 5vw, 4rem);
 	padding: clamp(1.25rem, 4vw, 2.5rem);
@@ -1061,11 +918,6 @@ a {
 	color: var(--admin-ink-soft);
 }
 
-/*
-   The status workflow follows the message in source order so an administrator
-   can review the inquiry before changing its state. Its form contains only
-   native controls and remains fully usable when JavaScript is unavailable.
-*/
 .admin-inquiry-workflow {
 	margin-top: clamp(2.5rem, 6vw, 5rem);
 	padding-top: clamp(2rem, 5vw, 3.5rem);
@@ -1076,7 +928,6 @@ a {
 	margin-top: 1.5rem;
 }
 
-/* Reset browser fieldset spacing before applying the compact workflow layout. */
 .admin-inquiry-status-form fieldset {
 	min-width: 0;
 	margin: 0;
@@ -1105,11 +956,6 @@ a {
 	margin-top: 1.25rem;
 }
 
-/*
-   Each button names its complete destination state in visible text. The
-   2.75rem minimum creates a comfortable keyboard and pointer target, while
-   wrapping prevents long translated labels from widening the page.
-*/
 .admin-status-button {
 	display: inline-flex;
 	align-items: center;
@@ -1133,7 +979,6 @@ a {
 	cursor: pointer;
 }
 
-/* Hover is additive; visible text, borders, and focus never rely on it. */
 @media (hover: hover) {
 	.admin-status-button:hover {
 		background: var(--admin-ink);
@@ -1141,7 +986,6 @@ a {
 	}
 }
 
-/* Tablet and phone layouts follow semantic source order without overflow. */
 @media (max-width: 52rem) {
 	.admin-header {
 		grid-template-columns: minmax(0, 1fr);
@@ -1257,7 +1101,6 @@ a {
 	}
 }
 
-/* Forced-color users retain control and region boundaries without color alone. */
 @media (forced-colors: active) {
 	.admin-login__panel,
 	.admin-dashboard__status,
@@ -1294,14 +1137,6 @@ a {
 	}
 }
 
-/* These admin stages introduce no animation requiring a reduced-motion rule. */
-
-/*
-   Interior and Architecture project pages reuse the established protected
-   record, lifecycle, form, and reviewed-cover primitives. These additions
-   describe only project-field density; they do not create parallel admin
-   visual systems or leak private rules into either public portfolio.
-*/
 .admin-interior-projects,
 .admin-interior-project-detail,
 .admin-interior-project-form-page,
@@ -1319,16 +1154,11 @@ a {
 	min-width: 0;
 }
 
-/* Nine durable facts remain scannable as three balanced rows on wide screens. */
 .admin-interior-project-facts,
 .admin-architecture-project-facts {
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-/*
-   Compact project facts pair naturally at desktop widths. DOM order remains
-   linear, and the long editorial field plus actions span both columns.
-*/
 .admin-interior-project-form,
 .admin-architecture-project-form {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1378,16 +1208,6 @@ a {
 	}
 }
 
-/* --------------------------------------------------
-   Stage 24: Protected Homepage and Contact presentation settings
-
-   Global settings reuse the established private shell, light reading surfaces,
-   and native form language. These additions define only settings-specific card,
-   feature-slot, hero-preview, and fieldset behavior; public presentation remains
-   isolated in its own stylesheets.
--------------------------------------------------- */
-
-/* Overview and detail pages share the same bounded workspace as record tools. */
 .admin-site-content,
 .admin-site-content-detail {
 	width: 100%;
@@ -1403,7 +1223,6 @@ a {
 	margin-top: clamp(2.5rem, 6vw, 5rem);
 }
 
-/* Each semantic article stays legible without relying on color or hover. */
 .admin-site-content-card {
 	display: flex;
 	flex-direction: column;
@@ -1433,7 +1252,6 @@ a {
 	padding-top: 1.5rem;
 }
 
-/* Settings detail uses the same quiet light surface as managed records. */
 .admin-site-content-record {
 	min-width: 0;
 	padding: clamp(1.5rem, 5vw, 4.5rem);
@@ -1495,7 +1313,6 @@ a {
 	margin-top: 0;
 }
 
-/* Long managed values use balanced cells and preserve intentional line feeds. */
 .admin-site-content-facts {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -1508,7 +1325,6 @@ a {
 	white-space: pre-wrap;
 }
 
-/* Fixed feature cards remain in discipline order from left to right. */
 .admin-site-content-features {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1536,7 +1352,6 @@ a {
 	background: rgba(27, 25, 21, 0.035);
 }
 
-/* Availability remains explicit text; color is only supplemental. */
 .admin-feature-status {
 	display: inline-flex;
 	margin: 1rem 0 0;
@@ -1556,7 +1371,6 @@ a {
 	color: var(--admin-error);
 }
 
-/* Exact protected hero previews retain their decoded ratio within the surface. */
 .admin-site-content-hero {
 	display: grid;
 	width: min(100%, 58rem);
@@ -1580,7 +1394,6 @@ a {
 	overflow-wrap: anywhere;
 }
 
-/* The settings forms keep related pairs on a two-column desktop grid. */
 .admin-site-content-form {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -1591,7 +1404,6 @@ a {
 	grid-column: 1 / -1;
 }
 
-/* Native fieldsets keep their semantic legend while matching adjacent fields. */
 .admin-site-content-form__fieldset {
 	display: grid;
 	gap: 0.75rem;
@@ -1609,7 +1421,6 @@ a {
 	text-transform: uppercase;
 }
 
-/* Mutation pages state their immediate public consequence before form fields. */
 .admin-publication-warning {
 	margin-top: clamp(1.5rem, 4vw, 2.5rem);
 	padding: 1rem 1.15rem;
@@ -1646,7 +1457,6 @@ a {
 	margin: 0.15rem 0 0;
 }
 
-/* Tablet layouts reduce to one robust source-order column before squeezing. */
 @media (max-width: 52rem) {
 	.admin-site-content__cards,
 	.admin-site-content-features,
@@ -1677,7 +1487,6 @@ a {
 	}
 }
 
-/* Forced-color mode retains every settings region, choice, and image boundary. */
 @media (forced-colors: active) {
 	.admin-site-content-card,
 	.admin-site-content-record,
@@ -1688,4 +1497,378 @@ a {
 	.admin-publication-warning {
 		border: 2px solid CanvasText;
 	}
+}
+
+/* The authenticated shell keeps the public site's charcoal, paper, and stone palette. */
+.admin-body--workspace {
+	--admin-sidebar-width: 17rem;
+	--admin-panel: rgba(20, 18, 15, 0.82);
+	--admin-panel-strong: rgba(17, 16, 13, 0.96);
+	--admin-panel-soft: rgba(243, 240, 233, 0.055);
+	--admin-border: rgba(243, 240, 233, 0.16);
+	--admin-text: #f3f0e9;
+	--admin-muted: #aaa69d;
+	--admin-blue: #bca47d;
+	--admin-blue-soft: rgba(188, 164, 125, 0.16);
+	--admin-green: #91a88c;
+	display: grid;
+	grid-template-columns: var(--admin-sidebar-width) minmax(0, 1fr);
+	grid-template-rows: auto minmax(calc(100vh - 4.6rem), 1fr);
+	min-height: 100vh;
+	background:
+		radial-gradient(circle at 3% 32%, rgba(128, 108, 80, 0.18), transparent 22rem),
+		radial-gradient(circle at 97% 2%, rgba(172, 143, 99, 0.12), transparent 20rem),
+		radial-gradient(circle at 88% 94%, rgba(89, 80, 64, 0.13), transparent 24rem),
+		#11110f;
+	color: var(--admin-text);
+	font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.admin-body--workspace.admin-shell-ready {
+	transition: grid-template-columns 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.admin-body--sidebar-collapsed { --admin-sidebar-width: 5.25rem; }
+
+.admin-body--workspace .admin-skip-link {
+	z-index: 40;
+	border-radius: 0.7rem;
+	background: #fff;
+	color: #07101c;
+}
+
+.admin-sidebar {
+	position: sticky;
+	top: 0;
+	z-index: 20;
+	display: grid;
+	grid-column: 1;
+	grid-row: 1 / span 2;
+	grid-template-columns: minmax(0, 1fr);
+	grid-template-rows: auto minmax(0, 1fr);
+	align-items: stretch;
+	gap: 0.85rem;
+	height: calc(100vh - 1.5rem);
+	min-height: 0;
+	min-width: 0;
+	margin: 0.75rem 0 0.75rem 0.75rem;
+	padding: 0.8rem;
+	border: 1px solid var(--admin-border);
+	border-radius: 1.3rem;
+	background: var(--admin-panel-strong);
+	box-shadow: 0 24px 70px rgba(0, 0, 0, 0.46), inset 0 1px rgba(255, 255, 255, 0.07);
+	backdrop-filter: blur(24px) saturate(135%);
+}
+
+.admin-body--workspace .admin-brand {
+	display: grid;
+	grid-template-columns: 2.65rem minmax(0, 1fr);
+	align-items: center;
+	gap: 0.7rem;
+	min-width: 0;
+	padding: 0.2rem 2.6rem 0.2rem 0.2rem;
+}
+
+.admin-brand__mark {
+	display: grid;
+	place-items: center;
+	width: 2.65rem;
+	height: 2.65rem;
+	border: 1px solid rgba(188, 164, 125, 0.58);
+	border-radius: 0.85rem;
+	background: rgba(232, 227, 217, 0.08);
+	box-shadow: none;
+	font-weight: 800;
+}
+
+.admin-brand__copy { display: grid; min-width: 0; }
+.admin-body--workspace .admin-brand__studio { font-family: inherit; font-size: 0.98rem; font-weight: 750; }
+.admin-body--workspace .admin-brand__area { color: var(--admin-muted); font-size: 0.6rem; letter-spacing: 0.08em; }
+
+.admin-body--workspace .admin-header__workspace {
+	display: grid;
+	grid-template-rows: minmax(0, 1fr) auto;
+	align-items: stretch;
+	gap: 0.45rem;
+	width: 100%;
+	min-height: 0;
+	min-width: 0;
+}
+
+.admin-sidebar-toggle {
+	position: absolute;
+	top: 1.05rem;
+	right: 0.9rem;
+	display: grid;
+	place-items: center;
+	width: 2.1rem;
+	height: 2.1rem;
+	padding: 0;
+	border: 1px solid var(--admin-border);
+	border-radius: 0.7rem;
+	background: var(--admin-panel-soft);
+	color: var(--admin-muted);
+	cursor: pointer;
+}
+
+.admin-sidebar-toggle[hidden] { display: none; }
+.admin-sidebar-toggle svg { width: 1rem; fill: none; stroke: currentColor; stroke-width: 1.8; transition: transform 240ms ease; }
+.admin-sidebar-toggle__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.admin-body--workspace .admin-nav { min-width: 0; min-height: 0; overflow: hidden auto; scrollbar-width: thin; }
+.admin-body--workspace .admin-nav__list { display: grid; align-content: start; gap: 0.2rem; width: 100%; }
+
+.admin-body--workspace .admin-nav__group-label {
+	margin: 0.72rem 0.65rem 0.12rem;
+	color: #817d74;
+	font-size: 0.62rem;
+	font-weight: 750;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+}
+
+.admin-body--workspace .admin-nav__link {
+	position: relative;
+	display: grid;
+	grid-template-columns: 1.35rem minmax(0, 1fr);
+	align-items: center;
+	gap: 0.72rem;
+	min-height: 2.65rem;
+	padding: 0.6rem 0.72rem;
+	border: 1px solid transparent;
+	border-radius: 0.72rem;
+	color: #bbb6ac;
+	font-size: 0.74rem;
+	font-weight: 620;
+	letter-spacing: 0;
+	text-transform: none;
+	transition: background 160ms ease, color 160ms ease;
+}
+
+.admin-nav__icon { width: 1.2rem; height: 1.2rem; fill: currentColor; }
+.admin-nav__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.admin-body--workspace .admin-nav__link--active {
+	border-color: rgba(232, 227, 217, 0.72);
+	background: #e8e3d9;
+	box-shadow: none;
+	color: #1a1814;
+}
+
+.admin-body--workspace .admin-header__session {
+	display: grid;
+	grid-template-columns: 2.35rem minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 0.55rem;
+	min-width: 0;
+	padding: 0.6rem;
+	border: 1px solid var(--admin-border);
+	border-radius: 0.85rem;
+	background: var(--admin-panel-soft);
+}
+
+.admin-header__avatar {
+	display: grid;
+	place-items: center;
+	width: 2.35rem;
+	height: 2.35rem;
+	border-radius: 50%;
+	background: linear-gradient(145deg, #f3f0e9, #bca47d);
+	color: #1a1814;
+	font-size: 0.78rem;
+	font-weight: 800;
+	text-transform: uppercase;
+}
+
+.admin-body--workspace .admin-header__identity { display: grid; justify-content: stretch; gap: 0.08rem; font-size: 0.6rem; letter-spacing: 0; text-align: left; text-transform: none; }
+.admin-header__email { overflow: hidden; color: var(--admin-text); font-size: 0.66rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.admin-header__role { color: var(--admin-muted); }
+.admin-body--workspace .admin-text-button { min-height: 2.3rem; padding: 0.3rem; color: var(--admin-muted); font-size: 0.64rem; }
+
+.admin-topbar {
+	position: sticky;
+	top: 0.75rem;
+	align-self: start;
+	z-index: 10;
+	display: flex;
+	grid-column: 2;
+	grid-row: 1;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	min-width: 0;
+	min-height: 3.8rem;
+	margin: 0.75rem 0.9rem 0;
+	padding: 0.45rem 0.25rem;
+}
+
+.admin-topbar__context { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; color: var(--admin-muted); font-size: 0.72rem; }
+.admin-topbar__context strong { color: var(--admin-text); font-weight: 650; }
+.admin-topbar__status, .admin-dashboard__live-dot { width: 0.48rem; height: 0.48rem; border-radius: 50%; background: var(--admin-green); box-shadow: none; }
+
+.admin-topbar__site-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45rem;
+	min-height: 2.75rem;
+	padding: 0.55rem 0.85rem;
+	border: 1px solid var(--admin-border);
+	border-radius: 0.75rem;
+	background: var(--admin-blue-soft);
+	color: var(--admin-text);
+	font-size: 0.7rem;
+	font-weight: 700;
+	text-decoration: none;
+}
+
+.admin-topbar__site-link svg { width: 1rem; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.admin-body--workspace > main { position: relative; z-index: 1; grid-column: 2; grid-row: 2; }
+
+.admin-body--workspace .admin-dashboard {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(17rem, 0.32fr);
+	gap: 1rem;
+	width: 100%;
+	max-width: none;
+	padding: 1rem 0.9rem 1.5rem;
+}
+
+.admin-dashboard__hero,
+.admin-dashboard__workspace-section,
+.admin-body--workspace .admin-dashboard__status,
+.admin-workspace-card {
+	border: 1px solid var(--admin-border);
+	background: var(--admin-panel);
+	box-shadow: 0 20px 55px rgba(0, 0, 0, 0.28), inset 0 1px rgba(255, 255, 255, 0.055);
+	backdrop-filter: blur(22px) saturate(130%);
+}
+
+.admin-dashboard__hero {
+	position: relative;
+	display: block;
+	grid-column: 1 / -1;
+	min-height: 0;
+	padding: 0.85rem 0.25rem 0.35rem;
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+	backdrop-filter: none;
+}
+
+.admin-dashboard__intro { position: relative; z-index: 1; }
+.admin-body--workspace .admin-eyebrow { display: flex; align-items: center; gap: 0.55rem; margin-bottom: 0.7rem; color: var(--admin-muted); font-size: 0.6rem; }
+.admin-body--workspace .admin-dashboard h1, .admin-body--workspace .admin-dashboard h2 { font-family: inherit; font-weight: 650; }
+.admin-body--workspace .admin-dashboard h1 { max-width: 20ch; font-size: clamp(1.9rem, 3vw, 2.4rem); letter-spacing: -0.035em; }
+.admin-body--workspace .admin-dashboard h2 { font-size: clamp(1.25rem, 2vw, 1.75rem); letter-spacing: -0.025em; }
+.admin-body--workspace .admin-dashboard__lede { max-width: 46rem; margin-top: 1rem; color: var(--admin-muted); font-size: 0.9rem; }
+.admin-body--workspace .admin-dashboard__actions { margin-top: 1.4rem; }
+
+.admin-body--workspace .admin-primary-link,
+.admin-body--workspace .admin-secondary-link { border-radius: 0.72rem; font-size: 0.67rem; letter-spacing: 0.04em; text-decoration: none; }
+.admin-body--workspace .admin-primary-link { border-color: #e8e3d9; background: #e8e3d9; box-shadow: none; color: #1a1814; }
+.admin-body--workspace .admin-secondary-link { padding-inline: 0.9rem; border: 1px solid var(--admin-border); background: var(--admin-panel-soft); }
+
+.admin-dashboard__workspace-section { min-width: 0; padding: 1.15rem; border-radius: 1.35rem; }
+.admin-dashboard__section-heading { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.admin-dashboard__section-heading > p { max-width: 24rem; margin: 0; color: var(--admin-muted); font-size: 0.7rem; }
+.admin-dashboard__workspace-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.72rem; }
+
+.admin-workspace-card {
+	position: relative;
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	gap: 0.2rem 0.75rem;
+	min-height: 7.25rem;
+	padding: 0.95rem;
+	border-radius: 0.95rem;
+	color: inherit;
+	text-decoration: none;
+	transition: border-color 180ms ease, transform 180ms ease, background 180ms ease;
+}
+
+.admin-workspace-card--wide { grid-column: 1 / -1; }
+.admin-workspace-card__icon { display: grid; grid-row: 1 / span 4; place-items: center; width: 2.6rem; height: 2.6rem; border: 1px solid rgba(188, 164, 125, 0.35); border-radius: 0.8rem; background: var(--admin-blue-soft); color: #d4bd97; }
+.admin-workspace-card__icon svg, .admin-dashboard__access-icon svg { width: 1.22rem; fill: currentColor; }
+.admin-workspace-card__category { color: #d4bd97; font-size: 0.56rem; font-weight: 750; letter-spacing: 0.12em; text-transform: uppercase; }
+.admin-workspace-card strong { font-size: 0.98rem; }
+.admin-workspace-card__description { color: var(--admin-muted); font-size: 0.7rem; line-height: 1.45; }
+.admin-workspace-card__action { align-self: end; color: #d4bd97; font-size: 0.64rem; font-weight: 700; }
+
+.admin-body--workspace .admin-dashboard__status { align-self: stretch; padding: 1.15rem; border-radius: 1.35rem; color: var(--admin-text); }
+.admin-dashboard__access-heading { display: flex; align-items: center; gap: 0.75rem; }
+.admin-dashboard__access-icon { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: 0.85rem; background: rgba(145, 168, 140, 0.12); color: var(--admin-green); }
+.admin-body--workspace .admin-access-list { display: grid; margin-top: 1rem; border-top: 1px solid var(--admin-border); }
+.admin-body--workspace .admin-access-list div { display: grid; grid-template-columns: 1fr; gap: 0.2rem; padding-block: 0.9rem; border-bottom: 1px solid var(--admin-border); }
+.admin-body--workspace .admin-access-list dt { color: var(--admin-muted); font-size: 0.55rem; }
+.admin-body--workspace .admin-access-list dd { font-size: 0.7rem; }
+
+.admin-body--sidebar-collapsed .admin-brand__copy,
+.admin-body--sidebar-collapsed .admin-nav__group-label,
+.admin-body--sidebar-collapsed .admin-header__identity { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.admin-body--sidebar-collapsed .admin-sidebar-toggle svg { transform: rotate(180deg); }
+.admin-body--sidebar-collapsed .admin-brand { grid-template-columns: 1fr; justify-items: center; padding: 2.55rem 0.2rem 0.2rem; }
+.admin-body--sidebar-collapsed .admin-nav__link { grid-template-columns: 1fr; justify-items: center; padding-inline: 0.5rem; }
+.admin-body--sidebar-collapsed .admin-nav__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.admin-body--sidebar-collapsed .admin-header__session { grid-template-columns: 1fr; justify-items: center; padding-inline: 0.2rem; }
+.admin-body--sidebar-collapsed .admin-text-button { font-size: 0; }
+.admin-body--sidebar-collapsed .admin-text-button::before { font-size: 1rem; content: "\2192"; }
+
+.admin-sidebar-toggle:focus-visible,
+.admin-topbar__site-link:focus-visible,
+.admin-workspace-card:focus-visible { outline: 3px solid #e8e3d9; outline-offset: 3px; }
+
+@media (hover: hover) {
+	.admin-body--workspace .admin-nav__link:not(.admin-nav__link--active):hover,
+	.admin-body--workspace .admin-text-button:hover { background: rgba(255, 255, 255, 0.065); color: #fff; }
+	.admin-workspace-card:hover { border-color: rgba(232, 227, 217, 0.28); background: rgba(39, 35, 29, 0.9); transform: translateY(-2px); }
+}
+
+@media (max-width: 64rem) {
+	.admin-body--workspace .admin-dashboard { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 48rem) {
+	.admin-body--workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr; }
+	.admin-sidebar { position: relative; grid-column: 1; grid-row: 1; height: auto; margin: 0.65rem; }
+	.admin-body--workspace .admin-brand { grid-template-columns: 2.65rem minmax(0, 1fr); }
+	.admin-body--workspace .admin-brand__copy { display: grid; position: static; width: auto; height: auto; clip: auto; }
+	.admin-body--workspace .admin-header__workspace { grid-template-rows: auto; }
+	.admin-body--workspace .admin-nav { overflow: visible; }
+	.admin-body--workspace .admin-nav__list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.admin-body--workspace .admin-nav__group-label { grid-column: 1 / -1; }
+	.admin-body--workspace .admin-nav__link { grid-template-columns: 1.25rem minmax(0, 1fr); justify-items: start; }
+	.admin-body--workspace .admin-nav__label { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+	.admin-body--workspace .admin-header__session { display: grid; grid-template-columns: 2.35rem minmax(0, 1fr) auto; padding-inline: 0.6rem; }
+	.admin-body--workspace .admin-header__identity { display: grid; }
+	.admin-topbar { grid-column: 1; grid-row: 2; margin: 0 0.65rem; }
+	.admin-body--workspace > main { grid-column: 1; grid-row: 3; }
+	.admin-body--workspace .admin-dashboard { padding: 0.65rem; }
+	.admin-sidebar-toggle { display: none !important; }
+}
+
+@media (max-width: 36rem) {
+	.admin-topbar__context span:not(.admin-topbar__status) { display: none; }
+	.admin-dashboard__section-heading { align-items: start; flex-direction: column; }
+	.admin-dashboard__workspace-grid { grid-template-columns: minmax(0, 1fr); }
+	.admin-workspace-card--wide { grid-column: auto; }
+}
+
+@media (max-width: 25rem) {
+	.admin-body--workspace .admin-nav__list { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.admin-body--workspace,
+	.admin-sidebar-toggle svg,
+	.admin-body--workspace .admin-nav__link,
+	.admin-workspace-card { transition: none; }
+}
+
+@media (forced-colors: active) {
+	.admin-sidebar,
+	.admin-topbar,
+	.admin-dashboard__hero,
+	.admin-dashboard__workspace-section,
+	.admin-body--workspace .admin-dashboard__status,
+	.admin-workspace-card { border: 1px solid CanvasText; }
+	.admin-body--workspace .admin-nav__link--active { outline: 2px solid LinkText; }
 }

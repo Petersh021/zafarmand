@@ -1,72 +1,222 @@
 {{/*
-The overview links to the current Product, Interior-project, Architecture-
-project, site-content, and inquiry workflows. It does not request or imply
-summary counts, because operational metrics belong to a later stage with
-explicit data and performance requirements.
+The Zafarmand overview combines the real publishing shortcuts
+with clearly labelled demonstration commerce panels. Static sample values let
+the visual system be reviewed without suggesting that an order, payment, or
+analytics backend already exists.
 */}}
+{{define "admin-head"}}
+<link rel="stylesheet" href="/static/css/admin-dashboard.css?v=1">
+{{end}}
+
+{{define "admin-scripts"}}
+<script src="/static/js/admin-dashboard.js?v=1" defer></script>
+{{end}}
+
 {{define "admin-content"}}
-<main class="admin-dashboard" id="admin-main-content">
-	<section
-		class="admin-dashboard__intro"
-		aria-labelledby="admin-dashboard-title"
-	>
-		<p class="admin-eyebrow">Authenticated workspace</p>
-
-		<h1 id="admin-dashboard-title">Administration overview</h1>
-
-		<p class="admin-dashboard__lede">
-			Create and review publication records, manage Homepage and Contact presentation, and review messages received through the public Contact form.
-		</p>
+<main class="admin-dashboard admin-dashboard--studio" id="admin-main-content">
+	<header class="admin-dashboard__hero" aria-labelledby="admin-dashboard-title">
+		<div class="admin-dashboard__intro">
+			<p class="admin-eyebrow">
+				<span class="admin-dashboard__live-dot" aria-hidden="true"></span>
+				Private studio workspace
+			</p>
+			<h1 id="admin-dashboard-title">Administration overview</h1>
+			<p class="admin-dashboard__lede">
+				An architectural command centre for publishing, customer communication,
+				and the commerce tools planned for Zafarmand.
+			</p>
+		</div>
 
 		<div class="admin-dashboard__actions">
-			<a class="admin-primary-link" href="/admin/products">
-				Open Product catalogue
-			</a>
+			<a class="admin-primary-link" href="/admin/products">Open Product catalogue</a>
+			<a class="admin-secondary-link" href="/admin/inquiries">Open inquiry inbox</a>
+		</div>
+	</header>
 
-			<a class="admin-secondary-link" href="/admin/interior-projects">
-				Open Interior portfolio
-			</a>
+	<aside class="admin-demo-notice" aria-label="Dashboard data notice">
+		<span class="admin-demo-notice__icon" aria-hidden="true">D</span>
+		<div>
+			<strong>Demonstration dashboard</strong>
+			<p>Commerce totals, visitors, orders, stock, and charts below are illustrative preview data. Connected publishing shortcuts remain real.</p>
+		</div>
+		<span class="admin-demo-badge">Preview data</span>
+	</aside>
 
-			{{/* This independent workspace never relies on JavaScript routing. */}}
-			<a class="admin-secondary-link" href="/admin/architecture-projects">
-				Open Architecture portfolio
-			</a>
+	<div class="admin-dashboard__analytics-grid">
+		<section class="admin-glass-panel admin-sales-panel" aria-labelledby="admin-sales-title">
+			<div class="admin-panel-heading">
+				<div>
+					<p class="admin-panel-kicker">Shop performance</p>
+					<h2 id="admin-sales-title">Sales studio</h2>
+				</div>
+				<div class="admin-sales-panel__controls">
+					<span class="admin-chart-comparison-key"><i aria-hidden="true"></i> Compare: <b data-dashboard-label="comparison">Previous</b></span>
+					<ul class="admin-range-list" aria-label="Illustrative chart periods">
+						<li><button type="button" data-dashboard-range="12m" aria-pressed="false">12M</button></li>
+						<li><button type="button" data-dashboard-range="6m" aria-pressed="false">6M</button></li>
+						<li><button type="button" data-dashboard-range="30d" aria-pressed="false">30D</button></li>
+						<li><button type="button" data-dashboard-range="7d" aria-pressed="true">7D</button></li>
+					</ul>
+				</div>
+			</div>
 
-			{{/*
-			Site content is a real server-rendered workspace for Homepage identity,
-			featured selections, direct Contact information, and managed metadata.
-			*/}}
-			<a class="admin-secondary-link" href="/admin/site-content">
-				Open site content
-			</a>
+			<div class="admin-sales-metrics" aria-label="Illustrative sales metrics">
+				<div><span>Today so far</span><strong data-dashboard-metric="today">$244</strong><small data-dashboard-caption="today">+12% vs last Sunday</small></div>
+				<div><span data-dashboard-label="range">Last 7 days</span><strong data-dashboard-metric="range">$6,409</strong><small data-dashboard-caption="range">+8.4% vs previous</small></div>
+				<div><span>Orders today</span><strong data-dashboard-metric="orders">6</strong><small data-dashboard-caption="orders">+2 vs last Sunday</small></div>
+			</div>
 
-			<a class="admin-secondary-link" href="/admin/inquiries">
-				Open inquiry inbox
-			</a>
+			<div class="admin-line-chart" role="img" aria-label="Illustrative seven-day sales trend from Monday through Sunday; not live data" data-dashboard-chart>
+				<div class="admin-line-chart__grid" aria-hidden="true"></div>
+				<ol class="admin-line-chart__scale" aria-hidden="true" data-dashboard-chart-scale><li>$1.5k</li><li>$750</li><li>$0</li></ol>
+				<svg viewBox="0 0 720 230" preserveAspectRatio="none" aria-hidden="true">
+					<defs>
+						<linearGradient id="admin-sales-area" x1="0" y1="0" x2="0" y2="1">
+							<stop offset="0" stop-color="#c2a77a" stop-opacity=".3" />
+							<stop offset="1" stop-color="#c2a77a" stop-opacity="0" />
+						</linearGradient>
+					</defs>
+					<path class="admin-line-chart__area" data-dashboard-chart-area d="M0 190 L120 152 L240 122 L360 142 L480 91 L600 126 L720 38 L720 230 L0 230 Z" />
+					<path class="admin-line-chart__comparison" data-dashboard-chart-comparison d="M0 198 L120 174 L240 145 L360 158 L480 112 L600 141 L720 72" />
+					<path class="admin-line-chart__line" data-dashboard-chart-line d="M0 190 L120 152 L240 122 L360 142 L480 91 L600 126 L720 38" />
+					<circle data-dashboard-chart-point cx="720" cy="38" r="5" />
+				</svg>
+				<ol class="admin-line-chart__labels" aria-hidden="true" data-dashboard-chart-labels>
+					<li>Mon</li><li>Tue</li><li>Wed</li><li>Thu</li><li>Fri</li><li>Sat</li><li>Sun</li>
+				</ol>
+			</div>
+			<p class="admin-visually-hidden" aria-live="polite" data-dashboard-announcer>Showing preview sales for the last 7 days.</p>
+		</section>
+
+		<section class="admin-glass-panel admin-goal-panel" aria-labelledby="admin-goal-title">
+			<div class="admin-panel-heading">
+				<div><p class="admin-panel-kicker">November &middot; 21 days to go</p><h2 id="admin-goal-title">Monthly goal</h2></div>
+				<div class="admin-panel-heading__actions">
+					<span class="admin-panel-tag">Demo</span>
+					<button type="button" class="admin-panel-icon-button" data-dashboard-goal-open aria-label="Edit demonstration monthly goal">Edit</button>
+				</div>
+			</div>
+			<div class="admin-goal-ring" role="img" aria-label="Illustrative monthly goal progress: one percent of twenty-four thousand dollars">
+				<svg viewBox="0 0 100 100" aria-hidden="true">
+					<circle class="admin-goal-ring__track" cx="50" cy="50" r="42" pathLength="100" />
+					<circle class="admin-goal-ring__value" data-dashboard-goal-ring cx="50" cy="50" r="42" pathLength="100" stroke-dasharray="1 99" />
+				</svg>
+				<div><strong data-dashboard-goal-percent>1%</strong><span data-dashboard-goal-label>of $24k</span></div>
+			</div>
+			<dl class="admin-goal-details">
+				<div><dt>Booked</dt><dd data-dashboard-goal-booked>$244</dd></div>
+				<div><dt>Daily pace needed</dt><dd data-dashboard-goal-pace>$1,131</dd></div>
+				<div><dt>Previous month</dt><dd>$21,760</dd></div>
+			</dl>
+
+			<dialog class="admin-mini-dialog" data-dashboard-goal-dialog>
+				<form method="dialog" data-dashboard-goal-form>
+					<div><p class="admin-panel-kicker">Browser preview</p><h3>Edit monthly goal</h3></div>
+					<label>Goal amount in dollars<input type="number" min="1000" max="1000000" step="500" value="24000" required data-dashboard-goal-input></label>
+					<p>This updates demonstration data in this browser only.</p>
+					<div class="admin-mini-dialog__actions"><button type="button" data-dashboard-goal-cancel>Cancel</button><button type="submit">Update goal</button></div>
+				</form>
+			</dialog>
+		</section>
+
+		<section class="admin-glass-panel admin-live-panel" aria-labelledby="admin-live-title">
+			<div class="admin-panel-heading">
+				<div><p class="admin-panel-kicker">Right now</p><h2 id="admin-live-title">Live store</h2></div>
+				<span class="admin-panel-tag admin-panel-tag--green">Demo</span>
+			</div>
+			<div class="admin-live-panel__total"><strong>38</strong><span>illustrative visitors</span></div>
+			<div class="admin-spark-bars" role="img" aria-label="Illustrative visitor activity bars; not live data">
+				<span class="admin-spark-bars__4"></span><span class="admin-spark-bars__7"></span><span class="admin-spark-bars__5"></span><span class="admin-spark-bars__9"></span><span class="admin-spark-bars__6"></span><span class="admin-spark-bars__8"></span><span class="admin-spark-bars__10"></span><span class="admin-spark-bars__7"></span><span class="admin-spark-bars__5"></span><span class="admin-spark-bars__8"></span><span class="admin-spark-bars__6"></span><span class="admin-spark-bars__9"></span>
+			</div>
+			<dl class="admin-live-details">
+				<div><dt>Carts open</dt><dd>9</dd></div>
+				<div><dt>30-day conversion</dt><dd>3.8%</dd></div>
+				<div><dt>Top page</dt><dd>Pivot lounge chair</dd></div>
+				<div><dt>Checkout health</dt><dd><span class="admin-status-pill admin-status-pill--green">Healthy</span></dd></div>
+			</dl>
+			<p class="admin-live-panel__change"><span aria-hidden="true">&uarr;</span> 18% sample change</p>
+		</section>
+	</div>
+
+	<div class="admin-dashboard__operations-grid">
+		<section class="admin-glass-panel admin-queue-panel" aria-labelledby="admin-queue-title">
+			<div class="admin-panel-heading">
+				<div><p class="admin-panel-kicker">3 paid and waiting</p><h2 id="admin-queue-title">Packing queue</h2></div>
+				<a href="/admin/orders?view=board">Board <span aria-hidden="true">&rarr;</span></a>
+			</div>
+			<ol class="admin-record-list">
+				<li><span class="admin-record-avatar admin-record-avatar--blue" aria-hidden="true">SM</span><div><strong>Sofia Moreno</strong><span>ZF-1048 &middot; 2 items &middot; $37.50</span></div><span class="admin-status-pill admin-status-pill--amber">To pack</span></li>
+				<li><span class="admin-record-avatar admin-record-avatar--violet" aria-hidden="true">YM</span><div><strong>Yara Moreno</strong><span>ZF-1047 &middot; 3 items &middot; $62.05</span></div><span class="admin-status-pill admin-status-pill--green">Packed</span></li>
+				<li><span class="admin-record-avatar admin-record-avatar--cyan" aria-hidden="true">JH</span><div><strong>June Hart</strong><span>ZF-1046 &middot; 2 items &middot; $33.50</span></div><span class="admin-status-pill">Paid</span></li>
+			</ol>
+		</section>
+
+		<section class="admin-glass-panel admin-stock-panel" aria-labelledby="admin-stock-title">
+			<div class="admin-panel-heading">
+				<div><p class="admin-panel-kicker">Inventory signal</p><h2 id="admin-stock-title">Running low</h2></div>
+				<a href="/admin/products">Catalogue <span aria-hidden="true">&rarr;</span></a>
+			</div>
+			<ul class="admin-stock-list">
+				<li><span class="admin-stock-swatch admin-stock-swatch--stone" aria-hidden="true"></span><div><strong>Travertine coffee table</strong><span>3 left &middot; reorder at 8<span class="admin-stock-meter"><i class="admin-stock-meter__30"></i></span></span></div><button type="button" data-dashboard-restock="Travertine coffee table">Restock</button></li>
+				<li><span class="admin-stock-swatch admin-stock-swatch--umber" aria-hidden="true"></span><div><strong>Pivot lounge chair</strong><span>5 left &middot; reorder at 10<span class="admin-stock-meter"><i class="admin-stock-meter__50"></i></span></span></div><button type="button" data-dashboard-restock="Pivot lounge chair">Restock</button></li>
+				<li><span class="admin-stock-swatch admin-stock-swatch--ink" aria-hidden="true"></span><div><strong>Noir pendant lamp</strong><span>7 left &middot; reorder at 12<span class="admin-stock-meter"><i class="admin-stock-meter__58"></i></span></span></div><button type="button" data-dashboard-restock="Noir pendant lamp">Restock</button></li>
+			</ul>
+		</section>
+
+		<section class="admin-glass-panel admin-source-panel" aria-labelledby="admin-source-title">
+			<div class="admin-panel-heading">
+				<div><p class="admin-panel-kicker">Acquisition</p><h2 id="admin-source-title">Where sales came from</h2></div>
+				<span class="admin-panel-tag">Demo</span>
+			</div>
+			<ul class="admin-source-list">
+				<li><div><span>Direct</span><strong>44%</strong></div><span class="admin-source-track"><i class="admin-source-fill admin-source-fill--44"></i></span></li>
+				<li><div><span>Instagram</span><strong>31%</strong></div><span class="admin-source-track"><i class="admin-source-fill admin-source-fill--31"></i></span></li>
+				<li><div><span>Search</span><strong>17%</strong></div><span class="admin-source-track"><i class="admin-source-fill admin-source-fill--17"></i></span></li>
+				<li><div><span>Referral</span><strong>8%</strong></div><span class="admin-source-track"><i class="admin-source-fill admin-source-fill--8"></i></span></li>
+			</ul>
+		</section>
+
+		<section class="admin-glass-panel admin-best-panel" aria-labelledby="admin-best-title">
+			<div class="admin-panel-heading">
+				<div><p class="admin-panel-kicker">Last 30 days</p><h2 id="admin-best-title">Best sellers</h2></div>
+				<a href="/admin/products">Products <span aria-hidden="true">&rarr;</span></a>
+			</div>
+			<ol class="admin-best-list">
+				<li><span>01</span><div><strong>Pivot lounge chair</strong><small>42 sold &middot; $27,090</small></div></li>
+				<li><span>02</span><div><strong>Noir pendant lamp</strong><small>36 sold &middot; $15,480</small></div></li>
+				<li><span>03</span><div><strong>Travertine coffee table</strong><small>19 sold &middot; $20,900</small></div></li>
+			</ol>
+		</section>
+	</div>
+
+	<div class="admin-demo-toast" role="status" aria-live="polite" data-dashboard-toast hidden>
+		<span data-dashboard-toast-message></span>
+		<button type="button" data-dashboard-toast-undo hidden>Undo</button>
+	</div>
+
+	<section class="admin-dashboard__workspace-section" aria-labelledby="admin-workspaces-title">
+		<div class="admin-dashboard__section-heading">
+			<div><p class="admin-eyebrow">Connected tools</p><h2 id="admin-workspaces-title">Publishing workspaces</h2></div>
+			<p>These destinations use protected, server-rendered project and inquiry workflows.</p>
+		</div>
+		<div class="admin-dashboard__workspace-grid">
+			<a class="admin-workspace-card" href="/admin/products"><span class="admin-workspace-card__category">Catalogue</span><strong>Products</strong><span class="admin-workspace-card__description">Create products, publication states, and cover imagery.</span><span class="admin-workspace-card__action">Open Product catalogue <span aria-hidden="true">&rarr;</span></span></a>
+			<a class="admin-workspace-card" href="/admin/interior-projects"><span class="admin-workspace-card__category">Portfolio</span><strong>Interior projects</strong><span class="admin-workspace-card__description">Prepare interior case studies and their public presentation.</span><span class="admin-workspace-card__action">Open Interior portfolio <span aria-hidden="true">&rarr;</span></span></a>
+			<a class="admin-workspace-card" href="/admin/architecture-projects"><span class="admin-workspace-card__category">Portfolio</span><strong>Architecture projects</strong><span class="admin-workspace-card__description">Publish architectural projects and ordered cover records.</span><span class="admin-workspace-card__action">Open Architecture portfolio <span aria-hidden="true">&rarr;</span></span></a>
+			<a class="admin-workspace-card" href="/admin/site-content"><span class="admin-workspace-card__category">Website</span><strong>Site content</strong><span class="admin-workspace-card__description">Manage Homepage identity and Contact presentation.</span><span class="admin-workspace-card__action">Open site content <span aria-hidden="true">&rarr;</span></span></a>
+			<a class="admin-workspace-card" href="/admin/inquiries"><span class="admin-workspace-card__category">Communication</span><strong>Inquiries</strong><span class="admin-workspace-card__description">Review new messages and maintain workflow status.</span><span class="admin-workspace-card__action">Open inquiry inbox <span aria-hidden="true">&rarr;</span></span></a>
 		</div>
 	</section>
 
-	<section
-		class="admin-dashboard__status"
-		aria-labelledby="admin-access-title"
-	>
-		<h2 id="admin-access-title">Current access</h2>
-
+	<section class="admin-dashboard__status" aria-labelledby="admin-access-title">
+		<div class="admin-dashboard__access-heading">
+			<span class="admin-dashboard__access-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5.2 3.4 9.7 8 11 4.6-1.3 8-5.8 8-11V5l-8-3Zm0 2.1 6 2.2V11c0 4.1-2.5 7.7-6 8.9-3.5-1.2-6-4.8-6-8.9V6.3l6-2.2Z" /></svg></span>
+			<div><p class="admin-eyebrow">Session</p><h2 id="admin-access-title">Current access</h2></div>
+		</div>
 		<dl class="admin-access-list">
-			<div>
-				<dt>Signed in as</dt>
-				<dd>{{.Identity.Email}}</dd>
-			</div>
-
-			<div>
-				<dt>Role</dt>
-				<dd>{{.Identity.RoleLabel}}</dd>
-			</div>
-
-			<div>
-				<dt>Available tools</dt>
-				<dd>Product, Interior-project, Architecture-project, and site-content management; inquiry review and status management</dd>
-			</div>
+			<div><dt>Signed in as</dt><dd>{{.Identity.Email}}</dd></div>
+			<div><dt>Role</dt><dd>{{.Identity.RoleLabel}}</dd></div>
+			<div><dt>Available tools</dt><dd>Product, Interior-project, Architecture-project, and site-content management; inquiry review and status management</dd></div>
 		</dl>
 	</section>
 </main>

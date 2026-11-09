@@ -861,11 +861,17 @@ func TestAdminInquiryDetailRendersExplicitStatusActions(t *testing.T) {
 		fixture.sessionToken,
 		adminHTTPTestPassword,
 		"submission_key",
-		"<script",
 	} {
 		if strings.Contains(response.Body, omitted) {
 			t.Errorf("detail HTML unexpectedly contains %q", omitted)
 		}
+	}
+	const shellScript = `<script src="/static/js/admin-shell.js?v=1" defer></script>`
+	if !strings.Contains(response.Body, shellScript) {
+		t.Error("detail HTML does not load the authenticated admin shell controller")
+	}
+	if count := strings.Count(response.Body, "<script"); count != 1 {
+		t.Errorf("detail script count: got %d, want exactly the self-hosted shell controller", count)
 	}
 	if token := adminHTTPHiddenValue(
 		t,

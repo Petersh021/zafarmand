@@ -130,6 +130,25 @@ func (app *application) routes() http.Handler {
 		app.requireAdmin(http.HandlerFunc(app.adminLogoutHandler)),
 	)
 
+	// Architectural reference workspaces expose the complete administration
+	// information architecture before every business subsystem has a persistence
+	// backend. They are exact, read-only GET routes: authentication and an
+	// explicit role allowlist still apply, while unknown /admin paths remain 404.
+	referenceWorkspaceRoles := requireAdminRoles(
+		adminRoleOwner,
+		adminRoleEditor,
+	)
+	for _, path := range adminReferenceWorkspacePaths {
+		mux.Handle(
+			"GET "+path,
+			app.requireAdmin(
+				referenceWorkspaceRoles(
+					http.HandlerFunc(app.adminReferenceWorkspaceHandler),
+				),
+			),
+		)
+	}
+
 	// Both current roles can inspect every Product lifecycle state, while future
 	// roles receive no access unless added explicitly to this read allowlist.
 	productReaderRoles := requireAdminRoles(

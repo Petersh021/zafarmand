@@ -131,6 +131,65 @@ func TestAdminProductRoutesAllowCurrentReaderRoles(t *testing.T) {
 	}
 }
 
+// TestAdminProductListRendersCompleteOperationsWorkspace protects the four
+// Product views and their honest boundary: catalogue links remain connected to
+// real protected records while inventory actions are self-hosted previews.
+func TestAdminProductListRendersCompleteOperationsWorkspace(t *testing.T) {
+	reader := newRecordingAdminProductReader()
+	fixture := newAdminHTTPAuthenticatedFixture(t, adminRoleOwner)
+	fixture.app.adminProducts = reader
+
+	request := adminHTTPNewRequest(
+		http.MethodGet,
+		"/admin/products",
+		nil,
+		false,
+		fixture.cookies()...,
+	)
+	response := stage16ServeAdminRequest(t, fixture.app, request)
+
+	assertStage16AdminStatus(t, response, http.StatusOK)
+	assertStage16BodyContains(
+		t,
+		response.Body,
+		`href="/static/css/admin-products.css?v=1"`,
+		`src="/static/js/admin-products.js?v=1"`,
+		`role="tablist"`,
+		`data-product-tab="catalogue"`,
+		`data-product-tab="stock"`,
+		`data-product-tab="restocking"`,
+		`data-product-tab="collections"`,
+		`data-product-panel="catalogue"`,
+		`data-product-panel="stock"`,
+		`data-product-panel="restocking"`,
+		`data-product-panel="collections"`,
+		`data-product-search`,
+		`data-product-status`,
+		`data-product-category`,
+		`data-product-sort`,
+		`data-product-export`,
+		`data-stock-restock`,
+		`data-stock-dialog`,
+		`data-stock-dialog-confirm`,
+		`data-restock-move`,
+		`data-restock-reset`,
+		`data-collection-feature`,
+		`data-collections-reset`,
+		`data-product-toast`,
+		`data-product-announcer`,
+		`Browser preview`,
+		`These records are read from PostgreSQL`,
+		`href="/admin/products/new"`,
+	)
+	if count := strings.Count(response.Body, `data-product-tab=`); count != 4 {
+		t.Errorf("Product workspace tabs: got %d, want 4", count)
+	}
+	if count := strings.Count(response.Body, `data-product-panel=`); count != 4 {
+		t.Errorf("Product workspace panels: got %d, want 4", count)
+	}
+	assertAdminProductCalls(t, reader, 1, nil)
+}
+
 // TestAdminProductRoutesAcceptOnlyCanonicalURLs prevents alternate query and ID
 // spellings from reaching the repository or creating duplicate protected URLs.
 func TestAdminProductRoutesAcceptOnlyCanonicalURLs(t *testing.T) {

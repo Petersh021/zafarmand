@@ -1246,12 +1246,20 @@ func TestAdminDashboardRendersAuthenticatedIdentity(t *testing.T) {
 			body := recorder.Body.String()
 			for _, expected := range []string{
 				"Administration overview",
+				"Demonstration dashboard",
+				"Sales studio",
+				"Monthly goal",
+				"Packing queue",
+				"Running low",
+				"Where sales came from",
 				adminHTTPTestEmail,
 				test.label,
 				`href="/admin/inquiries"`,
 				"Open inquiry inbox",
 				`action="/admin/logout"`,
 				`/static/css/admin.css`,
+				`/static/css/admin-dashboard.css`,
+				`/static/js/admin-shell.js`,
 				`name="robots" content="noindex, nofollow, noarchive"`,
 			} {
 				if !strings.Contains(body, expected) {

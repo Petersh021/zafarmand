@@ -1,0 +1,142 @@
+{{/*
+Orders is a complete browser-only operations demonstration. Its search, filters,
+CSV export, bulk actions, details, returns, and packing board are interactive,
+but no simulated commerce mutation is sent to the Go backend.
+*/}}
+{{define "admin-head"}}
+<link rel="stylesheet" href="/static/css/admin-orders.css?v=1">
+{{end}}
+
+{{define "admin-scripts"}}
+<script src="/static/js/admin-orders.js?v=1" defer></script>
+{{end}}
+
+{{define "admin-content"}}
+<main class="admin-orders" id="admin-main-content">
+	<header class="admin-orders__header">
+		<div>
+			<p class="admin-orders__eyebrow">Shop operations</p>
+			<h1>Orders</h1>
+			<p>Every sale from the web store, Instagram, the market stall, and wholesale.</p>
+		</div>
+		<div class="admin-orders__header-actions">
+			<button type="button" class="admin-orders__secondary-action" data-orders-export>Export CSV</button>
+			<button type="button" class="admin-orders__primary-action" data-orders-new>+ New demo order</button>
+		</div>
+	</header>
+
+	<aside class="admin-orders__notice" aria-label="Demonstration workspace notice">
+		<div><strong>Demonstration workspace</strong><span>Preview data is saved only in this browser. It never creates a real order, payment, shipment, or return.</span></div>
+		<span>Read-only preview &middot; no backend order changes</span>
+	</aside>
+
+	<div class="admin-orders__tabs" role="tablist" aria-label="Order workspaces">
+		<button type="button" id="orders-tab-all" role="tab" aria-selected="true" aria-controls="orders-panel-all" tabindex="0" data-orders-tab="all">All orders <span data-orders-count="all">8</span></button>
+		<button type="button" id="orders-tab-board" role="tab" aria-selected="false" aria-controls="orders-panel-board" tabindex="-1" data-orders-tab="board">Packing board <span data-orders-count="board">6</span></button>
+		<button type="button" id="orders-tab-drafts" role="tab" aria-selected="false" aria-controls="orders-panel-drafts" tabindex="-1" data-orders-tab="drafts">Drafts <span>2</span></button>
+		<button type="button" id="orders-tab-returns" role="tab" aria-selected="false" aria-controls="orders-panel-returns" tabindex="-1" data-orders-tab="returns">Returns <span data-orders-count="returns">3</span></button>
+	</div>
+
+	<section class="admin-orders__panel" id="orders-panel-all" role="tabpanel" aria-labelledby="orders-tab-all" data-orders-panel="all">
+		<div class="admin-orders__filters" aria-label="Order filters">
+			<label class="admin-orders__search"><span>Search</span><input type="search" autocomplete="off" placeholder="Order or customer" data-orders-search></label>
+			<label><span>Status</span><select data-orders-status-filter><option value="all">All statuses</option><option value="paid">Paid</option><option value="to-pack">To pack</option><option value="packed">Packed</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="returned">Returned</option></select></label>
+			<label><span>Channel</span><select data-orders-channel-filter><option value="all">All channels</option><option value="web-store">Web store</option><option value="instagram">Instagram</option><option value="market-stall">Market stall</option><option value="wholesale">Wholesale</option></select></label>
+			<label><span>Date</span><select data-orders-date-filter><option value="all">Any date</option><option value="today">Today</option><option value="7d">Last 7 days</option><option value="30d">Last 30 days</option></select></label>
+			<label><span>Sort</span><select data-orders-sort><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="total-desc">Highest total</option><option value="total-asc">Lowest total</option><option value="customer">Customer A–Z</option></select></label>
+			<button type="button" class="admin-orders__clear" data-orders-clear>Clear filters</button>
+		</div>
+
+		<div class="admin-orders__bulkbar">
+			<p><strong data-orders-result-count>8 orders</strong><span data-orders-selection-count>0 selected</span></p>
+			<div>
+				<label><span class="admin-visually-hidden">Bulk action</span><select data-orders-bulk-action><option value="">Bulk action</option><option value="to-pack">Move to To pack</option><option value="packed">Mark packed</option><option value="shipped">Mark shipped</option><option value="delivered">Mark delivered</option></select></label>
+				<button type="button" data-orders-bulk-apply disabled>Apply</button>
+			</div>
+		</div>
+
+		<div class="admin-orders__table-scroll">
+			<table class="admin-orders__table">
+				<thead><tr><th scope="col"><label><span class="admin-visually-hidden">Select every visible order</span><input type="checkbox" data-orders-select-all></label></th><th scope="col">Order</th><th scope="col">Customer</th><th scope="col">Date</th><th scope="col">Channel</th><th scope="col">Items</th><th scope="col">Total</th><th scope="col">Status</th><th scope="col"><span class="admin-visually-hidden">Actions</span></th></tr></thead>
+				<tbody data-orders-table-body>
+					<tr data-order-row data-order-id="ZF-1048" data-customer="Sofia Moreno" data-date="2026-11-09" data-channel="web-store" data-status="to-pack" data-total="37.50" data-items="Travertine bowl, Studio candle"><td><input type="checkbox" aria-label="Select order ZF-1048" data-order-select></td><th scope="row">ZF-1048</th><td>Sofia Moreno</td><td>Nov 9, 2026</td><td>Web store</td><td>2</td><td>$37.50</td><td><span class="admin-orders__status admin-orders__status--amber" data-order-status-label>To pack</span></td><td><button type="button" data-order-details="ZF-1048">Details</button></td></tr>
+					<tr data-order-row data-order-id="ZF-1047" data-customer="Yara Moreno" data-date="2026-11-08" data-channel="instagram" data-status="packed" data-total="62.05" data-items="Pivot cushion, Bronze bowl, Linen throw"><td><input type="checkbox" aria-label="Select order ZF-1047" data-order-select></td><th scope="row">ZF-1047</th><td>Yara Moreno</td><td>Nov 8, 2026</td><td>Instagram</td><td>3</td><td>$62.05</td><td><span class="admin-orders__status admin-orders__status--green" data-order-status-label>Packed</span></td><td><button type="button" data-order-details="ZF-1047">Details</button></td></tr>
+					<tr data-order-row data-order-id="ZF-1046" data-customer="June Hart" data-date="2026-11-07" data-channel="market-stall" data-status="paid" data-total="33.50" data-items="Stone tray, Teme vase"><td><input type="checkbox" aria-label="Select order ZF-1046" data-order-select></td><th scope="row">ZF-1046</th><td>June Hart</td><td>Nov 7, 2026</td><td>Market stall</td><td>2</td><td>$33.50</td><td><span class="admin-orders__status" data-order-status-label>Paid</span></td><td><button type="button" data-order-details="ZF-1046">Details</button></td></tr>
+					<tr data-order-row data-order-id="ZF-1045" data-customer="Noah Stone" data-date="2026-11-06" data-channel="wholesale" data-status="shipped" data-total="420.00" data-items="Noir pendant lamp × 4"><td><input type="checkbox" aria-label="Select order ZF-1045" data-order-select></td><th scope="row">ZF-1045</th><td>Noah Stone</td><td>Nov 6, 2026</td><td>Wholesale</td><td>4</td><td>$420.00</td><td><span class="admin-orders__status admin-orders__status--sage" data-order-status-label>Shipped</span></td><td><button type="button" data-order-details="ZF-1045">Details</button></td></tr>
+					<tr data-order-row data-order-id="ZF-1044" data-customer="Mina Cole" data-date="2026-11-04" data-channel="web-store" data-status="delivered" data-total="890.00" data-items="Pivot lounge chair"><td><input type="checkbox" aria-label="Select order ZF-1044" data-order-select></td><th scope="row">ZF-1044</th><td>Mina Cole</td><td>Nov 4, 2026</td><td>Web store</td><td>1</td><td>$890.00</td><td><span class="admin-orders__status admin-orders__status--sage" data-order-status-label>Delivered</span></td><td><button type="button" data-order-details="ZF-1044">Details</button></td></tr>
+					<tr data-order-row data-order-id="ZF-1043" data-customer="Arman Lee" data-date="2026-11-02" data-channel="instagram" data-status="returned" data-total="140.00" data-items="Bronze bowl"><td><input type="checkbox" aria-label="Select order ZF-1043" data-order-select></td><th scope="row">ZF-1043</th><td>Arman Lee</td><td>Nov 2, 2026</td><td>Instagram</td><td>1</td><td>$140.00</td><td><span class="admin-orders__status admin-orders__status--red" data-order-status-label>Returned</span></td><td><button type="button" data-order-details="ZF-1043">Details</button></td></tr>
+					<tr data-order-row data-order-id="ZF-1042" data-customer="Elena Park" data-date="2026-10-29" data-channel="web-store" data-status="delivered" data-total="1100.00" data-items="Travertine coffee table"><td><input type="checkbox" aria-label="Select order ZF-1042" data-order-select></td><th scope="row">ZF-1042</th><td>Elena Park</td><td>Oct 29, 2026</td><td>Web store</td><td>1</td><td>$1,100.00</td><td><span class="admin-orders__status admin-orders__status--sage" data-order-status-label>Delivered</span></td><td><button type="button" data-order-details="ZF-1042">Details</button></td></tr>
+					<tr data-order-row data-order-id="ZF-1041" data-customer="Owen Reed" data-date="2026-10-19" data-channel="wholesale" data-status="delivered" data-total="1860.00" data-items="Teme vase × 12"><td><input type="checkbox" aria-label="Select order ZF-1041" data-order-select></td><th scope="row">ZF-1041</th><td>Owen Reed</td><td>Oct 19, 2026</td><td>Wholesale</td><td>12</td><td>$1,860.00</td><td><span class="admin-orders__status admin-orders__status--sage" data-order-status-label>Delivered</span></td><td><button type="button" data-order-details="ZF-1041">Details</button></td></tr>
+				</tbody>
+			</table>
+		</div>
+		<p class="admin-orders__empty" data-orders-empty hidden>No orders match these filters.</p>
+	</section>
+
+	<section class="admin-orders__panel" id="orders-panel-board" role="tabpanel" aria-labelledby="orders-tab-board" data-orders-panel="board" hidden>
+		<div class="admin-orders__panel-heading"><div><p>Browser-saved workflow</p><h2>Packing board</h2><span>Drag cards or use each card’s Move selector. Counts and order statuses update together.</span></div><button type="button" data-orders-reset-board>Reset demo board</button></div>
+		<div class="admin-orders__board" data-orders-board>
+			<section class="admin-orders__board-column" data-order-column="to-pack"><header><div><h3>To pack</h3><p>Paid, waiting for hands</p></div><span data-order-column-count="to-pack">2</span></header><div class="admin-orders__board-cards" data-order-dropzone="to-pack">
+				<article class="admin-order-card" draggable="true" data-order-card data-order-id="ZF-1048" data-status="to-pack"><header><strong>ZF-1048</strong><span>12 min ago</span></header><div class="admin-order-card__customer"><span>SM</span><b>Sofia Moreno</b></div><ul><li>Travertine bowl</li><li>Studio candle</li></ul><footer><div><strong>$37.50</strong><span>Web store</span></div><button type="button" aria-label="View details for ZF-1048" data-order-details="ZF-1048">&rarr;</button></footer><label>Move to<select data-order-move><option value="to-pack">To pack</option><option value="packed">Packed</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option></select></label></article>
+				<article class="admin-order-card" draggable="true" data-order-card data-order-id="ZF-1046" data-status="to-pack"><header><strong>ZF-1046</strong><span>36 min ago</span></header><div class="admin-order-card__customer"><span>JH</span><b>June Hart</b></div><ul><li>Stone tray</li><li>Teme vase</li></ul><footer><div><strong>$33.50</strong><span>Market stall</span></div><button type="button" aria-label="View details for ZF-1046" data-order-details="ZF-1046">&rarr;</button></footer><label>Move to<select data-order-move><option value="to-pack">To pack</option><option value="packed">Packed</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option></select></label></article>
+			</div></section>
+			<section class="admin-orders__board-column" data-order-column="packed"><header><div><h3>Packed</h3><p>Boxed, label printed</p></div><span data-order-column-count="packed">2</span></header><div class="admin-orders__board-cards" data-order-dropzone="packed">
+				<article class="admin-order-card" draggable="true" data-order-card data-order-id="ZF-1047" data-status="packed"><header><strong>ZF-1047</strong><span>1 hr ago</span></header><div class="admin-order-card__customer"><span>YM</span><b>Yara Moreno</b></div><ul><li>Pivot cushion</li><li>Bronze bowl + 1</li></ul><footer><div><strong>$62.05</strong><span>Instagram</span></div><button type="button" aria-label="View details for ZF-1047" data-order-details="ZF-1047">&rarr;</button></footer><label>Move to<select data-order-move><option value="to-pack">To pack</option><option value="packed" selected>Packed</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option></select></label></article>
+				<article class="admin-order-card" draggable="true" data-order-card data-order-id="ZF-1050" data-status="packed"><header><strong>ZF-1050</strong><span>2 hr ago</span></header><div class="admin-order-card__customer"><span>LC</span><b>Lena Cruz</b></div><ul><li>Linen throw</li></ul><footer><div><strong>$85.00</strong><span>Web store</span></div><button type="button" aria-label="View details for ZF-1050" data-order-details="ZF-1050">&rarr;</button></footer><label>Move to<select data-order-move><option value="to-pack">To pack</option><option value="packed" selected>Packed</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option></select></label></article>
+			</div></section>
+			<section class="admin-orders__board-column" data-order-column="shipped"><header><div><h3>Shipped</h3><p>With the carrier</p></div><span data-order-column-count="shipped">1</span></header><div class="admin-orders__board-cards" data-order-dropzone="shipped">
+				<article class="admin-order-card" draggable="true" data-order-card data-order-id="ZF-1045" data-status="shipped"><header><strong>ZF-1045</strong><span>Yesterday</span></header><div class="admin-order-card__customer"><span>NS</span><b>Noah Stone</b></div><ul><li>Noir pendant lamp × 4</li></ul><footer><div><strong>$420.00</strong><span>Wholesale</span></div><button type="button" aria-label="View details for ZF-1045" data-order-details="ZF-1045">&rarr;</button></footer><label>Move to<select data-order-move><option value="to-pack">To pack</option><option value="packed">Packed</option><option value="shipped" selected>Shipped</option><option value="delivered">Delivered</option></select></label></article>
+			</div></section>
+			<section class="admin-orders__board-column" data-order-column="delivered"><header><div><h3>Delivered</h3><p>Since yesterday</p></div><span data-order-column-count="delivered">1</span></header><div class="admin-orders__board-cards" data-order-dropzone="delivered">
+				<article class="admin-order-card" draggable="true" data-order-card data-order-id="ZF-1044" data-status="delivered"><header><strong>ZF-1044</strong><span>Yesterday</span></header><div class="admin-order-card__customer"><span>MC</span><b>Mina Cole</b></div><ul><li>Pivot lounge chair</li></ul><footer><div><strong>$890.00</strong><span>Web store</span></div><button type="button" aria-label="View details for ZF-1044" data-order-details="ZF-1044">&rarr;</button></footer><label>Move to<select data-order-move><option value="to-pack">To pack</option><option value="packed">Packed</option><option value="shipped">Shipped</option><option value="delivered" selected>Delivered</option></select></label></article>
+			</div></section>
+		</div>
+	</section>
+
+	<section class="admin-orders__panel" id="orders-panel-drafts" role="tabpanel" aria-labelledby="orders-tab-drafts" data-orders-panel="drafts" hidden>
+		<div class="admin-orders__panel-heading"><div><p>Unsubmitted preview records</p><h2>Draft orders</h2><span>Continue or discard browser-only drafts.</span></div></div>
+		<div class="admin-orders__draft-grid">
+			<article><p>Draft D-021</p><h3>Amelia Ross</h3><span>Pivot lounge chair &middot; $890.00</span><button type="button" data-orders-edit-draft="D-021">Continue draft</button></article>
+			<article><p>Draft D-020</p><h3>Unassigned customer</h3><span>Travertine coffee table &middot; $1,100.00</span><button type="button" data-orders-edit-draft="D-020">Continue draft</button></article>
+		</div>
+	</section>
+
+	<section class="admin-orders__panel" id="orders-panel-returns" role="tabpanel" aria-labelledby="orders-tab-returns" data-orders-panel="returns" hidden>
+		<div class="admin-orders__panel-heading"><div><p>3 sample requests</p><h2>Returns</h2><span>Review, approve, reject, or restock demonstration returns.</span></div><label>Status<select data-returns-filter><option value="all">All requests</option><option value="requested">Requested</option><option value="approved">Approved</option><option value="restocked">Restocked</option></select></label></div>
+		<div class="admin-orders__returns" data-returns-list>
+			<article data-return-card data-return-id="R-018" data-return-order="ZF-1043" data-return-customer="Arman Lee" data-return-product="Bronze bowl" data-return-reason="Changed mind" data-return-status="requested"><div><p>Return R-018 &middot; ZF-1043</p><h3>Arman Lee</h3><span>Bronze bowl &middot; changed mind</span></div><span class="admin-orders__status admin-orders__status--amber" data-return-label>Requested</span><div><button type="button" data-return-action="approve">Approve</button><button type="button" data-return-action="reject">Reject</button><button type="button" data-return-details>Details</button></div></article>
+			<article data-return-card data-return-id="R-017" data-return-order="ZF-1038" data-return-customer="Leo Quinn" data-return-product="Linen throw" data-return-reason="Colour mismatch" data-return-status="approved"><div><p>Return R-017 &middot; ZF-1038</p><h3>Leo Quinn</h3><span>Linen throw &middot; colour mismatch</span></div><span class="admin-orders__status admin-orders__status--sage" data-return-label>Approved</span><div><button type="button" data-return-action="restock">Restock</button><button type="button" data-return-action="reject">Reject</button><button type="button" data-return-details>Details</button></div></article>
+			<article data-return-card data-return-id="R-016" data-return-order="ZF-1032" data-return-customer="Fara Bell" data-return-product="Stone tray" data-return-reason="Transit damage" data-return-status="restocked"><div><p>Return R-016 &middot; ZF-1032</p><h3>Fara Bell</h3><span>Stone tray &middot; transit damage</span></div><span class="admin-orders__status" data-return-label>Restocked</span><div><button type="button" disabled>Completed</button><button type="button" data-return-details>Details</button></div></article>
+		</div>
+	</section>
+
+	<dialog class="admin-orders__dialog" data-orders-detail-dialog>
+		<div class="admin-orders__dialog-shell">
+			<header><div><p>Preview order</p><h2 data-order-dialog-id>ZF-1048</h2></div><button type="button" data-order-dialog-close aria-label="Close order details">Close</button></header>
+			<div class="admin-orders__detail-grid"><section><h3>Customer</h3><p data-order-dialog-customer></p><span data-order-dialog-channel></span></section><section><h3>Order</h3><p data-order-dialog-items></p><strong data-order-dialog-total></strong></section><section><h3>Payment</h3><p>Paid in preview</p><span>Visa ending 1048</span></section><section><h3>Delivery</h3><p>Studio delivery</p><span>Tehran demonstration address</span></section></div>
+			<ol class="admin-orders__timeline"><li><strong>Order created</strong><span>Customer checkout completed</span></li><li><strong>Payment recorded</strong><span>Demonstration payment approved</span></li><li><strong data-order-dialog-stage>Status</strong><span>Current browser-preview stage</span></li></ol>
+			<footer><button type="button" data-order-dialog-previous>Previous</button><button type="button" data-order-dialog-next>Next</button><button type="button" data-order-dialog-close>Done</button></footer>
+		</div>
+	</dialog>
+
+	<dialog class="admin-orders__dialog" data-orders-new-dialog>
+		<form class="admin-orders__dialog-shell" data-orders-new-form method="dialog">
+			<header><div><p>Browser preview</p><h2>New demo order</h2></div><button type="button" data-orders-new-close aria-label="Close new order dialog">Close</button></header>
+			<div class="admin-orders__new-fields"><label>Customer name<input name="customer" required maxlength="80"></label><label>Channel<select name="channel"><option value="web-store">Web store</option><option value="instagram">Instagram</option><option value="market-stall">Market stall</option><option value="wholesale">Wholesale</option></select></label><label>Items<input name="items" required maxlength="160" placeholder="Product names"></label><label>Total<input name="total" type="number" required min="1" max="100000" step="0.01"></label></div>
+			<p>Submitting adds this order only to your browser preview.</p>
+			<footer><button type="button" data-orders-new-close>Cancel</button><button type="submit" class="admin-orders__primary-action">Add demo order</button></footer>
+		</form>
+	</dialog>
+
+	<dialog class="admin-orders__dialog" data-return-detail-dialog>
+		<div class="admin-orders__dialog-shell">
+			<header><div><p>Preview return</p><h2 data-return-dialog-id>R-018</h2></div><button type="button" data-return-dialog-close aria-label="Close return details">Close</button></header>
+			<div class="admin-orders__detail-grid"><section><h3>Customer</h3><p data-return-dialog-customer></p><span data-return-dialog-order></span></section><section><h3>Returned item</h3><p data-return-dialog-product></p><span data-return-dialog-reason></span></section><section><h3>Current status</h3><p data-return-dialog-status></p><span>Browser preview only</span></section><section><h3>Resolution</h3><p>Review with the controls in the Returns queue.</p><span>No refund or inventory mutation is sent.</span></section></div>
+			<footer><button type="button" data-return-dialog-close>Done</button></footer>
+		</div>
+	</dialog>
+
+	<div class="admin-orders__toast" role="status" aria-live="polite" data-orders-toast hidden><span data-orders-toast-message></span><button type="button" data-orders-undo hidden>Undo</button></div>
+	<p class="admin-visually-hidden" aria-live="polite" data-orders-announcer></p>
+</main>
+{{end}}

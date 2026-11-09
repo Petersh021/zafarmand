@@ -1,91 +1,130 @@
 {{/*
-The protected Product catalogue renders all lifecycle states supplied by the
-reader. Product creation, editing, and cover management remain separate trusted
-mutations while the public catalogue stays a published-only query.
-
-Go validates and formats every reference, status modifier, timestamp, and path
-before this template runs. html/template still contextually escapes stored
-names, slugs, and categories at the final output boundary.
+The protected Product workspace keeps its PostgreSQL catalogue authoritative.
+Stock, restocking, and collection views are deliberately isolated browser
+previews until inventory persistence and commerce rules are approved.
 */}}
+{{define "admin-head"}}
+<link rel="stylesheet" href="/static/css/admin-products.css?v=1">
+{{end}}
+
+{{define "admin-scripts"}}
+<script src="/static/js/admin-products.js?v=1" defer></script>
+{{end}}
+
 {{define "admin-content"}}
 <main class="admin-products" id="admin-main-content">
-	<header class="admin-page-header">
-		<a class="admin-back-link" href="/admin">
-			<span aria-hidden="true">&larr;</span>
-			Overview
-		</a>
-
-		<p class="admin-eyebrow">Catalogue workspace</p>
-
-		<h1>Product catalogue</h1>
-
-		<p class="admin-page-header__lede">
-			Review durable catalogue facts, create Products, and open a record before editing its publication state.
-		</p>
-
-		<a class="admin-primary-link admin-page-header__action" href="{{.ProductList.NewPath}}">
-			Create Product
-		</a>
+	<header class="admin-products__header">
+		<div>
+			<p class="admin-eyebrow">Catalogue workspace</p>
+			<h1>Products</h1>
+			<p class="admin-products__lede">
+				Manage real catalogue publication records and explore the planned
+				inventory workflow in an explicitly local preview.
+			</p>
+		</div>
+		<a class="admin-primary-link" href="{{.ProductList.NewPath}}">Create Product</a>
 	</header>
 
-	{{/*
-	An empty successful read is normal for a new database. The interface never
-	creates sample business content or disguises an empty catalogue as an error.
-	*/}}
-	{{if .ProductList.Items}}
-	<ol class="admin-product-list" role="list">
-		{{range .ProductList.Items}}
-		<li class="admin-product-list__item">
-			<article class="admin-product-card">
-				<div class="admin-product-card__heading">
-					<p class="admin-product-reference">Product {{.Reference}}</p>
+	<nav class="admin-products__tabs" aria-label="Product workspace views">
+		<div role="tablist" aria-label="Product workspace">
+			<button type="button" role="tab" id="products-tab-catalogue" aria-controls="products-panel-catalogue" aria-selected="true" tabindex="0" data-product-tab="catalogue">Catalogue</button>
+			<button type="button" role="tab" id="products-tab-stock" aria-controls="products-panel-stock" aria-selected="false" tabindex="-1" data-product-tab="stock">Stock <span>6</span></button>
+			<button type="button" role="tab" id="products-tab-restocking" aria-controls="products-panel-restocking" aria-selected="false" tabindex="-1" data-product-tab="restocking">Restocking <span data-restock-tab-count>3</span></button>
+			<button type="button" role="tab" id="products-tab-collections" aria-controls="products-panel-collections" aria-selected="false" tabindex="-1" data-product-tab="collections">Collections <span>4</span></button>
+		</div>
+	</nav>
 
-					<p class="admin-product-status admin-product-status--{{.StatusClass}}">
-						{{.StatusLabel}}
-					</p>
-				</div>
+	<section class="admin-products__panel" id="products-panel-catalogue" role="tabpanel" aria-labelledby="products-tab-catalogue" data-product-panel="catalogue">
+		<header class="admin-products__panel-heading">
+			<div><p>Connected records</p><h2>Product catalogue</h2><span>These records are read from PostgreSQL. Create and Edit open the real protected workflows.</span></div>
+			<strong><span data-product-result-count>{{len .ProductList.Items}}</span> Products</strong>
+		</header>
 
-				<h2>
-					<a href="{{.Path}}">{{.Name}}</a>
-				</h2>
+		<div class="admin-products__toolbar" data-product-catalogue-toolbar>
+			<label><span>Search</span><input type="search" autocomplete="off" placeholder="Name, slug, or category" data-product-search></label>
+			<label><span>Status</span><select data-product-status><option value="all">All statuses</option><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></label>
+			<label><span>Category</span><select data-product-category><option value="all">All categories</option></select></label>
+			<label><span>Sort</span><select data-product-sort><option value="stored">Editorial order</option><option value="name">Name A–Z</option><option value="category">Category A–Z</option><option value="updated">Recently updated</option></select></label>
+			<button type="button" data-product-export>Export visible CSV</button>
+			<button type="button" data-product-filter-reset>Clear filters</button>
+		</div>
 
-				<dl class="admin-product-card__facts">
-					<div>
-						<dt>Slug</dt>
-						<dd>{{.Slug}}</dd>
+		{{if .ProductList.Items}}
+		<ol class="admin-product-list" role="list" data-product-list>
+			{{range $index, $product := .ProductList.Items}}
+			<li class="admin-product-list__item" data-product-record data-product-index="{{$index}}" data-product-name="{{$product.Name}}" data-product-slug="{{$product.Slug}}" data-product-category="{{$product.Category}}" data-product-status="{{$product.StatusClass}}" data-product-updated="{{$product.UpdatedAtISO}}">
+				<article class="admin-product-card">
+					<div class="admin-product-card__heading">
+						<p class="admin-product-reference">Product {{$product.Reference}}</p>
+						<p class="admin-product-status admin-product-status--{{$product.StatusClass}}">{{$product.StatusLabel}}</p>
 					</div>
-
-					<div>
-						<dt>Category</dt>
-						<dd>{{.Category}}</dd>
-					</div>
-
-					<div>
-						<dt>Sort order</dt>
-						<dd>{{.SortOrder}}</dd>
-					</div>
-
-					<div>
-						<dt>Last stored update</dt>
-						<dd>
-							<time datetime="{{.UpdatedAtISO}}">
-								{{.UpdatedAtLabel}}
-							</time>
-						</dd>
-					</div>
-				</dl>
-			</article>
-		</li>
+					<h3><a href="{{$product.Path}}">{{$product.Name}}</a></h3>
+					<dl class="admin-product-card__facts">
+						<div><dt>Slug</dt><dd>{{$product.Slug}}</dd></div>
+						<div><dt>Category</dt><dd>{{$product.Category}}</dd></div>
+						<div><dt>Sort order</dt><dd>{{$product.SortOrder}}</dd></div>
+						<div><dt>Last stored update</dt><dd><time datetime="{{$product.UpdatedAtISO}}">{{$product.UpdatedAtLabel}}</time></dd></div>
+					</dl>
+				</article>
+			</li>
+			{{end}}
+		</ol>
+		<p class="admin-products__empty-filter" data-product-filter-empty hidden>No catalogue records match these filters.</p>
+		{{else}}
+		<section class="admin-empty-state" aria-labelledby="admin-products-empty-title">
+			<h2 id="admin-products-empty-title">No Products to display</h2>
+			<p>{{.ProductList.EmptyMessage}}</p>
+			<a class="admin-primary-link" href="{{.ProductList.NewPath}}">Create the first Product</a>
+		</section>
 		{{end}}
-	</ol>
-	{{else}}
-	<section class="admin-empty-state" aria-labelledby="admin-products-empty-title">
-		<h2 id="admin-products-empty-title">No Products to display</h2>
-
-		<p>{{.ProductList.EmptyMessage}}</p>
-
-		<a class="admin-primary-link" href="{{.ProductList.NewPath}}">Create the first Product</a>
 	</section>
-	{{end}}
+
+	<section class="admin-products__panel" id="products-panel-stock" role="tabpanel" aria-labelledby="products-tab-stock" data-product-panel="stock" hidden>
+		<aside class="admin-products__preview-notice"><strong>Preview data</strong><span>Stock quantities and actions stay in this browser. They do not change catalogue or public website records.</span><button type="button" data-stock-reset>Reset stock preview</button></aside>
+		<header class="admin-products__panel-heading"><div><p>Inventory preview</p><h2>Stock levels</h2><span>Review availability, reorder points, and locally planned restocks.</span></div><strong><span data-stock-visible-count>6</span> shown</strong></header>
+		<div class="admin-products__stock-controls"><label><span>Filter stock</span><select data-stock-filter><option value="all">All Products</option><option value="low">Running low</option><option value="healthy">Healthy</option><option value="planned">Restock planned</option></select></label></div>
+		<div class="admin-products__stock-grid" data-stock-grid>
+			<article data-stock-card data-stock-id="travertine-table" data-stock-state="low" data-stock-quantity-value="3" data-stock-reorder="8"><div class="admin-products__stock-image admin-products__stock-image--stone" aria-hidden="true"></div><div><p>Furniture</p><h3>Travertine coffee table</h3><span><b data-stock-quantity>3</b> available · reorder at 8</span><meter min="0" max="12" value="3" data-stock-meter>3 of 12</meter></div><button type="button" data-stock-restock>Plan restock</button></article>
+			<article data-stock-card data-stock-id="pivot-chair" data-stock-state="low" data-stock-quantity-value="5" data-stock-reorder="10"><div class="admin-products__stock-image admin-products__stock-image--timber" aria-hidden="true"></div><div><p>Furniture</p><h3>Pivot lounge chair</h3><span><b data-stock-quantity>5</b> available · reorder at 10</span><meter min="0" max="16" value="5" data-stock-meter>5 of 16</meter></div><button type="button" data-stock-restock>Plan restock</button></article>
+			<article data-stock-card data-stock-id="noir-lamp" data-stock-state="low" data-stock-quantity-value="7" data-stock-reorder="12"><div class="admin-products__stock-image admin-products__stock-image--ink" aria-hidden="true"></div><div><p>Lighting</p><h3>Noir pendant lamp</h3><span><b data-stock-quantity>7</b> available · reorder at 12</span><meter min="0" max="20" value="7" data-stock-meter>7 of 20</meter></div><button type="button" data-stock-restock>Plan restock</button></article>
+			<article data-stock-card data-stock-id="bronze-bowl" data-stock-state="healthy" data-stock-quantity-value="18" data-stock-reorder="8"><div class="admin-products__stock-image admin-products__stock-image--bronze" aria-hidden="true"></div><div><p>Accessories</p><h3>Bronze bowl</h3><span><b data-stock-quantity>18</b> available · reorder at 8</span><meter min="0" max="24" value="18" data-stock-meter>18 of 24</meter></div><button type="button" data-stock-restock>Plan restock</button></article>
+			<article data-stock-card data-stock-id="linen-throw" data-stock-state="healthy" data-stock-quantity-value="24" data-stock-reorder="10"><div class="admin-products__stock-image admin-products__stock-image--linen" aria-hidden="true"></div><div><p>Materials</p><h3>Linen throw</h3><span><b data-stock-quantity>24</b> available · reorder at 10</span><meter min="0" max="30" value="24" data-stock-meter>24 of 30</meter></div><button type="button" data-stock-restock>Plan restock</button></article>
+			<article data-stock-card data-stock-id="terra-vase" data-stock-state="healthy" data-stock-quantity-value="14" data-stock-reorder="6"><div class="admin-products__stock-image admin-products__stock-image--clay" aria-hidden="true"></div><div><p>Accessories</p><h3>Terra vase</h3><span><b data-stock-quantity>14</b> available · reorder at 6</span><meter min="0" max="20" value="14" data-stock-meter>14 of 20</meter></div><button type="button" data-stock-restock>Plan restock</button></article>
+		</div>
+	</section>
+
+	<section class="admin-products__panel" id="products-panel-restocking" role="tabpanel" aria-labelledby="products-tab-restocking" data-product-panel="restocking" hidden>
+		<aside class="admin-products__preview-notice"><strong>Browser preview</strong><span>Move these sample plans to explore the workflow. State remains local and can be reset.</span><button type="button" data-restock-reset>Reset workflow</button></aside>
+		<header class="admin-products__panel-heading"><div><p>Supply workflow</p><h2>Restocking</h2><span>Track draft plans, placed orders, and received stock.</span></div><strong><span data-restock-total>3</span> plans</strong></header>
+		<div class="admin-products__restock-board" data-restock-board>
+			<section data-restock-column="planned"><header><div><p>Planning</p><h3>Planned</h3></div><span data-restock-count="planned">1</span></header><div data-restock-dropzone="planned"></div></section>
+			<section data-restock-column="ordered"><header><div><p>Supplier confirmed</p><h3>Ordered</h3></div><span data-restock-count="ordered">1</span></header><div data-restock-dropzone="ordered"></div></section>
+			<section data-restock-column="received"><header><div><p>Added to inventory</p><h3>Received</h3></div><span data-restock-count="received">1</span></header><div data-restock-dropzone="received"></div></section>
+		</div>
+		<template data-restock-template>
+			<article class="admin-products__restock-card" data-restock-card>
+				<div><p data-restock-reference></p><h4 data-restock-name></h4><span data-restock-detail></span></div>
+				<label><span>Move plan</span><select data-restock-move><option value="planned">Planned</option><option value="ordered">Ordered</option><option value="received">Received</option></select></label>
+			</article>
+		</template>
+	</section>
+
+	<section class="admin-products__panel" id="products-panel-collections" role="tabpanel" aria-labelledby="products-tab-collections" data-product-panel="collections" hidden>
+		<aside class="admin-products__preview-notice"><strong>Preview data</strong><span>Featured settings below affect this browser demonstration only.</span><button type="button" data-collections-reset>Reset collections</button></aside>
+		<header class="admin-products__panel-heading"><div><p>Merchandising preview</p><h2>Collections</h2><span>Group catalogue concepts for a future curated storefront.</span></div><strong>4 collections</strong></header>
+		<div class="admin-products__collection-grid">
+			<article data-collection-card data-collection-id="furniture"><div class="admin-products__collection-art admin-products__collection-art--furniture" aria-hidden="true"></div><p>12 Products</p><h3>Furniture</h3><span>Quiet seating, tables, and foundational objects.</span><button type="button" aria-pressed="true" data-collection-feature>Featured</button></article>
+			<article data-collection-card data-collection-id="lighting"><div class="admin-products__collection-art admin-products__collection-art--lighting" aria-hidden="true"></div><p>8 Products</p><h3>Lighting</h3><span>Sculptural pendants and restrained ambient light.</span><button type="button" aria-pressed="false" data-collection-feature>Feature collection</button></article>
+			<article data-collection-card data-collection-id="accessories"><div class="admin-products__collection-art admin-products__collection-art--accessories" aria-hidden="true"></div><p>16 Products</p><h3>Accessories</h3><span>Material objects chosen for lasting daily use.</span><button type="button" aria-pressed="false" data-collection-feature>Feature collection</button></article>
+			<article data-collection-card data-collection-id="materials"><div class="admin-products__collection-art admin-products__collection-art--materials" aria-hidden="true"></div><p>6 Products</p><h3>Materials</h3><span>Textiles, stone, and tactile architectural studies.</span><button type="button" aria-pressed="false" data-collection-feature>Feature collection</button></article>
+		</div>
+	</section>
+
+	<dialog class="admin-products__dialog" data-stock-dialog aria-labelledby="stock-dialog-title">
+		<form method="dialog"><header><div><p>Browser preview</p><h2 id="stock-dialog-title">Plan a restock</h2></div><button type="submit" value="cancel" formnovalidate aria-label="Close restock dialog">×</button></header><p data-stock-dialog-product></p><label><span>Quantity to order</span><input type="number" min="1" max="999" step="1" value="12" required data-stock-dialog-quantity></label><menu><button type="submit" value="cancel" formnovalidate>Cancel</button><button type="submit" value="confirm" data-stock-dialog-confirm>Add local plan</button></menu></form>
+	</dialog>
+
+	<div class="admin-products__toast" role="status" aria-live="polite" data-product-toast hidden><span data-product-toast-message></span><button type="button" data-product-toast-undo>Undo</button></div>
+	<p class="admin-visually-hidden" aria-live="polite" data-product-announcer></p>
 </main>
 {{end}}

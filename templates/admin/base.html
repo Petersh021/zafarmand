@@ -26,6 +26,9 @@ from the response sent to the browser.
 
 	{{/* One isolated stylesheet keeps admin rules out of the public website. */}}
 	<link rel="stylesheet" href="/static/css/admin.css">
+	{{if .Identity}}
+	<link rel="stylesheet" href="/static/css/admin-shell.css?v=1">
+	{{end}}
 
 	{{/* Route templates may add tightly scoped presentation without widening every admin bundle. */}}
 	{{block "admin-head" .}}{{end}}
@@ -36,15 +39,18 @@ The login CSRF value explicitly selects the anonymous full-viewport
 composition, while authenticated workspaces retain the established
 operational shell. The modifier remains server-rendered without JavaScript.
 */}}
-<body class="admin-body{{if .LoginCSRFToken}} admin-body--login{{end}}">
+<body class="admin-body{{if .LoginCSRFToken}} admin-body--login{{end}}{{if .Identity}} admin-body--workspace{{end}}">
 	<a class="admin-skip-link" href="#admin-main-content">
 		Skip to admin content
 	</a>
 
-	<header class="admin-header">
+	<header class="admin-header{{if .Identity}} admin-sidebar{{end}}">
 		<a class="admin-brand" href="/admin">
-			<span class="admin-brand__studio">Zafarmand</span>
-			<span class="admin-brand__area">Administration</span>
+			<span class="admin-brand__mark" aria-hidden="true">Z</span>
+			<span class="admin-brand__copy">
+				<span class="admin-brand__studio">Zafarmand</span>
+				<span class="admin-brand__area">Studio Administration</span>
+			</span>
 		</a>
 
 		{{/*
@@ -55,15 +61,48 @@ operational shell. The modifier remains server-rendered without JavaScript.
 		*/}}
 		{{with .Identity}}
 		<div class="admin-header__workspace">
-			<nav class="admin-nav" aria-label="Administration">
+			<button
+				class="admin-sidebar-toggle"
+				type="button"
+				aria-controls="admin-navigation"
+				aria-expanded="true"
+				hidden
+			>
+				<svg viewBox="0 0 24 24" aria-hidden="true">
+					<path d="M9 5l7 7-7 7" />
+				</svg>
+				<span class="admin-sidebar-toggle__label">Collapse sidebar</span>
+			</button>
+
+			<nav class="admin-nav" id="admin-navigation" aria-label="Administration">
 				<ul class="admin-nav__list">
+					<li class="admin-nav__group-label">Shop</li>
 					<li>
 						<a
 							class="admin-nav__link{{if eq $.NavigationPath "/admin"}} admin-nav__link--active{{end}}"
 							href="/admin"
+							title="Dashboard"
 							{{if eq $.NavigationPath "/admin"}}aria-current="page"{{end}}
 						>
-							Overview
+							<svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+								<path d="M4 13h6V4H4v9Zm0 7h6v-4H4v4Zm10 0h6v-9h-6v9Zm0-16v4h6V4h-6Z" />
+							</svg>
+							<span class="admin-nav__label">Dashboard</span>
+						</a>
+					</li>
+
+					<li>
+						<a
+							class="admin-nav__link{{if eq $.NavigationPath "/admin/orders"}} admin-nav__link--active{{end}}"
+							href="/admin/orders"
+							title="Orders"
+							{{if eq $.NavigationPath "/admin/orders"}}aria-current="page"{{end}}
+						>
+							<svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+								<path d="M6 3h12l2 4v14H4V7l2-4Zm1.2 2L6.5 7h11L16.8 5H7.2ZM6 9v10h12V9h-5v4h-2V9H6Z" />
+							</svg>
+							<span class="admin-nav__label">Orders</span>
+							<span class="admin-nav__badge" aria-label="6 preview orders">6</span>
 						</a>
 					</li>
 
@@ -71,11 +110,46 @@ operational shell. The modifier remains server-rendered without JavaScript.
 						<a
 							class="admin-nav__link{{if eq $.NavigationPath "/admin/products"}} admin-nav__link--active{{end}}"
 							href="/admin/products"
+							title="Products"
 							{{if eq $.NavigationPath "/admin/products"}}aria-current="page"{{end}}
 						>
-							Products
+							<svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+								<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Zm0 2.3L7 8l5 2.7L17 8l-5-2.7Zm-6 4.4v5.6l5 2.8v-5.7L6 9.7Zm7 8.4 5-2.8V9.7l-5 2.7v5.7Z" />
+							</svg>
+							<span class="admin-nav__label">Products</span>
+							<span class="admin-nav__badge" aria-label="4 catalogue tools">4</span>
 						</a>
 					</li>
+
+					<li>
+						<a
+							class="admin-nav__link{{if eq $.NavigationPath "/admin/analytics"}} admin-nav__link--active{{end}}"
+							href="/admin/analytics"
+							title="Analytics"
+							{{if eq $.NavigationPath "/admin/analytics"}}aria-current="page"{{end}}
+						>
+							<svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+								<path d="M4 19h16v2H2V3h2v16Zm3-3 3.8-4 3 2.5L19 8l1.5 1.3-6.5 8.1-3.1-2.6L8.5 17 7 16Z" />
+							</svg>
+							<span class="admin-nav__label">Analytics</span>
+						</a>
+					</li>
+
+					<li>
+						<a
+							class="admin-nav__link{{if eq $.NavigationPath "/admin/customers"}} admin-nav__link--active{{end}}"
+							href="/admin/customers"
+							title="Customers"
+							{{if eq $.NavigationPath "/admin/customers"}}aria-current="page"{{end}}
+						>
+							<svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+								<path d="M8.5 11A4 4 0 1 1 8.5 3a4 4 0 0 1 0 8Zm0-2a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM2 21v-3.2C2 14.6 4.8 12 8.5 12s6.5 2.6 6.5 5.8V21H2Zm2-2h9v-1.2c0-2-1.9-3.8-4.5-3.8S4 15.8 4 17.8V19Zm13.3-6.7A3.5 3.5 0 1 0 15 6.2a6.2 6.2 0 0 1-.3 3.1 1.5 1.5 0 1 0 2.6 3ZM17 14c3 0 5 2 5 4.5V21h-5v-2h3v-.5c0-1.4-1.2-2.5-3-2.5v-2Z" />
+							</svg>
+							<span class="admin-nav__label">Customers</span>
+						</a>
+					</li>
+
+					<li class="admin-nav__group-label">Content</li>
 
 					{{/*
 					Interior projects use a separate protected workspace and active-state
@@ -86,9 +160,13 @@ operational shell. The modifier remains server-rendered without JavaScript.
 						<a
 							class="admin-nav__link{{if eq $.NavigationPath "/admin/interior-projects"}} admin-nav__link--active{{end}}"
 							href="/admin/interior-projects"
+							title="Interior projects"
 							{{if eq $.NavigationPath "/admin/interior-projects"}}aria-current="page"{{end}}
 						>
-							Interior projects
+							<svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+								<path d="M4 20V9l8-5 8 5v11h-6v-6h-4v6H4Zm2-2h2v-6h8v6h2v-7.9l-6-3.7-6 3.7V18Z" />
+							</svg>
+							<span class="admin-nav__label">Interior projects</span>
 						</a>
 					</li>
 
@@ -101,9 +179,13 @@ operational shell. The modifier remains server-rendered without JavaScript.
 						<a
 							class="admin-nav__link{{if eq $.NavigationPath "/admin/architecture-projects"}} admin-nav__link--active{{end}}"
 							href="/admin/architecture-projects"
+							title="Architecture projects"
 							{{if eq $.NavigationPath "/admin/architecture-projects"}}aria-current="page"{{end}}
 						>
-							Architecture projects
+							<svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+								<path d="M3 20h18v-2h-2V9h2L12 3 3 9h2v9H3v2Zm4-2v-8h2v8H7Zm4 0v-8h2v8h-2Zm4 0v-8h2v8h-2ZM8.8 8 12 5.9 15.2 8H8.8Z" />
+							</svg>
+							<span class="admin-nav__label">Architecture projects</span>
 						</a>
 					</li>
 
@@ -112,33 +194,160 @@ operational shell. The modifier remains server-rendered without JavaScript.
 					settings behind one protected workspace. Its independent active-path
 					value keeps this editorial authority separate from discipline records.
 					*/}}
+					<li class="admin-nav__group-label">Website</li>
 					<li>
 						<a
 							class="admin-nav__link{{if eq $.NavigationPath "/admin/site-content"}} admin-nav__link--active{{end}}"
 							href="/admin/site-content"
+							title="Site content"
 							{{if eq $.NavigationPath "/admin/site-content"}}aria-current="page"{{end}}
 						>
-							Site content
+							<svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+								<path d="M4 4h16v16H4V4Zm2 2v3h12V6H6Zm0 5v7h5v-7H6Zm7 0v2h5v-2h-5Zm0 4v3h5v-3h-5Z" />
+							</svg>
+							<span class="admin-nav__label">Site content</span>
+						</a>
+					</li>
+
+					<li class="admin-nav__group-label">Money</li>
+					<li>
+						<a
+							class="admin-nav__link{{if eq $.NavigationPath "/admin/finances"}} admin-nav__link--active{{end}}"
+							href="/admin/finances"
+							title="Finances"
+							{{if eq $.NavigationPath "/admin/finances"}}aria-current="page"{{end}}
+						>
+							<svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+								<path d="M4 5h16v14H4V5Zm2 2v10h12V7H6Zm1.5 5h2.2c.2.8.9 1.2 2.3 1.2 1.2 0 1.8-.3 1.8-.8 0-.4-.5-.7-2.2-1-2.8-.5-3.8-1.2-3.8-2.8 0-1.5 1.3-2.5 3.3-2.7V5h1.8v.9c1.9.2 3.1 1.1 3.4 2.7h-2.1c-.2-.7-.9-1.1-2-1.1-1.1 0-1.7.3-1.7.8 0 .4.5.7 2.1 1 2.9.5 3.9 1.3 3.9 2.9 0 1.6-1.3 2.6-3.6 2.8v1h-1.8v-1c-2.2-.2-3.4-1.2-3.6-3Z" />
+							</svg>
+							<span class="admin-nav__label">Finances</span>
 						</a>
 					</li>
 
 					<li>
 						<a
+							class="admin-nav__link{{if eq $.NavigationPath "/admin/invoices"}} admin-nav__link--active{{end}}"
+							href="/admin/invoices"
+							title="Invoices"
+							{{if eq $.NavigationPath "/admin/invoices"}}aria-current="page"{{end}}
+						>
+							<svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+								<path d="M6 2h12v20l-3-1.7-3 1.7-3-1.7L6 22V2Zm2 2v14.6l1-.6 3 1.7 3-1.7 1 .6V4H8Zm2 3h4v2h-4V7Zm0 4h4v2h-4v-2Zm0 4h4v2h-4v-2Z" />
+							</svg>
+							<span class="admin-nav__label">Invoices</span>
+						</a>
+					</li>
+
+					<li>
+						<a
+							class="admin-nav__link{{if eq $.NavigationPath "/admin/discounts"}} admin-nav__link--active{{end}}"
+							href="/admin/discounts"
+							title="Discounts"
+							{{if eq $.NavigationPath "/admin/discounts"}}aria-current="page"{{end}}
+						>
+							<svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+								<path d="m12 2 9 5v10l-9 5-9-5V7l9-5Zm0 2.3L5 8.2v7.6l7 3.9 7-3.9V8.2l-7-3.9ZM9 8.5A1.5 1.5 0 1 1 9 11a1.5 1.5 0 0 1 0-3Zm6 4.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm-6.7 3.2 6.4-8.4 1.6 1.2-6.4 8.4-1.6-1.2Z" />
+							</svg>
+							<span class="admin-nav__label">Discounts</span>
+						</a>
+					</li>
+
+					<li class="admin-nav__group-label">Communication</li>
+					<li>
+						<a
 							class="admin-nav__link{{if eq $.NavigationPath "/admin/inquiries"}} admin-nav__link--active{{end}}"
 							href="/admin/inquiries"
+							title="Inquiries"
 							{{if eq $.NavigationPath "/admin/inquiries"}}aria-current="page"{{end}}
 						>
-							Inquiries
+							<svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+								<path d="M3 5h18v14H3V5Zm3.2 2 5.8 4.4L17.8 7H6.2ZM5 8.5V17h14V8.5l-7 5.3-7-5.3Z" />
+							</svg>
+							<span class="admin-nav__label">Inquiries</span>
+						</a>
+					</li>
+
+					<li>
+						<a
+							class="admin-nav__link{{if eq $.NavigationPath "/admin/chats"}} admin-nav__link--active{{end}}"
+							href="/admin/chats"
+							title="Chats"
+							{{if eq $.NavigationPath "/admin/chats"}}aria-current="page"{{end}}
+						>
+							<svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+								<path d="M4 4h16v13H9l-5 4V4Zm2 2v10.8L8.3 15H18V6H6Zm2 3h8v2H8V9Zm0 4h5v2H8v-2Z" />
+							</svg>
+							<span class="admin-nav__label">Chats</span>
+							<span class="admin-nav__badge" aria-label="3 preview conversations">3</span>
+						</a>
+					</li>
+
+					<li>
+						<a
+							class="admin-nav__link{{if eq $.NavigationPath "/admin/email"}} admin-nav__link--active{{end}}"
+							href="/admin/email"
+							title="Email"
+							{{if eq $.NavigationPath "/admin/email"}}aria-current="page"{{end}}
+						>
+							<svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+								<path d="M3 5h18v14H3V5Zm3.2 2 5.8 4.4L17.8 7H6.2ZM5 8.5V17h14V8.5l-7 5.3-7-5.3Z" />
+							</svg>
+							<span class="admin-nav__label">Email</span>
+							<span class="admin-nav__badge" aria-label="6 preview messages">6</span>
+						</a>
+					</li>
+
+					<li class="admin-nav__group-label">Extend</li>
+					<li>
+						<a
+							class="admin-nav__link{{if eq $.NavigationPath "/admin/apps"}} admin-nav__link--active{{end}}"
+							href="/admin/apps"
+							title="Apps"
+							{{if eq $.NavigationPath "/admin/apps"}}aria-current="page"{{end}}
+						>
+							<svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+								<path d="M3 3h7v7H3V3Zm2 2v3h3V5H5Zm9-2h7v7h-7V3Zm2 2v3h3V5h-3ZM3 14h7v7H3v-7Zm2 2v3h3v-3H5Zm9-2h3v3h-3v-3Zm4 0h3v3h-3v-3Zm-4 4h3v3h-3v-3Zm4 0h3v3h-3v-3Z" />
+							</svg>
+							<span class="admin-nav__label">Apps</span>
+						</a>
+					</li>
+
+					<li class="admin-nav__group-label">System</li>
+					<li>
+						<a
+							class="admin-nav__link{{if eq $.NavigationPath "/admin/settings"}} admin-nav__link--active{{end}}"
+							href="/admin/settings"
+							title="Settings"
+							{{if eq $.NavigationPath "/admin/settings"}}aria-current="page"{{end}}
+						>
+							<svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+								<path d="m10.8 2 2.4.1.6 2a8 8 0 0 1 1.5.7l1.9-.9 1.8 1.7-.8 2a8 8 0 0 1 .6 1.5l2.1.7v2.4l-2.1.7a8 8 0 0 1-.6 1.5l.8 2-1.8 1.7-1.9-.9a8 8 0 0 1-1.5.7l-.6 2-2.4.1-.7-2a8 8 0 0 1-1.5-.6l-1.9.8L5 18.4l.8-1.9a8 8 0 0 1-.6-1.5l-2.1-.7v-2.4l2.1-.7a8 8 0 0 1 .6-1.5L5 7.8 6.7 6l1.9.8a8 8 0 0 1 1.5-.6l.7-2.2Zm1.2 6a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z" />
+							</svg>
+							<span class="admin-nav__label">Settings</span>
+						</a>
+					</li>
+
+					<li>
+						<a
+							class="admin-nav__link{{if eq $.NavigationPath "/admin/help"}} admin-nav__link--active{{end}}"
+							href="/admin/help"
+							title="Help"
+							{{if eq $.NavigationPath "/admin/help"}}aria-current="page"{{end}}
+						>
+							<svg class="admin-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+								<path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm0 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16Zm0 12.5a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4ZM12 6c2.3 0 4 1.4 4 3.4 0 1.6-.8 2.4-2 3.1-.9.5-1 1-1 2h-2c0-1.6.4-2.5 1.8-3.3.8-.5 1.2-.9 1.2-1.8C14 8.5 13.2 8 12 8s-2 .6-2.2 1.7l-2-.4C8.1 7.3 9.7 6 12 6Z" />
+							</svg>
+							<span class="admin-nav__label">Help</span>
 						</a>
 					</li>
 				</ul>
 			</nav>
 
 			<div class="admin-header__session">
+				<span class="admin-header__avatar" aria-hidden="true">{{slice .Email 0 1}}</span>
 				<p class="admin-header__identity">
-					<span>{{.Email}}</span>
-					<span aria-hidden="true">/</span>
-					<span>{{.RoleLabel}}</span>
+					<span class="admin-header__email">{{.Email}}</span>
+					<span class="admin-header__role">{{.RoleLabel}}</span>
 				</p>
 
 				{{/*
@@ -161,6 +370,113 @@ operational shell. The modifier remains server-rendered without JavaScript.
 		{{end}}
 	</header>
 
+	{{with .Identity}}
+	<div class="admin-topbar">
+		<div class="admin-topbar__context">
+			<span class="admin-topbar__status" aria-hidden="true"></span>
+			<span data-admin-current-date>Private workspace</span>
+			<span aria-hidden="true">/</span>
+			<strong>{{$.Title}}</strong>
+		</div>
+
+		<div class="admin-topbar__actions">
+			<button
+				class="admin-command-button"
+				type="button"
+				aria-haspopup="dialog"
+				aria-keyshortcuts="Control+K Meta+K"
+				data-admin-command-open
+			>
+				<svg viewBox="0 0 24 24" aria-hidden="true">
+					<path d="m21 21-4.4-4.4m2.4-5.1a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" />
+				</svg>
+				<span>Search</span>
+				<kbd>Ctrl K</kbd>
+			</button>
+
+			<button class="admin-icon-control" type="button" data-admin-theme-toggle aria-pressed="false">
+				<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" /></svg>
+				<span class="admin-visually-hidden" data-admin-theme-label>Use light theme</span>
+			</button>
+
+			<details class="admin-topbar-menu admin-notification-menu">
+				<summary aria-label="Open notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 8h18c0-1-3-1-3-8Zm-8 11h4" /></svg><span>3</span></summary>
+				<div><header><strong>Notifications</strong><span>Preview</span></header><a href="/admin/orders?view=board"><b>3 orders waiting</b><small>Open the packing board</small></a><a href="/admin/products"><b>Stock needs attention</b><small>3 demonstration products</small></a><a href="/admin/inquiries"><b>Inquiry workspace</b><small>Review real Contact messages</small></a></div>
+			</details>
+
+			<details class="admin-topbar-menu admin-create-menu">
+				<summary>+ Create</summary>
+				<div><header><strong>Create</strong><span>Choose a workflow</span></header><a href="/admin/orders?new=1"><b>Demo order</b><small>Browser preview only</small></a><a href="/admin/products/new"><b>Product</b><small>Create a real catalogue record</small></a><a href="/admin/interior-projects/new"><b>Interior project</b><small>Create a portfolio record</small></a><a href="/admin/architecture-projects/new"><b>Architecture project</b><small>Create a portfolio record</small></a></div>
+			</details>
+
+			<a class="admin-topbar__site-link" href="/">
+				View website
+				<svg viewBox="0 0 24 24" aria-hidden="true">
+					<path d="M7 17 17 7M9 7h8v8" />
+				</svg>
+			</a>
+		</div>
+	</div>
+
+	<div class="admin-command-palette" data-admin-command-palette hidden>
+		<button
+			class="admin-command-palette__backdrop"
+			type="button"
+			aria-label="Close administration search"
+			data-admin-command-close
+		></button>
+		<section
+			class="admin-command-palette__dialog"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="admin-command-title"
+		>
+			<header>
+				<div>
+					<p>Workspace finder</p>
+					<h2 id="admin-command-title">Go anywhere</h2>
+				</div>
+				<button type="button" data-admin-command-close>Close</button>
+			</header>
+
+			<label class="admin-command-palette__search">
+				<span class="admin-visually-hidden">Search administration pages</span>
+				<svg viewBox="0 0 24 24" aria-hidden="true">
+					<path d="m21 21-4.4-4.4m2.4-5.1a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" />
+				</svg>
+				<input
+					type="search"
+					autocomplete="off"
+					placeholder="Search pages and tools"
+					data-admin-command-input
+				>
+			</label>
+
+			<ul class="admin-command-palette__results" data-admin-command-results>
+				<li><a href="/admin" data-admin-command-item><span>Dashboard</span><small>Overview and studio signals</small></a></li>
+				<li><a href="/admin/orders" data-admin-command-item><span>Orders</span><small>Filters, packing board, drafts and returns</small></a></li>
+				<li><a href="/admin/products" data-admin-command-item><span>Products</span><small>Catalogue and publication records</small></a></li>
+				<li><a href="/admin/analytics" data-admin-command-item><span>Analytics</span><small>Sales, visitors and checkout funnel</small></a></li>
+				<li><a href="/admin/customers" data-admin-command-item><span>Customers</span><small>Profiles, segments and reviews</small></a></li>
+				<li><a href="/admin/interior-projects" data-admin-command-item><span>Interior projects</span><small>Published interior portfolio</small></a></li>
+				<li><a href="/admin/architecture-projects" data-admin-command-item><span>Architecture projects</span><small>Published architecture portfolio</small></a></li>
+				<li><a href="/admin/site-content" data-admin-command-item><span>Site content</span><small>Homepage and Contact presentation</small></a></li>
+				<li><a href="/admin/finances" data-admin-command-item><span>Finances</span><small>Profit, payouts and expenses</small></a></li>
+				<li><a href="/admin/invoices" data-admin-command-item><span>Invoices</span><small>Open, overdue and paid records</small></a></li>
+				<li><a href="/admin/discounts" data-admin-command-item><span>Discounts</span><small>Codes and campaigns</small></a></li>
+				<li><a href="/admin/inquiries" data-admin-command-item><span>Inquiries</span><small>Public Contact messages</small></a></li>
+				<li><a href="/admin/chats" data-admin-command-item><span>Chats</span><small>Website and social conversations</small></a></li>
+				<li><a href="/admin/email" data-admin-command-item><span>Email</span><small>Inbox, priority and drafts</small></a></li>
+				<li><a href="/admin/apps" data-admin-command-item><span>Apps</span><small>Planned integrations</small></a></li>
+				<li><a href="/admin/settings" data-admin-command-item><span>Settings</span><small>Appearance, account and integrations</small></a></li>
+				<li><a href="/admin/help" data-admin-command-item><span>Help</span><small>Guides, FAQ and support</small></a></li>
+			</ul>
+			<p class="admin-command-palette__empty" data-admin-command-empty hidden>No matching admin page.</p>
+			<footer><span>Use arrow keys to move</span><span>Enter to open</span><span>Esc to close</span></footer>
+		</section>
+	</div>
+	{{end}}
+
 	{{/*
 	Admin page templates replace this block with exactly one main landmark. The
 	fallback retains the skip-link target if a future page omits its definition.
@@ -176,6 +492,10 @@ operational shell. The modifier remains server-rendered without JavaScript.
 	*/}}
 	{{if .LoginCSRFToken}}
 	<script src="/static/js/admin-login.js?v=2" defer></script>
+	{{end}}
+	{{if .Identity}}
+	<script src="/static/js/admin-shell.js?v=1" defer></script>
+	{{block "admin-scripts" .}}{{end}}
 	{{end}}
 </body>
 </html>
